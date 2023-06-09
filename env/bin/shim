@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-export NODE_PATH='/Users/viktor/Bachelorarbeit/Entwicklung/nextflow_analysis/vuejs/env/lib/node_modules'
-export NPM_CONFIG_PREFIX='/Users/viktor/Bachelorarbeit/Entwicklung/nextflow_analysis/vuejs/env'
-export npm_config_prefix='/Users/viktor/Bachelorarbeit/Entwicklung/nextflow_analysis/vuejs/env'
-exec 'env/bin/node' "$@"
