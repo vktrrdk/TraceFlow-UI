@@ -7,6 +7,7 @@ import type { RunTrace } from "@/models/RunTrace";
 import {useRouter, useRoute} from "vue-router";
 import axios from "axios";
 
+
 const router = useRouter();
 const route = useRoute();
 
@@ -22,6 +23,7 @@ const currentState = reactive<{
     faultyResponse: boolean;
     token_exists: boolean;
     token_information_requested: boolean;
+    token_generation_requested: boolean;
 }>({
     loading: false,
     token: "",
@@ -29,15 +31,18 @@ const currentState = reactive<{
     faultyResponse: false,
     token_exists: false,
     token_information_requested: false,
+    token_generation_requested: false,
 });
 
 
 function generateNewToken() {
     currentState.loading = true;
+    currentState.token_information_requested = false;
     axios.get("http://localhost:8000/create/token/").then(
         response => {
-            console.log(response.data);
+            currentState.newly_created_token = response.data["token"]["id"];
             currentState.loading = false;
+            currentState.token_generation_requested = true;
         }
     )
 }
@@ -45,6 +50,7 @@ function generateNewToken() {
 function showTokenInformation(token_id: string) {
     currentState.loading = true;
     currentState.token_information_requested = true;
+    currentState.token_generation_requested = false;
     currentState.token = token_id;
     axios.get(`http://localhost:8000/token/validate/${token_id}/`).then(
         response => {
@@ -79,20 +85,25 @@ onMounted(() => {
             <button @click="showTokenInformation(currentState.token)" class="btn btn-outline-primary" type="button">Show</button>
         </div>
 
+        <hr>
         <button class="btn btn-outline-primary" @click="generateNewToken()">
             Generate new token
         </button>
-        <div class="card-body" v-if="currentState.newly_created_token?.length > 0">
-            <div class="alert alert info">
-                Your newly created token is: <strong>{{currentState.newly_created_token}}</strong>
+        <div class="card-body" v-if="currentState.token_generation_requested">
+            <div class="alert alert-info">
+                Your newly created token is: <strong>{{currentState.newly_created_token}}</strong>.
                 Please persist this token. You can now register workflows to this token.
+                <router-link :to="getLink(currentState.newly_created_token)">
+                    <button class="btn btn-outline-info">Show information</button>
+                </router-link>
             </div>
         </div>
+        <div v-if="currentState.token_information_requested">
         <div class="card-body" v-if="currentState.token_exists">
             <div class="alert alert-info">
                 The token <strong>{{currentState.token}}</strong> is valid. You can either register a run to this token or check the persisted run-data for this token here:
                 <router-link :to="getLink(currentState.token)">
-                    <button class="btn btn-outline-primary">Show information</button>
+                    <button class="btn btn-outline-info">Show information</button>
                 </router-link>
             </div>
         </div>
@@ -102,7 +113,7 @@ onMounted(() => {
                 There is no such token persisted in the database. Please check the entered token and correct your submitted entry or generate a new token.
             </div>
         </div>
-
+        </div>
     </div>
 
 </div>
