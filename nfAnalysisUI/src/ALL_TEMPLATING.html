@@ -1,0 +1,93 @@
+<div class="alert alert-danger">
+  <div class="app">
+    <div class="card-group">
+      <div class="card">
+        <h5 class="card-header">
+          User Token
+        </h5>
+        <div class="card-body">
+          <h6 class="card-subtitle mb-2 text-muted">
+            Enter a user-token to get all information on a registered user.
+          </h6>
+          <div class="input-group mb-3">
+            <span class="input-group-text" id="basic-addon1">Token</span>
+            <input v-model="entered_user_token" type="text" class="form-control" placeholder="token" aria-label="Username" aria-describedby="basic-addon1">
+            <button @click="getUserData(this.entered_user_token)" class="btn btn-outline-secondary" type="button">Show</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-secondary" role="alert" v-if="!faultyResponse">
+            <p>UserToken: {{token}}</p>
+            <p>Name: {{user.name}}</p>
+            <br>
+            <ul>
+              Token:
+              <li v-for="token in user.run_tokens">{{token}} <button class="btn btn-outline-secondary" @click="getRunData(token)">Show information</button></li>
+            </ul>
+            <p v-if="runData != null">{{runData}}</p>
+          </div>
+          <div v-else>
+            <p>There is no user for token id: {{this.entered_user_token}}</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h5 class="card-header">Create new User</h5>
+        <div class="card-body">
+          <h6 class="card-subtitle mb-2 text-muted">
+            Create a new user by name.
+          </h6>
+          <div class="input-group mb-3">
+            <span class="input-group-text" id="basic-addon1">Username</span>
+            <input v-model="entered_username" type="text" class="form-control" placeholder="token" aria-label="Username" aria-describedby="basic-addon1">
+            <button @click="createNewUser(this.entered_username)">Create</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h5 class="card-header">Register Token</h5>
+      <div class="card-body">
+        <h6 class="card-subtitle mb-2 text-muted">
+          Generate a new run-token, which is not user-specified.
+        </h6>
+        <button @click="generateNewToken()" class="btn btn-outline-secondary" type="button">Generate</button>
+      </div>
+      <div class="card-body">
+        <h6 class="card-subtitle mb-2 text-muted">
+          Generate a new run-token, which is user-specified.
+        </h6>
+        <div class="input-group mb-3">
+          <span class="input-group-text" id="basic-addon1">User-Token:</span>
+          <input v-model="entered_token_to_register" type="text" class="form-control" placeholder="token" aria-label="Username" aria-describedby="basic-addon1">
+          <button @click="generateNewUserSpecificToken(this.entered_token_to_register)" class="btn btn-outline-secondary" type="button">Show</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h5 class="card-header">
+        Run Token
+      </h5>
+      <div class="card-body">
+        <h6 class="card-subtitle mb-2 text-muted">
+          Enter a run-token to get all information on a registered run.
+        </h6>
+        <div class="input-group mb-3">
+          <span class="input-group-text" id="basic-addon1">Token</span>
+          <input v-model="entered_run_token" type="text" class="form-control" placeholder="token" aria-label="Username" aria-describedby="basic-addon1">
+          <button @click="getRunData(this.entered_run_token)" class="btn btn-outline-secondary" type="button">Show</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info">
+          Missing yet
+        </div>
+      </div>
+      <div class="card-body">
+        <button @click="getAllTraceData()" class="btn btn-outline-danger">Print all traces</button>
+      </div>
+    </div>
+  </div>
+</div>

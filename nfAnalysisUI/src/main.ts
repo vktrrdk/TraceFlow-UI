@@ -6,7 +6,7 @@ import 'bootstrap/dist/js/bootstrap.min.js'
 import { createApp } from 'vue'
 import App from './App.vue'
 //import UserComponent from "./components/userComponent/userComponent.vue";
-//import router from router;
+import router from "./components/router/router";
 
 /* check out router and components in vue
 
@@ -21,8 +21,8 @@ const router = VueRouter.createRouter({
     history: VueRouter.
 }) */
 
-const app= createApp(App);
-app.mount("#app");
+const app= createApp(App).use(router).mount("#app");
+
 
 
 
