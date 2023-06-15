@@ -98,7 +98,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="card">
+  <div class="card" v-if="props.token">
       <h5 class="card-header">Workflow information for token {{props.token}}</h5>
       <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length == 0">
           <h6 class="card-subtitle mb-2">
@@ -122,6 +122,11 @@ onMounted(() => {
           <svg></svg>
       </div>
   </div>
+    <div v-else>
+        <div class="alert alert-info">
+            Need to implement part for non-existing token / wrong tokens - so user is able to enter a new token.
+        </div>
+    </div>
 
 </template>
 

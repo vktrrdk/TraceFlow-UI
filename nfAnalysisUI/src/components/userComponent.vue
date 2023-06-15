@@ -22,6 +22,8 @@ const userComponentState = reactive<{
     run_tokens: string[];
     user_create_mode: boolean;
     existing_user_mode: boolean;
+    show_existing_user_information: boolean;
+    token_to_add: string;
 }>({
     loading: true,
     token: "",
@@ -30,6 +32,8 @@ const userComponentState = reactive<{
     run_tokens: [],
     user_create_mode: false,
     existing_user_mode: false,
+    show_existing_user_information: false,
+    token_to_add: "",
 });
 
 watch(
@@ -44,12 +48,17 @@ function updateToken(token) {
     getData();
 }
 function getData(token = props.token) {
+    userComponentState.loading = true;
     if (token?.length > 0) {
-        axios.get(`http://localhost:8000/user/token/${props.token}/`).then(
+        axios.get(`http://localhost:8000/user/token/${token}/`).then(
             response => {
-                console.log(response);
+                let data = response.data;
+                userComponentState.loading = false;
+                userComponentState.token = data["id"];
+                userComponentState.user_name = data["name"];
+                userComponentState.run_tokens = data["run_tokens"];
+                userComponentState.show_existing_user_information = true;
             },
-
         );
     } else {
         userComponentState.user_create_mode = false;
@@ -60,11 +69,24 @@ function getData(token = props.token) {
 
 function generateNewUserSpecificToken(user_token: string) {
     axios.get(`http://localhost:8000/create/token/user/${user_token}/`).then(
-        response => {
-            console.log(response);
+        () => {
+            getData(userComponentState.token);
         }
     )
 }
+
+function addTokenToUser(user_token: string, token_to_add: string) {
+    axios.post(`http://localhost:8000/add/token/user/`,  {
+        token: token_to_add,
+        user_token: user_token,
+    }).then(
+        response => {
+            console.log(response.data);
+            getData(userComponentState.token);
+        }
+    )
+}
+
 function createNewUser(user_name: string) {
     axios.get(`http://localhost:8000/user/create/${user_name}/`).then(
         response => {
@@ -74,13 +96,17 @@ function createNewUser(user_name: string) {
 }
 
 function setEnterTokenMode() {
+    userComponentState.existing_user_mode = true;
+    userComponentState.user_create_mode = false;
+}
+
+function setEnterNewUserMode() {
     userComponentState.existing_user_mode = false;
     userComponentState.user_create_mode = true;
 }
 
-function setEnterNewUserMode() {
-    userComponentState.existing_user_mode = true;
-    userComponentState.user_create_mode = false;
+function getLink(token: string){
+    return `/run/${token}/`;
 }
 
 onMounted(() => {
@@ -104,13 +130,55 @@ onMounted(() => {
                 <button @click="getData(userComponentState.token)" class="btn btn-outline-primary" type="button">Show</button>
             </div>
         </div>
+        <div class="card-body" v-if="userComponentState.show_existing_user_information && !userComponentState.loading">
+            <h6 class="card-title">
+                {{userComponentState.user_name}} - {{userComponentState.token}}
+            </h6>
+            <table class="table" v-if="userComponentState.run_tokens?.length > 0">
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Token</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <!-- ESLint: Elements in iteration expect to have 'v-bind:key' directives.(vue/require-v-for-key) ??-->
+                    <tr v-for="(token, index) in userComponentState.run_tokens">
+                        <td scope="row">{{index + 1}}</td>
+                        <td>{{token}}</td>
+                        <td>
+                            <div class="btn-group">
+                                <router-link :to="getLink(token)">
+                                    <button type="button" class="btn btn-outline-dark">Show Run information</button>
+                                </router-link>
+                                <button type="button" class="btn btn-outline-dark">Remove</button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="alert alert-dark" v-else>
+                There are no tokens saved for this user so far - add new tokens below!
+            </div>
+            <label for="add_existing_token_input">Add existing token</label>
+            <div class="input-group mb-3">
+                <span class="input-group-text" id="basic-addon1">Token</span>
+                <input v-model="userComponentState.token_to_add" type="text" class="form-control" placeholder="token" aria-label="Username" id="add_existing_token_input" aria-describedby="basic-addon1">
+                <button @click="addTokenToUser(userComponentState.token, userComponentState.token_to_add)" class="btn btn-outline-dark" type="button">Add</button>
+            </div>
+
+            <button type="button" @click="generateNewUserSpecificToken(userComponentState.token)" class="btn btn-outline-dark">Create new token</button>
+        </div>
         <div class="card-body" v-if="userComponentState.user_create_mode">
             <div class="input-group mb-3">
                 <span class="input-group-text" id="basic-addon1">Username</span>
                 <input v-model="userComponentState.new_user_name" type="text" class="form-control" placeholder="token" aria-label="Username" aria-describedby="basic-addon1">
-                <button @click="createNewUser(userComponentState.new_user_name)" class="btn btn-outline-primary" type="button">Create</button>
+                <button @click="createNewUser(userComponentState.new_user_name)" class="btn btn-outline-dark" type="button">Create</button>
             </div>
         </div>
+
+
     </div>
 
 </template>

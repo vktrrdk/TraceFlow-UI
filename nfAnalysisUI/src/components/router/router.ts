@@ -8,7 +8,7 @@ import MainComponent from "@/components/mainComponent.vue";
 const router = createRouter({
     history: createWebHistory(),
     routes: [{
-            path: "/run/:token",
+            path: "/run/:token?",
             name: "runs",
             component: WorkflowComponent,
             props: (route) => ({
@@ -36,6 +36,7 @@ const router = createRouter({
                 token: route.params.token,
             })
         }
+        // need to add help component
 
     ]
 })
