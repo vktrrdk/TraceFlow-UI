@@ -103,7 +103,7 @@ onMounted(() => {
             <div class="alert alert-info">
                 The token <strong>{{currentState.token}}</strong> is valid. You can either register a run to this token or check the persisted run-data for this token here:
                 <router-link :to="getLink(currentState.token)">
-                    <button class="btn btn-outline-info">Show information</button>
+                    <button class="btn btn-outline-dark">Show information</button>
                 </router-link>
             </div>
         </div>

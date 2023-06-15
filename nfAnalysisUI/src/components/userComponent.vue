@@ -24,6 +24,7 @@ const userComponentState = reactive<{
     existing_user_mode: boolean;
     show_existing_user_information: boolean;
     token_to_add: string;
+    error_on_user_load: boolean
 }>({
     loading: true,
     token: "",
@@ -34,6 +35,7 @@ const userComponentState = reactive<{
     existing_user_mode: false,
     show_existing_user_information: false,
     token_to_add: "",
+    error_on_user_load: false,
 });
 
 watch(
@@ -53,16 +55,22 @@ function getData(token = props.token) {
         axios.get(`http://localhost:8000/user/token/${token}/`).then(
             response => {
                 let data = response.data;
-                userComponentState.loading = false;
-                userComponentState.token = data["id"];
-                userComponentState.user_name = data["name"];
-                userComponentState.run_tokens = data["run_tokens"];
-                userComponentState.show_existing_user_information = true;
+                if (data["id"] && data["id"].length > 0) {
+                    userComponentState.loading = false;
+                    userComponentState.token = data["id"];
+                    userComponentState.user_name = data["name"];
+                    userComponentState.run_tokens = data["run_tokens"];
+                    userComponentState.show_existing_user_information = true;
+                    userComponentState.error_on_user_load = false;
+                } else {
+                    userComponentState.error_on_user_load = true;
+                }
             },
         );
     } else {
         userComponentState.user_create_mode = false;
         userComponentState.existing_user_mode = false;
+
     }
 
 }
@@ -105,6 +113,18 @@ function setEnterNewUserMode() {
     userComponentState.user_create_mode = true;
 }
 
+function removeTokenFromUser(token_to_remove: string) {
+    axios.delete(`http://localhost:8000/user/${userComponentState.token}}/token/${token_to_remove}`).then(
+        response => {
+            console.log(response);
+            getData(userComponentState.token);
+        },
+        error => {
+            console.log(error);
+        }
+    )
+}
+
 function getLink(token: string){
     return `/run/${token}/`;
 }
@@ -130,7 +150,7 @@ onMounted(() => {
                 <button @click="getData(userComponentState.token)" class="btn btn-outline-primary" type="button">Show</button>
             </div>
         </div>
-        <div class="card-body" v-if="userComponentState.show_existing_user_information && !userComponentState.loading">
+        <div class="card-body" v-if="userComponentState.show_existing_user_information && !userComponentState.loading && !userComponentState.error_on_user_load">
             <h6 class="card-title">
                 {{userComponentState.user_name}} - {{userComponentState.token}}
             </h6>
@@ -149,10 +169,8 @@ onMounted(() => {
                         <td>{{token}}</td>
                         <td>
                             <div class="btn-group">
-                                <router-link :to="getLink(token)">
-                                    <button type="button" class="btn btn-outline-dark">Show Run information</button>
-                                </router-link>
-                                <button type="button" class="btn btn-outline-dark">Remove</button>
+                                <button @click="router.push(getLink(token))" type="button" class="btn btn-outline-dark">Show Run information</button>
+                                <button @click="removeTokenFromUser(token)" type="button" class="btn btn-outline-danger">Remove</button>
                             </div>
                         </td>
                     </tr>
@@ -169,6 +187,11 @@ onMounted(() => {
             </div>
 
             <button type="button" @click="generateNewUserSpecificToken(userComponentState.token)" class="btn btn-outline-dark">Create new token</button>
+        </div>
+        <div class="card-body" v-if="userComponentState.error_on_user_load">
+            <div class="alert alert-danger">
+                There is no user with the entered token!
+            </div>
         </div>
         <div class="card-body" v-if="userComponentState.user_create_mode">
             <div class="input-group mb-3">

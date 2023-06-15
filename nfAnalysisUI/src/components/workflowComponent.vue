@@ -22,12 +22,14 @@ const workflowState = reactive<{
     run_traces: RunTrace[];
     token_info_requested: boolean
     chart: any;
+    error_on_request: boolean;
 }>({
     loading: true,
     token: "",
     run_traces: [],
     token_info_requested: false,
     chart: {},
+    error_on_request: false,
 
 });
 
@@ -54,13 +56,23 @@ function getData() {
     workflowState.loading = true;
     axios.get(`http://localhost:8000/run/information/${props.token}/`).then(
         response => {
-            workflowState.run_traces = response.data;
-            workflowState.token_info_requested = true;
-            workflowState.token = props.token;
-            printTraces();
-            generateChart();
+            if (response.data["error"]) {
+                workflowState.run_traces = []
+                workflowState.error_on_request = true;
+            } else {
+                workflowState.run_traces = response.data;
+                workflowState.token_info_requested = true;
+                workflowState.token = props.token;
+                workflowState.error_on_request = false;
+                printTraces();
+                generateChart();
+            }
         },
     );
+}
+
+function deleteToken(token: string) {
+  // needs implementation
 }
 
 function generateChart() {
@@ -100,7 +112,7 @@ onMounted(() => {
 <template>
   <div class="card" v-if="props.token">
       <h5 class="card-header">Workflow information for token {{props.token}}</h5>
-      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length == 0">
+      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length == 0 && !workflowState.error_on_request">
           <h6 class="card-subtitle mb-2">
               There are no workflows connected to this token. Please use the following instructions to persist workflow metrics to this token.
           </h6>
@@ -117,16 +129,23 @@ onMounted(() => {
               As soon as the first metrics have been sent to the token-specific-endpoint, you will be able to see the progress here.
           </div>
       </div>
-      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length > 0">
+      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length > 0 && !workflowState.error_on_request">
           <h5 class="card-title">Metrics</h5>
           <svg></svg>
       </div>
+      <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
+      <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
+          Delete token
+      </div>
+
   </div>
-    <div v-else>
+    <div class="card-body" v-if="workflowState.error_on_request">
         <div class="alert alert-info">
-            Need to implement part for non-existing token / wrong tokens - so user is able to enter a new token.
+            This token is not correct, please enter another token
         </div>
     </div>
+    </div>
+
 
 </template>
 
