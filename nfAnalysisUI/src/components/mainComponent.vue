@@ -54,7 +54,7 @@ function getData(userToken: string) {
             })
     }
     function generateNewToken() {
-        axios.get("http://localhost:8000/create/token/").then(
+        axios.get("http://localhost:8000/token/create").then(
             response => {
                 console.log(response);
             }
@@ -62,7 +62,7 @@ function getData(userToken: string) {
     }
 
     function removeToken(token_id: string) {
-        axios.get(`http://localhost:8000/remove/token/${token_id}/`).then(
+        axios.delete(`http://localhost:8000/token/remove/${token_id}/`).then(
             response => {
                 console.log(response)
             }

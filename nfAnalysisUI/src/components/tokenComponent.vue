@@ -38,7 +38,7 @@ const currentState = reactive<{
 function generateNewToken() {
     currentState.loading = true;
     currentState.token_information_requested = false;
-    axios.get("http://localhost:8000/create/token/").then(
+    axios.get("http://localhost:8000/token/create/").then(
         response => {
             currentState.newly_created_token = response.data["token"]["id"];
             currentState.loading = false;

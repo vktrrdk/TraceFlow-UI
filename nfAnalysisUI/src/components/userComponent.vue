@@ -52,7 +52,7 @@ function updateToken(token) {
 function getData(token = props.token) {
     userComponentState.loading = true;
     if (token?.length > 0) {
-        axios.get(`http://localhost:8000/user/token/${token}/`).then(
+        axios.get(`http://localhost:8000/user/${token}/`).then(
             response => {
                 let data = response.data;
                 if (data["id"] && data["id"].length > 0) {
@@ -76,7 +76,7 @@ function getData(token = props.token) {
 }
 
 function generateNewUserSpecificToken(user_token: string) {
-    axios.get(`http://localhost:8000/create/token/user/${user_token}/`).then(
+    axios.get(`http://localhost:8000/user/${user_token}/token/create/`).then(
         () => {
             getData(userComponentState.token);
         }
@@ -84,7 +84,7 @@ function generateNewUserSpecificToken(user_token: string) {
 }
 
 function addTokenToUser(user_token: string, token_to_add: string) {
-    axios.post(`http://localhost:8000/add/token/user/`,  {
+    axios.post(`http://localhost:8000/user/token/add/`,  {
         token: token_to_add,
         user_token: user_token,
     }).then(
