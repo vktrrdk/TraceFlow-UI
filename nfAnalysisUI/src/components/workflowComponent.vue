@@ -54,7 +54,7 @@ function printTraces() {
 }
 function getData() {
     workflowState.loading = true;
-    axios.get(`http://localhost:8000/run/information/${props.token}/`).then(
+    axios.get(`http://localhost:8000/run/${props.token}/`).then(
         response => {
             if (response.data["error"]) {
                 workflowState.run_traces = []

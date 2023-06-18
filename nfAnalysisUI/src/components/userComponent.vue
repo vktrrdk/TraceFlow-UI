@@ -24,7 +24,9 @@ const userComponentState = reactive<{
     existing_user_mode: boolean;
     show_existing_user_information: boolean;
     token_to_add: string;
-    error_on_user_load: boolean
+    error_on_user_load: boolean;
+    newly_created_user: any;
+    user_creation_requested: boolean;
 }>({
     loading: true,
     token: "",
@@ -36,6 +38,8 @@ const userComponentState = reactive<{
     show_existing_user_information: false,
     token_to_add: "",
     error_on_user_load: false,
+    newly_created_user: {},
+    user_creation_requested: false,
 });
 
 watch(
@@ -62,8 +66,10 @@ function getData(token = props.token) {
                     userComponentState.run_tokens = data["run_tokens"];
                     userComponentState.show_existing_user_information = true;
                     userComponentState.error_on_user_load = false;
+                    userComponentState.user_creation_requested = false;
                 } else {
                     userComponentState.error_on_user_load = true;
+
                 }
             },
         );
@@ -96,9 +102,14 @@ function addTokenToUser(user_token: string, token_to_add: string) {
 }
 
 function createNewUser(user_name: string) {
-    axios.get(`http://localhost:8000/user/create/${user_name}/`).then(
+    userComponentState.loading = true;
+    axios.post(`http://localhost:8000/user/create/`,
+        {name: user_name}).then(
         response => {
-            console.log(response);
+            userComponentState.newly_created_user = response.data;
+            userComponentState.user_creation_requested = true;
+            userComponentState.loading = false;
+            userComponentState.user_create_mode = false;
         }
     )
 }
@@ -127,6 +138,10 @@ function removeTokenFromUser(token_to_remove: string) {
 
 function getLink(token: string){
     return `/run/${token}/`;
+}
+
+function getUserLink(token: string) {
+    return `/user/${token}/`;
 }
 
 onMounted(() => {
@@ -182,7 +197,7 @@ onMounted(() => {
             <label for="add_existing_token_input">Add existing token</label>
             <div class="input-group mb-3">
                 <span class="input-group-text" id="basic-addon1">Token</span>
-                <input v-model="userComponentState.token_to_add" type="text" class="form-control" placeholder="token" aria-label="Username" id="add_existing_token_input" aria-describedby="basic-addon1">
+                <input v-model="userComponentState.token_to_add" type="text" class="form-control" placeholder="Token" aria-label="Username" id="add_existing_token_input" aria-describedby="basic-addon1">
                 <button @click="addTokenToUser(userComponentState.token, userComponentState.token_to_add)" class="btn btn-outline-dark" type="button">Add</button>
             </div>
 
@@ -196,11 +211,21 @@ onMounted(() => {
         <div class="card-body" v-if="userComponentState.user_create_mode">
             <div class="input-group mb-3">
                 <span class="input-group-text" id="basic-addon1">Username</span>
-                <input v-model="userComponentState.new_user_name" type="text" class="form-control" placeholder="token" aria-label="Username" aria-describedby="basic-addon1">
+                <input v-model="userComponentState.new_user_name" type="text" class="form-control" placeholder="Username" aria-label="Username" aria-describedby="basic-addon1">
                 <button @click="createNewUser(userComponentState.new_user_name)" class="btn btn-outline-dark" type="button">Create</button>
             </div>
         </div>
-
+        <div class="card-body" v-if="!userComponentState.loading
+            && userComponentState.user_creation_requested
+            && userComponentState.newly_created_user['id']">
+            <div class="alert alert-dark">
+                New user with name {{userComponentState.newly_created_user.name}} created. <br>
+                <strong>User token ID: {{userComponentState.newly_created_user.id}}</strong>
+                <hr>
+                <button type="button" class="btn btn-outline-dark"
+                        @click="getData(userComponentState.newly_created_user.id)">Manage</button>
+            </div>
+        </div>
 
     </div>
 

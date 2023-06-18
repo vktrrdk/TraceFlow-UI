@@ -48,7 +48,7 @@ function getData(userToken: string) {
         )
     }
     function getRunData(token: string) {
-        axios.get(`http://localhost:8000/run/information/${token}/`).then(
+        axios.get(`http://localhost:8000/run/${token}/`).then(
             response => {
                 console.log(response);
             })
