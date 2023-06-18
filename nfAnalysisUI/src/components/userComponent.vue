@@ -144,6 +144,13 @@ function getUserLink(token: string) {
     return `/user/${token}/`;
 }
 
+/*
+    TODO:
+    - pro modus nur die relevanten informationen anzeigen
+    - request handling anpassen --> error-handling
+    - state-variablen anpassen
+ */
+
 onMounted(() => {
     getData()
 });
@@ -154,8 +161,10 @@ onMounted(() => {
         <h5 class="card-header">User Management</h5>
         <div class="card-body" v-if="props.token?.length == 0 || !props.token">
             <div class="btn-group">
-                <button class="btn btn-outline-primary" @click="setEnterTokenMode()">Enter existing token</button>
-                <button class="btn btn-outline-primary" @click="setEnterNewUserMode()">Create new User</button>
+                <button :class="{'btn-outline-primary' : !userComponentState.existing_user_mode, 'btn-primary': userComponentState.existing_user_mode}"
+                        class="btn " @click="setEnterTokenMode()">Enter existing token</button>
+                <button :class="{'btn-outline-primary' : !userComponentState.user_create_mode, 'btn-primary': userComponentState.user_create_mode}"
+                    class="btn" @click="setEnterNewUserMode()">Create new User</button>
             </div>
         </div>
         <div class="card-body" v-if="userComponentState.existing_user_mode">

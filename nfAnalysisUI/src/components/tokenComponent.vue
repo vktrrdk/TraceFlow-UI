@@ -40,7 +40,7 @@ function generateNewToken() {
     currentState.token_information_requested = false;
     axios.get("http://localhost:8000/token/create/").then(
         response => {
-            currentState.newly_created_token = response.data["token"]["id"];
+            currentState.newly_created_token = response.data["id"];
             currentState.loading = false;
             currentState.token_generation_requested = true;
         }
@@ -55,7 +55,13 @@ function showTokenInformation(token_id: string) {
     axios.get(`http://localhost:8000/token/validate/${token_id}/`).then(
         response => {
             currentState.loading = false;
-            currentState.token_exists = response.data["valid"];
+            if (response.data["valid"] == true) {
+                router.push(getLink(token_id));
+            } else {
+                currentState.token_exists = false;
+            }
+
+
         }
     )
 }
@@ -75,38 +81,28 @@ onMounted(() => {
 
 <div class="card">
     <h5 class="card-header">Token</h5>
-    <div class="card-body">
-        <h6 class="card-subtitle mb-2">
-            Enter a run-token to get all information on a token, or generate a new token.
-        </h6>
-        <div class="input-group mb-3">
-            <span class="input-group-text" id="basic-addon1">Token</span>
-            <input v-model="currentState.token" type="text" class="form-control" placeholder="token" aria-label="Username" aria-describedby="basic-addon1">
-            <button @click="showTokenInformation(currentState.token)" class="btn btn-outline-primary" type="button">Show</button>
+        <div class="card-body">
+            <h6 class="card-subtitle mb-2">
+                Enter a run-token to get information on a token, or generate a new token.
+            </h6>
+            <div class="input-group mb-3">
+                <span class="input-group-text" id="basic-addon1">Token</span>
+                <input v-model="currentState.token" type="text" class="form-control" placeholder="token" aria-label="Username" aria-describedby="basic-addon1">
+                <button @click="showTokenInformation(currentState.token)" class="btn btn-outline-primary" type="button">Show</button>
+            </div>
         </div>
 
-        <hr>
-        <button class="btn btn-outline-primary" @click="generateNewToken()">
-            Generate new token
-        </button>
-        <div class="card-body" v-if="currentState.token_generation_requested">
-            <div class="alert alert-info">
+        <div class="card-body" v-if="currentState.token_generation_requested && currentState.newly_created_token?.length >=0">
+            <div class="alert alert-dark">
                 Your newly created token is: <strong>{{currentState.newly_created_token}}</strong>.
                 Please persist this token. You can now register workflows to this token.
-                <router-link :to="getLink(currentState.newly_created_token)">
-                    <button class="btn btn-outline-info">Show information</button>
-                </router-link>
+                <hr>
+                <button class="btn btn-outline-dark" @click="router.push(getLink(currentState.newly_created_token))">
+                    Manage
+                </button>
             </div>
         </div>
         <div v-if="currentState.token_information_requested">
-        <div class="card-body" v-if="currentState.token_exists">
-            <div class="alert alert-info">
-                The token <strong>{{currentState.token}}</strong> is valid. You can either register a run to this token or check the persisted run-data for this token here:
-                <router-link :to="getLink(currentState.token)">
-                    <button class="btn btn-outline-dark">Show information</button>
-                </router-link>
-            </div>
-        </div>
         <div class="card-body" v-if="!currentState.token_exists && currentState.token_information_requested">
             <div class="alert alert-info">
                 <strong>The entered token is not correct.</strong>
@@ -114,9 +110,14 @@ onMounted(() => {
             </div>
         </div>
         </div>
-    </div>
-
+        <hr>
+        <div class="card-body">
+            <button class="btn btn-outline-primary" @click="generateNewToken()">
+                Generate new token
+            </button>
+        </div>
 </div>
+
 </template>
 
 <style scoped>

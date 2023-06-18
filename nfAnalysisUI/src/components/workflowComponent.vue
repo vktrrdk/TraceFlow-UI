@@ -33,18 +33,6 @@ const workflowState = reactive<{
 
 });
 
-watch(
-    () => props.token, (newToken, oldToken) => {
-        if (newToken !== oldToken) {
-            updateToken(newToken);
-        }
-});
-
-function updateToken(token) {
-    workflowState.token = token;
-    getData();
-}
-
 function printTraces() {
     if (workflowState.run_traces?.length > 0) {
         workflowState.run_traces.forEach((token: RunTrace) => {
@@ -52,23 +40,26 @@ function printTraces() {
         });
     }
 }
-function getData() {
-    workflowState.loading = true;
-    axios.get(`http://localhost:8000/run/${props.token}/`).then(
-        response => {
-            if (response.data["error"]) {
-                workflowState.run_traces = []
-                workflowState.error_on_request = true;
-            } else {
-                workflowState.run_traces = response.data;
-                workflowState.token_info_requested = true;
-                workflowState.token = props.token;
-                workflowState.error_on_request = false;
-                printTraces();
-                generateChart();
-            }
-        },
-    );
+function getData(token = props.token) {
+    if (token.length > 0) {
+        workflowState.loading = true;
+        axios.get(`http://localhost:8000/run/${token}/`).then(
+            response => {
+                if (response.data["error"]) {
+                    workflowState.run_traces = []
+                    workflowState.error_on_request = true;
+                } else {
+                    workflowState.run_traces = response.data;
+                    workflowState.token_info_requested = true;
+                    workflowState.token = token;
+                    workflowState.error_on_request = false;
+                    printTraces();
+                    generateChart();
+                }
+            },
+        );
+    }
+
 }
 
 function deleteToken(token: string) {
@@ -105,18 +96,33 @@ function generateChart() {
 }
 
 onMounted(() => {
-    getData()
+    getData();
 });
 </script>
 
 <template>
-  <div class="card" v-if="props.token">
-      <h5 class="card-header">Workflow information for token {{props.token}}</h5>
-      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length == 0 && !workflowState.error_on_request">
+  <div class="card" v-if="!workflowState.token || workflowState.error_on_request">
+      <h5 class="card-header">Enter token</h5>
+      <div class="card-body">
+          <div class="alert"
+              :class="{ 'alert-dark' : !workflowState.error_on_request, 'alert-danger': workflowState.error_on_request}">
+              Please enter a valid token to show the corresponding workflow information for this token.
+              <strong>The entered token is not valid.</strong>
+          </div>
+          <div class="input-group mb-3">
+              <span class="input-group-text" id="basic-addon1">Token</span>
+              <input v-model="workflowState.token" type="text" class="form-control" placeholder="Token" aria-label="token" aria-describedby="basic-addon1">
+              <button @click="getData(workflowState.token)" class="btn btn-outline-primary" type="button">Show</button>
+          </div>
+      </div>
+  </div>
+  <div class="card" v-if="workflowState.token && workflowState.token_info_requested">
+      <h5 class="card-header">Workflow information for token {{workflowState.token}}</h5>
+      <div class="card-body" v-if="workflowState.run_traces?.length == 0 && !workflowState.error_on_request">
           <h6 class="card-subtitle mb-2">
               There are no workflows connected to this token. Please use the following instructions to persist workflow metrics to this token.
           </h6>
-          <div class="alert alert-info">
+          <div class="alert alert-dark">
               The following steps need to be taken:
               <ul>
                   <li>Take a look at the current token - the full token is: <strong>{{workflowState.token}}</strong> </li>
