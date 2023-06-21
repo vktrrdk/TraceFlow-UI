@@ -140,10 +140,6 @@ function getLink(token: string){
     return `/run/${token}/`;
 }
 
-function getUserLink(token: string) {
-    return `/user/${token}/`;
-}
-
 /*
     TODO:
     - pro modus nur die relevanten informationen anzeigen

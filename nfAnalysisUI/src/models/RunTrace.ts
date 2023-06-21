@@ -5,6 +5,7 @@ export type RunTrace = {
     duration: number;
     memory: number;
     name: string;
+    process: string;
     run_name: string;
     status: string;
     tag: string;

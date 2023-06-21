@@ -6,7 +6,7 @@ import "bootstrap/dist/js/bootstrap.min.js"
 import type { RunTrace } from "@/models/RunTrace";
 import {useRouter, useRoute} from "vue-router";
 import axios from "axios";
-import * as d3 from "d3"
+
 
 
 const router = useRouter();
@@ -23,6 +23,7 @@ const workflowState = reactive<{
     token_info_requested: boolean
     chart: any;
     error_on_request: boolean;
+    current_state: any;
 }>({
     loading: true,
     token: "",
@@ -30,16 +31,9 @@ const workflowState = reactive<{
     token_info_requested: false,
     chart: {},
     error_on_request: false,
-
+    current_state: {},
 });
 
-function printTraces() {
-    if (workflowState.run_traces?.length > 0) {
-        workflowState.run_traces.forEach((token: RunTrace) => {
-            console.log(token);
-        });
-    }
-}
 function getData(token = props.token) {
     if (token.length > 0) {
         workflowState.loading = true;
@@ -49,17 +43,38 @@ function getData(token = props.token) {
                     workflowState.run_traces = []
                     workflowState.error_on_request = true;
                 } else {
-                    workflowState.run_traces = response.data;
+                    workflowState.run_traces = response.data.result_trace;
+                    workflowState.run_traces.sort(sortTraces);
+                    workflowState.current_state = response.data.result_state;
                     workflowState.token_info_requested = true;
                     workflowState.token = token;
                     workflowState.error_on_request = false;
-                    printTraces();
-                    generateChart();
+                    //generateChart();
                 }
             },
         );
     }
 
+}
+
+function sortTraces(a: RunTrace, b: RunTrace): number {
+    if (Date.parse(a.timestamp) < Date.parse(b.timestamp)) {
+        return -1;
+    } else {
+        return 1;
+    }
+}
+
+function getProgressValue(task: any): number {
+    let x: number = 0
+    if (task["status"] === "SUBMITTED") {
+        x = 10
+    } else if (task["status"] === "RUNNING") {
+        x = 50
+    } else if (task["status"] === "COMPLETED") {
+        x = 100
+    }
+    return x;
 }
 
 function deleteToken(token: string) {
@@ -72,27 +87,7 @@ function generateChart() {
     let data = workflowState.run_traces.map((trace: RunTrace) => new Object({"date": trace.timestamp, "memory": trace.memory }));
     const width = 800;
     const height = 500;
-    /** not working as it should - check alternatives - e.g. https://codesandbox.io/s/d3-bar-chart-vuejs-okz1r?file=/src/components/BarChart.vue
-    let svg = d3.select("svg").attr("width", width).attr("height", height);
-    const g = svg.append("g");
-    const x = d3.scaleTime().domain(x_data);
-    const y = d3.scaleLinear().domain(y_data);
-    g.append("g").attr("transform", "translate(0" + height + ")").call(d3.axisBottom(x));
-
-    g.append("g").call(d3.axisLeft(y)).append("text")
-        .attr("fill", "#000")
-        .attr("transform", "rotate(-90)")
-        .attr("y", 6)
-        .attr("dy", "0.71em")
-        .attr("text-anchor", "end")
-        .attr("Memory (RAM)");
-
-    g.append("path")
-        .datum(data)
-        .attr("fill", "none")
-        .attr("stroke", "steelblue")
-        .attr("stroke-width", 1.5) **/
-
+    // TODO: continue chart stuff here
 }
 
 onMounted(() => {
@@ -130,14 +125,45 @@ onMounted(() => {
                       <strong>{{`-with-weblog http://localhost:8000/run/${workflowState.token}/`}}</strong></li>
               </ul>
               So your command to execute will look similar to this: <br>
-              <span class="text-muted">./nextflow run nextflow-io/elixir-workshop-21 -r master -with-docker -with-weblog http://localhost:8000/run/HWnRyTQfsasfZCr</span>
+              <span class="text-muted">./nextflow run nextflow-io/elixir-workshop-21 -r master -with-docker -with-weblog http://localhost:8000/run/{{workflowState.token}}</span>
             <br>
               As soon as the first metrics have been sent to the token-specific-endpoint, you will be able to see the progress here.
           </div>
       </div>
       <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length > 0 && !workflowState.error_on_request">
-          <h5 class="card-title">Metrics</h5>
-          <svg></svg>
+          <h5 class="card-title">Workflow status</h5>
+              <ul class="list-group">
+                  <li v-for="(task, key) in workflowState.current_state" class="list-group-item">
+                      #{{key}}: {{task["process"]}}{{task["sub_process"] ? ':' + task["sub_process"] : ''}} - {{task["status"]}}
+                      <div class="progress" role="progressbar" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" style="height: 3px">
+                          <div class="progress-bar" :style="{width: getProgressValue(task) + '%'}"></div>
+                      </div>
+                  </li>
+              </ul>
+              <hr>
+          <h5 class="card-title">Trace Information</h5>
+              <table class="table table-hover">
+                  <thead>
+                  <tr>
+                      <th scope="col">Task-ID</th>
+                      <th scope="col">Name</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Process</th>
+                      <th scope="col">Tag</th>
+                      <th scope="col">Timestamp</th>
+                  </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="trace in workflowState.run_traces">
+                        <th scope="row">{{trace.task_id}}</th>
+                        <td>{{trace.name}}</td>
+                        <td>{{trace.status}}</td>
+                        <td>{{trace.process}}</td>
+                        <td>{{trace.tag}}</td>
+                        <td>{{trace.timestamp}}</td>
+                    </tr>
+                  </tbody>
+              </table>
       </div>
       <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
       <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
