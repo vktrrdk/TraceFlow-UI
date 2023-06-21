@@ -24,6 +24,7 @@ const workflowState = reactive<{
     chart: any;
     error_on_request: boolean;
     current_state: any;
+    process_state: any;
 }>({
     loading: true,
     token: "",
@@ -32,6 +33,7 @@ const workflowState = reactive<{
     chart: {},
     error_on_request: false,
     current_state: {},
+    process_state: {},
 });
 
 function getData(token = props.token) {
@@ -43,9 +45,10 @@ function getData(token = props.token) {
                     workflowState.run_traces = []
                     workflowState.error_on_request = true;
                 } else {
-                    workflowState.run_traces = response.data.result_trace;
+                    workflowState.run_traces = response.data["result_trace"];
                     workflowState.run_traces.sort(sortTraces);
-                    workflowState.current_state = response.data.result_state;
+                    workflowState.current_state = response.data["result_state"];
+                    workflowState.process_state = response.data["result_combined"];
                     workflowState.token_info_requested = true;
                     workflowState.token = token;
                     workflowState.error_on_request = false;
@@ -75,6 +78,43 @@ function getProgressValue(task: any): number {
         x = 100
     }
     return x;
+}
+
+function processNumbers(info: any): string {
+    const subprocesses: any = info["sub_processes"];
+    const currently_submitted: number = subprocesses.length;
+    const completed = getNumberOfCompletedSubprocesses(info);
+
+    return `${completed} / ${currently_submitted}`;
+}
+
+function getProcessPossibleScore(info: any): number {
+    return info["sub_processes"].length * 2;
+}
+
+function getProcessCurrentScore(info: any): number {
+    const subprocesses: any = info["sub_processes"];
+    let score: number = 0;
+    for (let sb of subprocesses) {
+        if (sb["status"] === "COMPLETED") {
+            score += 2;
+        } else if (sb["status"] === "RUNNING") {
+            score += 1;
+        }
+    }
+    return score;
+}
+
+
+function getNumberOfCompletedSubprocesses(info: any): number {
+    const subprocesses: any = info["sub_processes"];
+    let completed: number = 0;
+    for (let sb of subprocesses) {
+        if (sb["status"] === "COMPLETED") {
+            completed += 1;
+        }
+    }
+    return completed;
 }
 
 function deleteToken(token: string) {
@@ -141,6 +181,20 @@ onMounted(() => {
                   </li>
               </ul>
               <hr>
+          <h5 class="card-title">By process</h5>
+          <ul class="list-group">
+              <li v-for="(info, process) in workflowState.process_state" class="list-group-item">
+                  <div class="d-flex w-100 justify-content-between">
+                      <h5 class="mb-1">{{process}}</h5>
+                      <small>{{processNumbers(info)}}</small>
+                  </div>
+                  <p>Some more information here!</p>
+                  <div class="progress" role="progressbar" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" style="height: 3px">
+                      <div class="progress-bar" :style="{width: parseInt(((getProcessCurrentScore(info) / getProcessPossibleScore(info)) * 100).toString()) + '%'}"></div>
+                  </div>
+              </li>
+          </ul>
+          <hr>
           <h5 class="card-title">Trace Information</h5>
               <table class="table table-hover">
                   <thead>
