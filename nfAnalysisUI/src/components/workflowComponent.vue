@@ -45,10 +45,9 @@ function getData(token = props.token) {
                     workflowState.run_traces = []
                     workflowState.error_on_request = true;
                 } else {
-                    workflowState.run_traces = response.data["result_trace"];
-                    workflowState.run_traces.sort(sortTraces);
-                    workflowState.current_state = response.data["result_state"];
-                    workflowState.process_state = response.data["result_combined"];
+                    workflowState.run_traces = response.data["result_list"];
+                    //workflowState.run_traces.sort(sortTraces);
+                    workflowState.process_state = response.data["result_processes"];
                     workflowState.token_info_requested = true;
                     workflowState.token = token;
                     workflowState.error_on_request = false;
@@ -81,36 +80,35 @@ function getProgressValue(task: any): number {
 }
 
 function processNumbers(info: any): string {
-    const subprocesses: any = info["sub_processes"];
-    const currently_submitted: number = subprocesses.length;
+    const  currently_submitted: number = getNumberOfTasksForProcess(info);
     const completed = getNumberOfCompletedSubprocesses(info);
-
     return `${completed} / ${currently_submitted}`;
 }
 
-function getProcessPossibleScore(info: any): number {
-    return info["sub_processes"].length * 2;
+function getNumberOfTasksForProcess(info: any): number {
+    const subprocesses: any = info["tasks"];
+    let currently_submitted: number = 0;
+    for (let elem in subprocesses) {
+        currently_submitted += 1;
+    }
+    return currently_submitted
 }
 
 function getProcessCurrentScore(info: any): number {
-    const subprocesses: any = info["sub_processes"];
+    const subprocesses: any = info["tasks"];
     let score: number = 0;
-    for (let sb of subprocesses) {
-        if (sb["status"] === "COMPLETED") {
-            score += 2;
-        } else if (sb["status"] === "RUNNING") {
-            score += 1;
-        }
+    for (let sb in subprocesses) {
+        score += subprocesses[sb]["status_score"]
     }
     return score;
 }
 
 
 function getNumberOfCompletedSubprocesses(info: any): number {
-    const subprocesses: any = info["sub_processes"];
+    const subprocesses: any = info["tasks"];
     let completed: number = 0;
-    for (let sb of subprocesses) {
-        if (sb["status"] === "COMPLETED") {
+    for (let sb in subprocesses) {
+        if (subprocesses[sb]["status"] === "COMPLETED") {
             completed += 1;
         }
     }
@@ -171,29 +169,72 @@ onMounted(() => {
           </div>
       </div>
       <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length > 0 && !workflowState.error_on_request">
-          <h5 class="card-title">Workflow status</h5>
-              <ul class="list-group">
-                  <li v-for="(task, key) in workflowState.current_state" class="list-group-item">
-                      #{{key}}: {{task["process"]}}{{task["sub_process"] ? ':' + task["sub_process"] : ''}} - {{task["status"]}}
-                      <div class="progress" role="progressbar" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" style="height: 3px">
-                          <div class="progress-bar" :style="{width: getProgressValue(task) + '%'}"></div>
-                      </div>
-                  </li>
-              </ul>
-              <hr>
           <h5 class="card-title">By process</h5>
-          <ul class="list-group">
-              <li v-for="(info, process) in workflowState.process_state" class="list-group-item">
-                  <div class="d-flex w-100 justify-content-between">
-                      <h5 class="mb-1">{{process}}</h5>
-                      <small>{{processNumbers(info)}}</small>
+          <div class="accordion accordion-flush" v-for="(info, process) in workflowState.process_state" :id="process + '_accordion'">
+              <div class="accordion-item">
+                  <h2 class="accordion-header" :id="'header_' + process">
+                      <button class="accordion-button" type="button" data-bs-toggle="collapse" :data-bs-target="'#collapse_' + process" aria-expanded="false" :aria-controls="'collapse_' + process">
+                          {{process}} - {{processNumbers(info)}} Completed
+                      </button>
+                       <div class="progress" role="progressbar" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" style="height: 5px; border-radius: 0;">
+                          <div class="progress-bar" :style="{width: parseInt(((getProcessCurrentScore(info) / (getNumberOfTasksForProcess(info) * 100)) * 100).toString()) + '%'}"></div>
+                      </div>
+                  </h2>
+                  <div :id="'collapse_' + process" class="accordion-collapse collapse" :aria-labelledby="'header_' + process" data-bs-parent="#processAccordion">
+                      <div class="accordion-body">
+                          <ul class="list-group list-group-flush">
+                              <li class="list-group-item align-items-start" v-for="(task, tid) in info['tasks']">
+                                  <div class="row">
+                                      <div class="col-6">
+                                          <strong>#{{tid}} - {{`${process}${task['sub_task'] != null ? ':'  + task['sub_task'] : ''}`}}</strong>
+                                          {{task['tag']}}
+                                      </div>
+                                      <div class="col-6">
+                                          {{task['status']}}
+                                      </div>
+                                  </div>
+                              </li>
+                          </ul>
+                          <div class="card">
+                              <div class="card-header">
+                                  <h6>Metrics</h6>
+                                  <ul class="nav nav nav-pills card-header-pills">
+                                      <li class="nav-item" v-for="(task, tid) in info['tasks']">
+                                          <a class="nav-link" aria-current="true" href="#">#{{tid}}</a> <!-- add active when is -->
+                                      </li>
+
+                                  </ul>
+                              </div>
+                              <div class="card-body">
+                                  <table class="table">
+                                      <thead>
+                                      <tr>
+                                          <th scope="col">Name</th>
+                                          <th scope="col">CPUs</th>
+                                          <th scope="col">Memory</th>
+                                          <th scope="col">Disk</th>
+                                          <th scope="col">Duration</th>
+                                      </tr>
+                                      </thead>
+                                      <tbody>
+                                      <tr v-for="task in info['tasks']">
+                                          <th scope="row">{{`${process}${task['sub_task'] != null ? ':'  + task['sub_task'] : ''}`}}</th>
+                                          <td>{{task["cpus"]}}</td>
+                                          <td>{{task["memory"]}}</td>
+                                          <td>{{task["disk"]}}</td>
+                                          <td>{{task["duration"]}}</td> <!-- convert to seconds or other format -->
+                                      </tr>
+                                      </tbody>
+                                  </table>
+                              </div>
+
+
+
+                          </div>
+                      </div>
                   </div>
-                  <p>Some more information here!</p>
-                  <div class="progress" role="progressbar" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" style="height: 3px">
-                      <div class="progress-bar" :style="{width: parseInt(((getProcessCurrentScore(info) / getProcessPossibleScore(info)) * 100).toString()) + '%'}"></div>
-                  </div>
-              </li>
-          </ul>
+              </div>
+          </div>
           <hr>
           <h5 class="card-title">Trace Information</h5>
               <table class="table table-hover">
