@@ -6,6 +6,7 @@ import "bootstrap/dist/js/bootstrap.min.js"
 import type { RunTrace } from "@/models/RunTrace";
 import {useRouter, useRoute} from "vue-router";
 import axios from "axios";
+import Chart from 'chart.js/auto'
 
 
 
@@ -25,6 +26,7 @@ const workflowState = reactive<{
     error_on_request: boolean;
     current_state: any;
     process_state: any;
+    //connection: WebSocket;
 }>({
     loading: true,
     token: "",
@@ -34,6 +36,7 @@ const workflowState = reactive<{
     error_on_request: false,
     current_state: {},
     process_state: {},
+    //connection: null,
 });
 
 function getData(token = props.token) {
@@ -51,10 +54,13 @@ function getData(token = props.token) {
                     workflowState.token_info_requested = true;
                     workflowState.token = token;
                     workflowState.error_on_request = false;
-                    //generateChart();
+                    generateChart();
                 }
             },
         );
+        //workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`);
+        //workflowState.connection. TODO: add websocket stuff
+
     }
 
 }
@@ -118,14 +124,67 @@ function getNumberOfCompletedSubprocesses(info: any): number {
 function deleteToken(token: string) {
   // needs implementation
 }
-
-function generateChart() {
+/*
+function generateChart() { OLD
     let x_data = workflowState.run_traces.map((trace: RunTrace) => Date.parse(trace.timestamp));
     let y_data = workflowState.run_traces.map((trace: RunTrace) => trace.memory);
     let data = workflowState.run_traces.map((trace: RunTrace) => new Object({"date": trace.timestamp, "memory": trace.memory }));
     const width = 800;
     const height = 500;
     // TODO: continue chart stuff here
+} */
+
+function delay(ms: number) {
+    return new Promise( resolve => setTimeout(resolve, ms) );
+}
+
+function generateData() {
+    let data = [];
+    for (let process in workflowState.process_state){
+        const tasks = workflowState.process_state[process].tasks
+        for (let tsk in tasks){
+            data.push({process: process, duration: tasks[tsk]['duration']});
+            break;
+        } 
+        
+    }
+    return data;
+    
+
+}
+
+async function generateChart() {
+    // needs a lot of future adjustments
+    let data = generateData();
+    await delay(100);
+  console.log(document.getElementById('chartarea'));
+  new Chart(
+    document.getElementById('chartarea'),
+    {
+      type: 'bar',
+      options: {
+        animation: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            enabled: false
+          }
+        }
+      },
+      data: {
+        labels: data.map(row => row.process),
+        datasets: [
+          {
+            label: 'Duration by process',
+            data: data.map(row => row.duration)
+          }
+        ]
+      }
+    }
+  );
+
 }
 
 onMounted(() => {
@@ -236,7 +295,8 @@ onMounted(() => {
               </div>
           </div>
           <hr>
-          <h5 class="card-title">Trace Information</h5>
+          <div class="card-body">
+            <h5 class="card-title">Trace Information</h5>
               <table class="table table-hover">
                   <thead>
                   <tr>
@@ -259,6 +319,13 @@ onMounted(() => {
                     </tr>
                   </tbody>
               </table>
+          </div>
+      </div>
+      <div class="card-body">
+        <h5 class="card-title">Visualization</h5>
+        <div style="width: 800px;"><canvas id="chartarea"></canvas></div>
+        
+
       </div>
       <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
       <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
