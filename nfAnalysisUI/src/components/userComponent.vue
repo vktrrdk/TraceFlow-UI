@@ -49,7 +49,7 @@ watch(
         }
     });
 
-function updateToken(token) {
+function updateToken(token: string) {
     userComponentState.token = token;
     getData();
 }
