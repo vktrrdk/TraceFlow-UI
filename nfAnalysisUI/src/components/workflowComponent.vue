@@ -297,6 +297,7 @@ onMounted(() => {
           <hr>
           <div class="card-body">
             <h5 class="card-title">Trace Information</h5>
+            <div class="table-responsive">
               <table class="table table-hover">
                   <thead>
                   <tr>
@@ -319,6 +320,7 @@ onMounted(() => {
                     </tr>
                   </tbody>
               </table>
+            </div>
           </div>
       </div>
       <div class="card-body">
