@@ -7,7 +7,20 @@ import type { RunTrace } from "@/models/RunTrace";
 import {useRouter, useRoute} from "vue-router";
 import axios from "axios";
 import Chart from 'chart.js/auto'
+import Accordion from 'primevue/accordion';
+import AccordionTab from 'primevue/accordiontab';
+import ProgressBar from 'primevue/progressbar';
+import MenuItem from 'primevue/menuitem';
+import TabMenu from 'primevue/tabmenu';
+import Card from 'primevue/card';
 
+
+/**
+ * 
+ * We need a function that transforms the indexes of the tasks per process into menuItem-like objects
+ * So we can use these menu items to toggle between the tasks in a process accordion
+ * 
+ * */
 
 
 const router = useRouter();
@@ -193,6 +206,7 @@ onMounted(() => {
 </script>
 
 <template>
+    
   <div class="card" v-if="!workflowState.token || workflowState.error_on_request">
       <h5 class="card-header">Enter token</h5>
       <div class="card-body">
@@ -229,18 +243,59 @@ onMounted(() => {
       </div>
       <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length > 0 && !workflowState.error_on_request">
           <h5 class="card-title">By process</h5>
-          <div class="accordion accordion-flush" v-for="(info, process) in workflowState.process_state" :id="process + '_accordion'">
-              <div class="accordion-item">
-                  <h2 class="accordion-header" :id="'header_' + process">
-                      <button class="accordion-button" type="button" data-bs-toggle="collapse" :data-bs-target="'#collapse_' + process" aria-expanded="false" :aria-controls="'collapse_' + process">
-                          {{process}} - {{processNumbers(info)}} Completed
-                      </button>
-                       <div class="progress" role="progressbar" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" style="height: 5px; border-radius: 0;">
-                          <div class="progress-bar" :style="{width: parseInt(((getProcessCurrentScore(info) / (getNumberOfTasksForProcess(info) * 100)) * 100).toString()) + '%'}"></div>
-                      </div>
-                  </h2>
-                  <div :id="'collapse_' + process" class="accordion-collapse collapse" :aria-labelledby="'header_' + process" data-bs-parent="#processAccordion">
-                      <div class="accordion-body">
+          <hr>
+
+        <div  v-for="(info, process) in workflowState.process_state" :id="process + '_accordion'">
+            <Accordion >
+                <AccordionTab>
+                    <template #header>
+                       <i class="pi pi-cog"></i> 
+                        <span>{{process}} - {{processNumbers(info)}} Completed</span>
+                        
+                    </template>
+                    <div>
+
+                        <Card>
+                            <template #title> Metrics </template>
+                            <template #content>
+                                <TabMenu :model="['test', 'another']" />
+                            </template>
+                        </Card>
+                        
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h6>Metrics</h6>
+                                <ul class="nav nav nav-pills card-header-pills">
+                                    <li class="nav-item" v-for="(task, tid) in info['tasks']">
+                                        <a class="nav-link" aria-current="true" href="#">#{{tid}}</a> <!-- add active when is -->
+                                    </li>
+    
+                                </ul>
+                            </div>
+                            <div class="card-body">
+                                <table class="table">
+                                    <thead>
+                                    <tr>
+                                        <th scope="col">Name</th>
+                                        <th scope="col">CPUs</th>
+                                        <th scope="col">Memory</th>
+                                        <th scope="col">Disk</th>
+                                        <th scope="col">Duration</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr v-for="task in info['tasks']">
+                                        <th scope="row">{{`${process}${task['sub_task'] != null ? ':'  + task['sub_task'] : ''}`}}</th>
+                                        <td>{{task["cpus"]}}</td>
+                                        <td>{{task["memory"]}}</td>
+                                        <td>{{task["disk"]}}</td>
+                                        <td>{{task["duration"]}}</td> <!-- convert to seconds or other format -->
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                           <ul class="list-group list-group-flush">
                               <li class="list-group-item align-items-start" v-for="(task, tid) in info['tasks']">
                                   <div class="row">
@@ -254,46 +309,18 @@ onMounted(() => {
                                   </div>
                               </li>
                           </ul>
-                          <div class="card">
-                              <div class="card-header">
-                                  <h6>Metrics</h6>
-                                  <ul class="nav nav nav-pills card-header-pills">
-                                      <li class="nav-item" v-for="(task, tid) in info['tasks']">
-                                          <a class="nav-link" aria-current="true" href="#">#{{tid}}</a> <!-- add active when is -->
-                                      </li>
-
-                                  </ul>
-                              </div>
-                              <div class="card-body">
-                                  <table class="table">
-                                      <thead>
-                                      <tr>
-                                          <th scope="col">Name</th>
-                                          <th scope="col">CPUs</th>
-                                          <th scope="col">Memory</th>
-                                          <th scope="col">Disk</th>
-                                          <th scope="col">Duration</th>
-                                      </tr>
-                                      </thead>
-                                      <tbody>
-                                      <tr v-for="task in info['tasks']">
-                                          <th scope="row">{{`${process}${task['sub_task'] != null ? ':'  + task['sub_task'] : ''}`}}</th>
-                                          <td>{{task["cpus"]}}</td>
-                                          <td>{{task["memory"]}}</td>
-                                          <td>{{task["disk"]}}</td>
-                                          <td>{{task["duration"]}}</td> <!-- convert to seconds or other format -->
-                                      </tr>
-                                      </tbody>
-                                  </table>
-                              </div>
-
-
-
-                          </div>
-                      </div>
-                  </div>
-              </div>
-          </div>
+                    </div>
+                </AccordionTab>
+            </Accordion>
+            <ProgressBar :value="((getProcessCurrentScore(info) / (getNumberOfTasksForProcess(info) * 100)) * 100).toString()"
+            :pt="{
+                root: { style: { height: '3px' } },
+                value: {style: {height: '3px' } },     
+                label: {style: { display: 'none' } },       }"
+                ></ProgressBar>
+        </div>
+         
+        
           <hr>
           <div class="card-body">
             <h5 class="card-title">Trace Information</h5>

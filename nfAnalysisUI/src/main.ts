@@ -8,6 +8,11 @@ import App from './App.vue'
 //import UserComponent from "./components/userComponent/userComponent.vue";
 import router from "./components/router/router";
 
+import PrimeVue from 'primevue/config';
+import 'primevue/resources/themes/lara-light-teal/theme.css';
+import 'primevue/resources/primevue.min.css';
+import 'primeicons/primeicons.css';  
+
 /* check out router and components in vue
 
 const routes = [
@@ -21,7 +26,8 @@ const router = VueRouter.createRouter({
     history: VueRouter.
 }) */
 
-const app= createApp(App).use(router).mount("#app");
+const app = createApp(App).use(PrimeVue).use(router).mount("#app");
+
 
 
 
