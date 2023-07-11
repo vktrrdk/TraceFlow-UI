@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {onMounted, reactive, watch} from "vue";
+import {onMounted, reactive, setTransitionHooks, watch} from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
@@ -10,8 +10,8 @@ import Chart from 'chart.js/auto'
 import Accordion from 'primevue/accordion';
 import AccordionTab from 'primevue/accordiontab';
 import ProgressBar from 'primevue/progressbar';
-import MenuItem from 'primevue/menuitem';
-import TabMenu from 'primevue/tabmenu';
+import TabView from 'primevue/tabview';
+import TabPanel from 'primevue/tabpanel';
 import Card from 'primevue/card';
 
 
@@ -60,6 +60,7 @@ function getData(token = props.token) {
                 if (response.data["error"]) {
                     workflowState.run_traces = []
                     workflowState.error_on_request = true;
+
                 } else {
                     workflowState.run_traces = response.data["result_list"];
                     //workflowState.run_traces.sort(sortTraces);
@@ -166,11 +167,13 @@ function generateData() {
 
 }
 
+// how to combine the metrics from currentState and process state - what about meta? 
+
+
 async function generateChart() {
     // needs a lot of future adjustments
     let data = generateData();
     await delay(100);
-  console.log(document.getElementById('chartarea'));
   new Chart(
     document.getElementById('chartarea'),
     {
@@ -241,7 +244,7 @@ onMounted(() => {
               As soon as the first metrics have been sent to the token-specific-endpoint, you will be able to see the progress here.
           </div>
       </div>
-      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length > 0 && !workflowState.error_on_request">
+      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
           <h5 class="card-title">By process</h5>
           <hr>
 
@@ -254,49 +257,44 @@ onMounted(() => {
                         
                     </template>
                     <div>
-
                         <Card>
                             <template #title> Metrics </template>
                             <template #content>
-                                <TabMenu :model="['test', 'another']" />
-                            </template>
+                                <TabView>
+                                    <TabPanel v-for="(task, id) in info['tasks']" :header="`#${id}`">
+                                        <table class="table">
+                                            <thead>
+                                            <tr>
+                                                <th scope="col">Name</th>
+                                                <th scope="col">CPUs</th>
+                                                <th scope="col">Memory</th>
+                                                <th scope="col">Disk</th>
+                                                <th scope="col">Duration TEST</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            
+                                            <tr>
+                                                <th scope="row">{{`${process}${task['sub_task'] != null ? ':'  + task['sub_task'] : ''}`}}</th>
+                                                <td>{{task["cpus"]}}</td>
+                                                <td>{{task["memory"]}}</td>
+                                                <td>{{task["disk"]}}</td>
+                                                <td>{{task["duration"]}}</td>
+                                            </tr>  
+                                    
+                                            </tbody>
+                                        </table>
+                                    </TabPanel>
+                                </TabView>
+                            
+                                </template> 
+                                <hr>
+                                
                         </Card>
                         
-                        
-                        <div class="card">
-                            <div class="card-header">
-                                <h6>Metrics</h6>
-                                <ul class="nav nav nav-pills card-header-pills">
-                                    <li class="nav-item" v-for="(task, tid) in info['tasks']">
-                                        <a class="nav-link" aria-current="true" href="#">#{{tid}}</a> <!-- add active when is -->
-                                    </li>
-    
-                                </ul>
-                            </div>
-                            <div class="card-body">
-                                <table class="table">
-                                    <thead>
-                                    <tr>
-                                        <th scope="col">Name</th>
-                                        <th scope="col">CPUs</th>
-                                        <th scope="col">Memory</th>
-                                        <th scope="col">Disk</th>
-                                        <th scope="col">Duration</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <tr v-for="task in info['tasks']">
-                                        <th scope="row">{{`${process}${task['sub_task'] != null ? ':'  + task['sub_task'] : ''}`}}</th>
-                                        <td>{{task["cpus"]}}</td>
-                                        <td>{{task["memory"]}}</td>
-                                        <td>{{task["disk"]}}</td>
-                                        <td>{{task["duration"]}}</td> <!-- convert to seconds or other format -->
-                                    </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                          <ul class="list-group list-group-flush">
+                        <hr>            
+            
+                        <ul class="list-group list-group-flush">
                               <li class="list-group-item align-items-start" v-for="(task, tid) in info['tasks']">
                                   <div class="row">
                                       <div class="col-6">
