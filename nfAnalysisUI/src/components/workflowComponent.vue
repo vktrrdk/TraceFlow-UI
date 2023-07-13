@@ -6,13 +6,17 @@ import "bootstrap/dist/js/bootstrap.min.js"
 import type { RunTrace } from "@/models/RunTrace";
 import {useRouter, useRoute} from "vue-router";
 import axios from "axios";
-import Chart from 'chart.js/auto'
+import Chart from 'chart.js/auto';
+import Utils from 'chart.js/auto';
 import Accordion from 'primevue/accordion';
 import AccordionTab from 'primevue/accordiontab';
 import ProgressBar from 'primevue/progressbar';
 import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel';
 import Card from 'primevue/card';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import Tag from 'primevue/tag';
 
 
 /**
@@ -33,22 +37,20 @@ const props = defineProps<{
 const workflowState = reactive<{
     loading: boolean;
     token: string;
-    run_traces: RunTrace[];
     token_info_requested: boolean
     chart: any;
     error_on_request: boolean;
-    current_state: any;
     process_state: any;
+    state_by_task: any;
     //connection: WebSocket;
 }>({
     loading: true,
     token: "",
-    run_traces: [],
     token_info_requested: false,
     chart: {},
     error_on_request: false,
-    current_state: {},
     process_state: {},
+    state_by_task: {},
     //connection: null,
 });
 
@@ -58,12 +60,11 @@ function getData(token = props.token) {
         axios.get(`http://localhost:8000/run/${token}/`).then(
             response => {
                 if (response.data["error"]) {
-                    workflowState.run_traces = []
+                    workflowState.state_by_task = [];
                     workflowState.error_on_request = true;
 
                 } else {
-                    workflowState.run_traces = response.data["result_list"];
-                    //workflowState.run_traces.sort(sortTraces);
+                    workflowState.state_by_task = response.data["result_by_task"];
                     workflowState.process_state = response.data["result_processes"];
                     workflowState.token_info_requested = true;
                     workflowState.token = token;
@@ -118,7 +119,14 @@ function getProcessCurrentScore(info: any): number {
     const subprocesses: any = info["tasks"];
     let score: number = 0;
     for (let sb in subprocesses) {
-        score += subprocesses[sb]["status_score"]
+        let status: string = subprocesses[sb]["status"];
+        if (status == "SUBMITTED") {
+            score += 10;
+        } else if (status == "RUNNING") {
+            score += 50;
+        } else if (status == "COMPLETED") {
+            score += 100;
+        }   
     }
     return score;
 }
@@ -127,7 +135,7 @@ function getProcessCurrentScore(info: any): number {
 function getNumberOfCompletedSubprocesses(info: any): number {
     const subprocesses: any = info["tasks"];
     let completed: number = 0;
-    for (let sb in subprocesses) {
+    for (let sb in subprocesses){
         if (subprocesses[sb]["status"] === "COMPLETED") {
             completed += 1;
         }
@@ -152,7 +160,7 @@ function delay(ms: number) {
     return new Promise( resolve => setTimeout(resolve, ms) );
 }
 
-function generateData() {
+function generateData(): any[] {
     let data = [];
     for (let process in workflowState.process_state){
         const tasks = workflowState.process_state[process].tasks
@@ -164,15 +172,32 @@ function generateData() {
     }
     return data;
     
+}
+
+function generateCPUData(): any[] {
+    let data: any[] = [];
+    for (let process in workflowState.process_state) {
+        let i = 0;
+        const tasks = workflowState.process_state[process].tasks;
+        for (let tsj in tasks){
+            data.push({process: `process_${i}`, dta: 0})
+        }
+    }
+    
+    
+    return data;
+
 
 }
 
 // how to combine the metrics from currentState and process state - what about meta? 
+// more data from api needed - otherwise no possibility to show all relevant metrics
+// check chart.js and available visualizations in nf-tower
 
 
 async function generateChart() {
     // needs a lot of future adjustments
-    let data = generateData();
+    let datax = generateData();
     await delay(100);
   new Chart(
     document.getElementById('chartarea'),
@@ -182,25 +207,31 @@ async function generateChart() {
         animation: false,
         plugins: {
           legend: {
-            display: false
+            display: true
           },
           tooltip: {
-            enabled: false
+            enabled: true
           }
+          
         }
       },
       data: {
-        labels: data.map(row => row.process),
+        labels: datax.map(row => row.process),
         datasets: [
           {
-            label: 'Duration by process',
-            data: data.map(row => row.duration)
+            label: 'Duration in seconds',
+            data: datax.map(row => (row.duration / 1000))
           }
         ]
       }
     }
   );
+  
 
+}
+
+async function generateCPUChart() {
+    let data = generateCPUData();
 }
 
 onMounted(() => {
@@ -227,7 +258,7 @@ onMounted(() => {
   </div>
   <div class="card" v-if="workflowState.token && workflowState.token_info_requested">
       <h5 class="card-header">Workflow information for token {{workflowState.token}}</h5>
-      <div class="card-body" v-if="workflowState.run_traces?.length == 0 && !workflowState.error_on_request">
+      <div class="card-body" v-if="workflowState.state_by_task?.length == 0 && !workflowState.error_on_request">
           <h6 class="card-subtitle mb-2">
               There are no workflows connected to this token. Please use the following instructions to persist workflow metrics to this token.
           </h6>
@@ -244,7 +275,7 @@ onMounted(() => {
               As soon as the first metrics have been sent to the token-specific-endpoint, you will be able to see the progress here.
           </div>
       </div>
-      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.run_traces?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
+      <div class="card-body" v-if="workflowState.token_info_requested && workflowState.state_by_task?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
           <h5 class="card-title">By process</h5>
           <hr>
 
@@ -252,7 +283,6 @@ onMounted(() => {
             <Accordion >
                 <AccordionTab>
                     <template #header>
-                       <i class="pi pi-cog"></i> 
                         <span>{{process}} - {{processNumbers(info)}} Completed</span>
                         
                     </template>
@@ -260,8 +290,16 @@ onMounted(() => {
                         <Card>
                             <template #title> Metrics </template>
                             <template #content>
+                                <ProgressBar :value="(getProcessCurrentScore(info) / (getNumberOfTasksForProcess(info) * 100)) * 100"
+            :pt="{
+                root: { style: { height: '3px' } },
+                value: {style: {height: '3px' } },     
+                label: {style: { display: 'none' } },       }"
+                ></ProgressBar>
                                 <TabView>
                                     <TabPanel v-for="(task, id) in info['tasks']" :header="`#${id}`">
+        
+                                        <div class="table-responsive">
                                         <table class="table">
                                             <thead>
                                             <tr>
@@ -269,7 +307,23 @@ onMounted(() => {
                                                 <th scope="col">CPUs</th>
                                                 <th scope="col">Memory</th>
                                                 <th scope="col">Disk</th>
-                                                <th scope="col">Duration TEST</th>
+                                                <th scope="col">Duration</th>
+                                                <th scope="col">Realtime</th>
+                                                <th scope="col">wchar</th>
+                                                <th scope="col">rchar</th>
+                                                <th scope="col">rss</th>
+                                                <th scope="col">%cpu</th>
+                                                <th scope="col">%mem</th>
+                                                <th scope="col">Virtual Memory</th>
+                                                <th scope="col">peak VMem</th>
+                                                <th scope="col">syscr</th>
+                                                <th scope="col">syscw</th>
+                                                <th scope="col">peak rss</th>
+                                                <th scope="col">Read bytes</th>
+                                                <th scope="col">Written bytes</th>
+                                                <th scope="col">Voluntary CTXT</th>
+                                                <th scope="col">Involuntary CTXT</th>
+                                                
                                             </tr>
                                             </thead>
                                             <tbody>
@@ -279,80 +333,93 @@ onMounted(() => {
                                                 <td>{{task["cpus"]}}</td>
                                                 <td>{{task["memory"]}}</td>
                                                 <td>{{task["disk"]}}</td>
-                                                <td>{{task["duration"]}}</td>
+                                                <td>{{(task["duration"] / 1000)}} s</td>
+                                                <td>{{task["realtime"]}}</td>
+                                                <td>{{task["wchar"]}}</td>
+                                                <td>{{task["rchar"]}}</td>
+                                                <td>{{task["rss"]}}</td>
+                                                <td>{{task["cpu_percentage"]}}</td>
+                                                <td>{{task["memory_percentage"]}}</td>                                            
+                                                <td>{{task["vmem"]}}</td>
+                                                <td>{{task["peak_vmem"]}}</td>
+                                                <td>{{task["syscr"]}}</td>
+                                                <td>{{task["syscw"]}}</td>
+                                                <td>{{task["peak_rss"]}}</td>
+                                                <td>{{task["read_bytes"]}}</td>
+                                                <td>{{task["write_bytes"]}}</td>
+                                                <td>{{task["vol_ctxt"]}}</td>
+                                                <td>{{task["inv_ctxt"]}}</td>
+                                                
                                             </tr>  
-                                    
                                             </tbody>
                                         </table>
+                                    </div>
                                     </TabPanel>
                                 </TabView>
                             
                                 </template> 
-                                <hr>
+                                
                                 
                         </Card>
                         
-                        <hr>            
-            
-                        <ul class="list-group list-group-flush">
-                              <li class="list-group-item align-items-start" v-for="(task, tid) in info['tasks']">
-                                  <div class="row">
-                                      <div class="col-6">
-                                          <strong>#{{tid}} - {{`${process}${task['sub_task'] != null ? ':'  + task['sub_task'] : ''}`}}</strong>
-                                          {{task['tag']}}
-                                      </div>
-                                      <div class="col-6">
-                                          {{task['status']}}
-                                      </div>
-                                  </div>
-                              </li>
-                          </ul>
+                            
                     </div>
                 </AccordionTab>
             </Accordion>
-            <ProgressBar :value="((getProcessCurrentScore(info) / (getNumberOfTasksForProcess(info) * 100)) * 100).toString()"
-            :pt="{
-                root: { style: { height: '3px' } },
-                value: {style: {height: '3px' } },     
-                label: {style: { display: 'none' } },       }"
-                ></ProgressBar>
+            
         </div>
          
         
           <hr>
           <div class="card-body">
             <h5 class="card-title">Trace Information</h5>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                  <thead>
-                  <tr>
-                      <th scope="col">Task-ID</th>
-                      <th scope="col">Name</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Process</th>
-                      <th scope="col">Tag</th>
-                      <th scope="col">Timestamp</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="trace in workflowState.run_traces">
-                        <th scope="row">{{trace.task_id}}</th>
-                        <td>{{trace.name}}</td>
-                        <td>{{trace.status}}</td>
-                        <td>{{trace.process}}</td>
-                        <td>{{trace.tag}}</td>
-                        <td>{{trace.timestamp}}</td>
-                    </tr>
-                  </tbody>
-              </table>
-            </div>
+
+            <DataTable :value="workflowState.state_by_task" sortField="task_id" :sortOrder="1" tableStyle="min-width: 50rem"
+            paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" removableSort  
+            >
+                <Column field="task_id" header="Task-ID" sortable ></Column>
+                <Column field="name" header="Name" sortable ></Column>
+                <Column field="status" header="Status" sortable>
+                    <template #body="{ data }">
+                        <Tag :value="data.status"/>
+                    </template></Column>
+                <Column field="process" header="Process" sortable></Column>
+                <Column field="tag" header="Tag" sortable></Column>
+                <Column field="timestamp" header="Timestamp" sortable></Column>
+                <Column field="duration" sortable header="Duration">
+                    <template #body="{ data }">
+                       {{(data.duration / 1000)}} s
+                    </template></Column>
+                    <Column field="cpu_percentage" header="CPU %" sortable></Column>
+                    <Column field="memory_percentage" header="Memory %" sortable></Column>
+                    <Column field="disk" header="Disk"></Column>
+                    <Column field="rchar" header="rchar" sortable></Column>
+                    <Column field="wchar" header="wchar" sortable></Column>
+                    <Column field="rss" header="rss" sortable></Column>
+                    <Column field="peak_rss" header="Peak rss" sortable></Column>
+                    <Column field="syscr" header="syscr" sortable></Column>
+                    <Column field="syscw" header="syscw" sortable></Column>
+                    <Column field="peak_vmem" header="Peak VMem" sortable></Column>
+                    <Column field="vmem" header="VMem" sortable></Column>
+                    <Column field="read_bytes" header="Read bytes" sortable></Column>
+                    <Column field="write_bytes" header="Written bytes" sortable></Column>
+                    <Column field="vol_ctxt" header="Voluntary context switches" sortable></Column>
+                    <Column field="inv_ctxt" header="Involuntary cs" sortable></Column>
+                    <Column field="time" header="Time" sortable></Column>
+                    <Column field="realtime" header="Realtime" sortable></Column>
+                    <Column field="tag" header="Tag" sortable></Column>
+            </DataTable>
           </div>
       </div>
       <div class="card-body">
         <h5 class="card-title">Visualization</h5>
+        <h6>Duration</h6> <!-- adjust to have this in chartjs itself -->
         <div style="width: 800px;"><canvas id="chartarea"></canvas></div>
-        
-
+      </div>
+      <hr>
+      <div class="card-body">
+        <h6>CPU usage</h6>
+        <div style="width: 800px;"><cavas id="cpu_chart_area"></cavas></div>
       </div>
       <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
       <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
