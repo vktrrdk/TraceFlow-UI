@@ -70,8 +70,11 @@ function getData(token = props.token) {
                     workflowState.token_info_requested = true;
                     workflowState.token = token;
                     workflowState.error_on_request = false;
-                    generateChart();
-                    generateMemoryChart();
+                    //generateChart();
+                    //generateBoxPlotByKey('memory', 'memory_canvas', true, 'MiB', 'Requested memory in', 'Requested memory');
+                    //generateBoxPlotByKey('vmem', 'vmem_canvas', true, 'MiB', 'Virtual memory in', 'Virtual memory');
+                    //generateBoxPlotByKey('rss', 'rss_canvas', true, 'MiB', 'Physical memory in', 'Physical memory');
+                    genereateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in', 'Physical memory in '], 'Memory');
                 }
             },
         );
@@ -162,7 +165,7 @@ function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function generateData(): any[] {
+function generateDurationData(): any[] {
     let data = [];
     for (let process in workflowState.process_state) {
         const tasks = workflowState.process_state[process].tasks
@@ -170,19 +173,18 @@ function generateData(): any[] {
             data.push({ process: process, duration: tasks[tsk]['duration'] });
             break;
         }
-
     }
     return data;
 
 }
 
 
-function getDataInValidFormat(byte_numbers: number[]): [number[], string] {
+function getDataInValidFormat(byte_numbers: number[], wantedType: string): [number[], string] {
     const types: string[] = ['b', 'kiB', 'MiB', 'GiB'];
     let iteration: number = 0;
     
     if (byte_numbers.length > 0) {
-        while(byte_numbers.some(elm => elm > 10000) && iteration < types.length - 1) {
+        while(byte_numbers.some(elm => elm > 10000) && iteration < types.length - 1 && types[iteration] !== wantedType) {
             byte_numbers = byte_numbers.map((num): number => num / 1024);
             iteration++;
         }        
@@ -193,41 +195,57 @@ function getDataInValidFormat(byte_numbers: number[]): [number[], string] {
     
 }
 
-function generateMemoryData(): any {
+function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: string): any {
     let data_pair: any = {};
     data_pair["labels"] = [];
     data_pair["data"] = [];
-    data_pair["type"] = 'byte';
-    console.log(toRaw(workflowState.process_state));
-    for (let process in workflowState.process_state) {
-        let min: number = Number.MAX_SAFE_INTEGER;
-        let max: number = 0;
-        for (let task: any in workflowState.process_state[process]['tasks']) {
-            let tsk: any = workflowState.process_state[process]['tasks'][task];
-            if (tsk["memory"] > max) {
-                max = tsk["memory"];
-            }
-            if (tsk["memory"] !== null) {
-                if (tsk["memory"] < min) {
-                    min = tsk["memory"];
-                }
-            }
-            
-            data_pair["labels"].push(process);
-            if (min == Number.MAX_SAFE_INTEGER) {
-                min = 0;
-                console.log("its")
-            }
-            const adjusted: [number[], string] = getDataInValidFormat([min, max]);
-
-            data_pair["data"].push(adjusted[0])
-            data_pair["type"] = adjusted[1];
+    data_pair['type'] = wantedFormat;
+    let states: any = toRaw(workflowState.process_state);
+    for (let process in states) {
+        data_pair["labels"].push(process);
+        let tasks: any = states[process]['tasks'];
+        let values: number[] = [];
+        for (let task_id in tasks) {
+            values.push(tasks[task_id][key]);
         }
+        if (adjustFormat) {
+            data_pair["data"].push(getDataInValidFormat(values, wantedFormat)[0]);
+        } else {
+            data_pair["data"].push(values);
+        }
+        
     }
-    console.log(data_pair);
-        // fix errors
+    
     return data_pair;
 
+}
+
+function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string): any {
+    let datasets: any[] = [];
+    let labels: string[] = [];
+    let states: any = toRaw(workflowState.process_state);
+    let first_loop: boolean = true;
+    for (let key of keys) {
+        let single_dataset: any = {'label': key, data: []};
+        for(let process in states) {
+            let values: any[] = []
+            if (first_loop) {
+                labels.push(process)
+            }
+            let tasks: any = states[process]['tasks'];
+            for (let task_id in tasks) {
+                values.push(tasks[task_id][key]);
+            }
+            if (adjust) {
+                single_dataset['data'].push(getDataInValidFormat(values, wantedFormat)[0]);
+            } else {
+                single_dataset['data'].push(values);
+            }
+        }
+        datasets.push(single_dataset);
+        first_loop = false;
+    }
+    return [labels, datasets];
 }
 
 
@@ -241,7 +259,7 @@ function generateMemoryData(): any {
 
 async function generateChart() {
     // needs a lot of future adjustments
-    let datax = generateData();
+    let datax = generateDurationData();
     await delay(100);
     new Chart(
         document.getElementById('chartarea'),
@@ -274,17 +292,96 @@ async function generateChart() {
 
 }
 
-async function generateMemoryChart() {
-    // adjust here - get the data in the function to display ranges and so on.
-    //let data = generateMemoryData();
+/**
+ * geht bestimmt noch einfacher - async? warum immer warten bis das ganze fertig ist...
+ */
+function generateDiv(elementId: string, title: string): HTMLCanvasElement{
+    const divWithCanvas = document.createElement('div');
+    const titleElement = document.createElement('h5');
+    titleElement.textContent = title;
+    divWithCanvas.style.width = '75rem';
+    const canvas = document.createElement('canvas');
+    canvas.id = elementId;
+    divWithCanvas.appendChild(titleElement);
+    divWithCanvas.appendChild(canvas);
+    const targetDiv = document.getElementById('canvas_area');
+    targetDiv.appendChild(divWithCanvas);
+    return canvas;
+}
+
+/**
+ * openai: chatgpt - prompt: in javascript, take a list of strings, which can be splitted using the character ':'.
+how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
+result: 
+*/
+function getSuffixes(strings: string[]) {
+  if (strings.length === 0) {
+    return [];
+  }
+
+  const parts = strings[0].split(':');
+  const commonPrefix = parts.slice(0, -1).join(':');
+  
+  // Remove common prefix from each string
+  const suffixes = strings.map(string => {
+    if (string.startsWith(commonPrefix)) {
+      return string.substring(commonPrefix.length + 1);
+    }
+    return string;
+  });
+
+  return suffixes;
+}
+
+
+async function genereateBoxPlotMultiByKeys(keys: string[], canvasID: string, adjust: boolean, format: string, label: string[], title: string) {
+    let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(keys, adjust, format);
+    console.log(generatedDatasets[0]);
+    console.log(getSuffixes(generatedDatasets[0]));
+    console.log(getSuffixes(["test:try", "test:try2", "test:whatever"]));
+    const suffixes = getSuffixes(["test:try", "test:try2", "test:whatever"]);
+    console.log(suffixes)
+
     await delay(300);
+    let canvas = generateDiv(canvasID, title);
     new Chart(
-        document.getElementById('memory_chart_area'),
+        canvas,
         {
             type: 'boxplot',
             options: {
                 responsive: true,
-                animation: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                    },
+                    tooltip: {
+                        enabled: true
+                    }
+                }
+            },
+            data: {
+                labels: getSuffixes(generatedDatasets[0]),
+                datasets: generatedDatasets[1],
+            }
+        }
+    );
+}
+
+async function generateBoxPlotByKey(key: string, canvasID: string, adjust: boolean, format: string, label: string, title: string) {
+    // adjust here - get the data in the function to display ranges and so on.
+    let data = generateDataByKey(key, adjust, format);
+    await delay(300);
+
+    let canvas = generateDiv(canvasID, title);
+    
+
+
+    new Chart(
+        canvas,
+        {
+            type: 'boxplot',
+            options: {
+                responsive: true,
                 plugins: {
                     legend: {
                         display: true
@@ -296,14 +393,14 @@ async function generateMemoryChart() {
                 }
             },
             data: {
-                // labels: data.map(row => row.process)
-                labels: ['A'],
+                
+                labels: getSuffixes(data["labels"]),
                 datasets: 
                     [
                         {
-                        label: `Used Memory in whatever`,
+                        label: `${label} ${data['type']}`,
                         //data: data["data"],
-                        data: [[1,2,34,5,17,2]],
+                        data: data["data"],
                     }   
                 ],
                 
@@ -530,14 +627,11 @@ onMounted(() => {
         <div class="card-body">
             <h5 class="card-title">Visualization</h5>
             <h6>Duration</h6> <!-- adjust to have this in chartjs itself -->
-            <div style="width: 800px;"><canvas id="chartarea"></canvas></div>
+            <div style="width: 75rem;"><canvas id="chartarea"></canvas></div>
         </div>
         <hr>
-        <div class="card-body">
-            <h6>Memory usage</h6>
-            <div style="width: 800px;">
-                <canvas id="memory_chart_area"></canvas>
-            </div>
+        <div class="card-body" id="canvas_area">
+
         </div>
         <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
             <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
@@ -550,6 +644,7 @@ onMounted(() => {
                 This token is not correct, please enter another token
             </div>
         </div>
+        
 </div></template>
 
 <style scoped></style>
