@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, setTransitionHooks, watch } from "vue";
+import { onMounted, reactive, setTransitionHooks, toRaw, watch } from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
@@ -70,7 +70,7 @@ function getData(token = props.token) {
                     workflowState.token = token;
                     workflowState.error_on_request = false;
                     generateChart();
-                    generateCPUChart();
+                    generateMemoryChart();
                 }
             },
         );
@@ -175,21 +175,34 @@ function generateData(): any[] {
 
 }
 
-function generateCPUData(): any[] {
-    let data: any[] = [];
+function generateMemoryData(): any {
+    let data_pair: any = {};
+    data_pair["labels"] = [];
+    data_pair["data"] = [];
     for (let process in workflowState.process_state) {
-        let i = 0;
-        const tasks = workflowState.process_state[process].tasks;
-        for (let tsj in tasks) {
-            data.push({ process: `process_${i}`, dta: 0 })
+        let min: BigInt = Number.MAX_SAFE_INTEGER;
+        let max = BigInt(0)
+        for (let task in workflowState.process_state[process]['tasks']) {
+            let tsk: any = workflowState.process_state[process]['tasks'][task];
+            if (task["memory"] > max) {
+                max = BigInt(task["memory"]);
+            } else if (task["memory"] !== null) {
+                if (task["memory"] < min) {
+                    min = BigInt(task["memory"]);
+                }
+            }
+            data_pair["labels"].push(process);
+            data_pair["data"].push([min, max]);
         }
     }
-
-
-    return data;
-
+        // fix errors
+    return data_pair;
 
 }
+
+
+ 
+
 
 // how to combine the metrics from currentState and process state - what about meta? 
 // more data from api needed - otherwise no possibility to show all relevant metrics
@@ -231,12 +244,12 @@ async function generateChart() {
 
 }
 
-async function generateCPUChart() {
+async function generateMemoryChart() {
     // adjust here - get the data in the function to display ranges and so on.
-    let data = generateCPUData();
+    let data = generateMemoryData();
     await delay(300);
     new Chart(
-        document.getElementById('cpu_chart_area'),
+        document.getElementById('memory_chart_area'),
         {
             type: 'bar',
             options: {
@@ -258,8 +271,8 @@ async function generateCPUChart() {
                 datasets: 
                     [
                         {
-                        label: 'SOME USAGE',
-                        data: [[50, 100], [20, 30]],
+                        label: 'Used Memory in MiB',
+                        data: data["data"],
                     }   
                 ],
                 
@@ -490,9 +503,9 @@ onMounted(() => {
         </div>
         <hr>
         <div class="card-body">
-            <h6>CPU usage</h6>
+            <h6>Memory usage</h6>
             <div style="width: 800px;">
-                <canvas id="cpu_chart_area"></canvas>
+                <canvas id="memory_chart_area"></canvas>
             </div>
         </div>
         <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
