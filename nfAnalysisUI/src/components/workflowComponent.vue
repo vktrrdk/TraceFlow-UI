@@ -75,6 +75,12 @@ function getData(token = props.token) {
                     //generateBoxPlotByKey('vmem', 'vmem_canvas', true, 'MiB', 'Virtual memory in', 'Virtual memory');
                     //generateBoxPlotByKey('rss', 'rss_canvas', true, 'MiB', 'Physical memory in', 'Physical memory');
                     genereateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in', 'Physical memory in '], 'Memory');
+                    generateDurationSumChart();
+                    //addRamAllocationPercentageToGraph();
+                    /*
+                    - add IO read write graph
+                    - add CPU raw usage and % allocated graph
+                    */
                 }
             },
         );
@@ -191,9 +197,29 @@ function getDataInValidFormat(byte_numbers: number[], wantedType: string): [numb
     }
     return [byte_numbers, types[iteration]]
     
-    
-    
 }
+
+function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
+    let data_pair: any = {};
+    data_pair["labels"] = [];
+    data_pair["data"] = [];
+    let states: any = toRaw(workflowState.process_state);
+    for (let process in states) {
+        data_pair["labels"].push(process);
+        let tasks: any = states[process]['tasks'];
+        let values: number[] = [];
+        for (let task_id in tasks) {
+            values.push(tasks[task_id][key]);
+        }
+        if (factorizer !== 1) {
+            values = values.map((elem) => elem / factorizer);
+        }
+        data_pair["data"].push(values.reduce((a, b) => a + b, 0));
+    }
+    
+    return data_pair;
+}
+
 
 function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: string): any {
     let data_pair: any = {};
@@ -213,7 +239,9 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
         } else {
             data_pair["data"].push(values);
         }
-        
+        values = [values.reduce((a, b) => a + b, 0)];
+        data_pair["data"].push(values);
+
     }
     
     return data_pair;
@@ -336,12 +364,6 @@ function getSuffixes(strings: string[]) {
 
 async function genereateBoxPlotMultiByKeys(keys: string[], canvasID: string, adjust: boolean, format: string, label: string[], title: string) {
     let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(keys, adjust, format);
-    console.log(generatedDatasets[0]);
-    console.log(getSuffixes(generatedDatasets[0]));
-    console.log(getSuffixes(["test:try", "test:try2", "test:whatever"]));
-    const suffixes = getSuffixes(["test:try", "test:try2", "test:whatever"]);
-    console.log(suffixes)
-
     await delay(300);
     let canvas = generateDiv(canvasID, title);
     new Chart(
@@ -365,6 +387,49 @@ async function genereateBoxPlotMultiByKeys(keys: string[], canvasID: string, adj
             }
         }
     );
+}
+
+
+
+async function generateDurationSumChart() {
+    let data = generateSummarizedDataByKey('duration', 1000);
+    await delay(300);
+    let canvas = generateDiv('duration_sum_canvas', 'Duration by process');
+
+    new Chart(
+        canvas,
+        {
+            type: 'bar',
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true
+                    },
+                    tooltip: {
+                        enabled: true
+                    }
+
+                }
+            },
+            data: {
+                
+                labels: getSuffixes(data["labels"]),
+                datasets: 
+                    [
+                        {
+                        label: `Summarized Duration in seconds`,
+                        //data: data["data"],
+                        data: data["data"],
+                    }   
+                ],
+                
+                
+            },
+            
+        }
+    );
+
 }
 
 async function generateBoxPlotByKey(key: string, canvasID: string, adjust: boolean, format: string, label: string, title: string) {

@@ -10,6 +10,7 @@
  - [ ] more generic handling of traces --> also use meta
  - [ ] remove empty columns from list
  - [ ] plot filters dynamically, not only by processes, also by tags and so on
- - [ ] sum of duration per process
+ - [x] sum of duration per process
  - [x] boxplot
  - [ ] replicate all nf-tower plots
+ - [ ] adjust layout
