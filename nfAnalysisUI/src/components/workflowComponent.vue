@@ -6,8 +6,8 @@ import "bootstrap/dist/js/bootstrap.min.js"
 import type { RunTrace } from "@/models/RunTrace";
 import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
-import Chart from 'chart.js/auto';
-import Utils from 'chart.js/auto';
+import { Chart, LinearScale, CategoryScale} from 'chart.js/auto';
+import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
 import Accordion from 'primevue/accordion';
 import AccordionTab from 'primevue/accordiontab';
 import ProgressBar from 'primevue/progressbar';
@@ -26,6 +26,7 @@ import Tag from 'primevue/tag';
  * 
  * */
 
+ Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
 
 const router = useRouter();
 const route = useRoute();
@@ -175,26 +176,55 @@ function generateData(): any[] {
 
 }
 
+
+function getDataInValidFormat(byte_numbers: number[]): [number[], string] {
+    const types: string[] = ['b', 'kiB', 'MiB', 'GiB'];
+    let iteration: number = 0;
+    
+    if (byte_numbers.length > 0) {
+        while(byte_numbers.some(elm => elm > 10000) && iteration < types.length - 1) {
+            byte_numbers = byte_numbers.map((num): number => num / 1024);
+            iteration++;
+        }        
+    }
+    return [byte_numbers, types[iteration]]
+    
+    
+    
+}
+
 function generateMemoryData(): any {
     let data_pair: any = {};
     data_pair["labels"] = [];
     data_pair["data"] = [];
+    data_pair["type"] = 'byte';
+    console.log(toRaw(workflowState.process_state));
     for (let process in workflowState.process_state) {
-        let min: BigInt = Number.MAX_SAFE_INTEGER;
-        let max = BigInt(0)
-        for (let task in workflowState.process_state[process]['tasks']) {
+        let min: number = Number.MAX_SAFE_INTEGER;
+        let max: number = 0;
+        for (let task: any in workflowState.process_state[process]['tasks']) {
             let tsk: any = workflowState.process_state[process]['tasks'][task];
-            if (task["memory"] > max) {
-                max = BigInt(task["memory"]);
-            } else if (task["memory"] !== null) {
-                if (task["memory"] < min) {
-                    min = BigInt(task["memory"]);
+            if (tsk["memory"] > max) {
+                max = tsk["memory"];
+            }
+            if (tsk["memory"] !== null) {
+                if (tsk["memory"] < min) {
+                    min = tsk["memory"];
                 }
             }
+            
             data_pair["labels"].push(process);
-            data_pair["data"].push([min, max]);
+            if (min == Number.MAX_SAFE_INTEGER) {
+                min = 0;
+                console.log("its")
+            }
+            const adjusted: [number[], string] = getDataInValidFormat([min, max]);
+
+            data_pair["data"].push(adjusted[0])
+            data_pair["type"] = adjusted[1];
         }
     }
+    console.log(data_pair);
         // fix errors
     return data_pair;
 
@@ -246,12 +276,12 @@ async function generateChart() {
 
 async function generateMemoryChart() {
     // adjust here - get the data in the function to display ranges and so on.
-    let data = generateMemoryData();
+    //let data = generateMemoryData();
     await delay(300);
     new Chart(
         document.getElementById('memory_chart_area'),
         {
-            type: 'bar',
+            type: 'boxplot',
             options: {
                 responsive: true,
                 animation: true,
@@ -267,12 +297,13 @@ async function generateMemoryChart() {
             },
             data: {
                 // labels: data.map(row => row.process)
-                labels: ['test', 'another'],
+                labels: ['A'],
                 datasets: 
                     [
                         {
-                        label: 'Used Memory in MiB',
-                        data: data["data"],
+                        label: `Used Memory in whatever`,
+                        //data: data["data"],
+                        data: [[1,2,34,5,17,2]],
                     }   
                 ],
                 
@@ -305,7 +336,7 @@ onMounted(() => {
             </div>
         </div>
     </div>
-    <div class="card" v-if="workflowState.token && workflowState.token_info_requested">
+    <div v-if="workflowState.token && workflowState.token_info_requested">
         <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
         <div class="card-body" v-if="workflowState.state_by_task?.length == 0 && !workflowState.error_on_request">
             <h6 class="card-subtitle mb-2">
@@ -387,17 +418,17 @@ onMounted(() => {
                                                             <th scope="row">{{ `${process}${task['sub_task'] != null ? ':' +
                                                                 task['sub_task'] : ''}` }}</th>
                                                             <td>{{ task["cpus"] }}</td>
-                                                            <td>{{ task["memory"] / 1024}} MiB</td>
+                                                            <td>{{ task["memory"] / 1024}} kiB</td>
                                                             <td>{{ task["disk"] }}</td>
                                                             <td>{{ (task["duration"] / 1000) }} s</td>
                                                             <td>{{ task["realtime"] / 1000 }} s</td>
-                                                            <td>{{ task["wchar"] / 1024 }} MiB</td>
-                                                            <td>{{ task["rchar"] / 1024 }} MiB</td>
-                                                            <td>{{ task["rss"] / 1024}} MiB </td>
+                                                            <td>{{ task["wchar"] / 1024 }} kiB</td>
+                                                            <td>{{ task["rchar"] / 1024 }} kiB</td>
+                                                            <td>{{ task["rss"] / 1024}} kiB </td>
                                                             <td>{{ task["cpu_percentage"]}}</td>
                                                             <td>{{ task["memory_percentage"] }}</td>
-                                                            <td>{{ task["vmem"] / 1024 }} MiB</td>
-                                                            <td>{{ task["peak_vmem"] / 1024}} MiB</td>
+                                                            <td>{{ task["vmem"] / 1024 }} kiB</td>
+                                                            <td>{{ task["peak_vmem"] / 1024}} kiB</td>
                                                             <td>{{ task["syscr"] }}</td>
                                                             <td>{{ task["syscw"] }}</td>
                                                             <td>{{ task["peak_rss"] }}</td>
@@ -451,21 +482,21 @@ onMounted(() => {
                     <Column field="memory_percentage" header="Memory %" sortable></Column>
                     <Column field="memory" header="Memory">
                         <template #body="{ data }">
-                            {{ (data.memory / 1024) }} MiB
+                            {{ (data.memory / 1024) }} kiB
                         </template>
                     </Column>
                     <Column field="disk" header="Disk"></Column>
                     <Column field="rchar" header="rchar" sortable>
                         <template #body="{ data }">
-                            {{ data.rchar / 1024 }} MiB
+                            {{ data.rchar / 1024 }} kiB
                         </template></Column>
                     <Column field="wchar" header="wchar" sortable>
                         <template #body="{ data }">
-                            {{ data.wchar / 1024 }} MiB
+                            {{ data.wchar / 1024 }} kiB
                         </template></Column>
                     <Column field="rss" header="rss" sortable>
                         <template #body="{ data }">
-                            {{ data.rss / 1024}} MiB
+                            {{ data.rss / 1024}} kiB
                         </template>
                     </Column>
                     <Column field="peak_rss" header="Peak rss" sortable></Column>
@@ -473,12 +504,12 @@ onMounted(() => {
                     <Column field="syscw" header="syscw" sortable></Column>
                     <Column field="peak_vmem" header="Peak VMem" sortable>
                         <template #body="{ data }">
-                            {{ (data.peak_vmem / 1024) }} MiB
+                            {{ (data.peak_vmem / 1024) }} kiB
                         </template>
                     </Column>
                     <Column field="vmem" header="VMem" sortable>
                         <template #body="{ data }">
-                            {{ data.vmem / 1024 }} MiB
+                            {{ data.vmem / 1024 }} kiB
                         </template>
                     </Column>
                     <Column field="read_bytes" header="Read bytes" sortable></Column>

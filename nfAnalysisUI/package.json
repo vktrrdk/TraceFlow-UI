@@ -18,8 +18,8 @@
     "primeicons": "^6.0.1",
     "vue": "^3.3.2",
     "vue-router": "^4.2.2",
-    "chart.js": "^4.3.0"
-
+    "chart.js": "^4.3.0",
+    "@sgratzl/chartjs-chart-boxplot": "^4.2.4"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.2.0",

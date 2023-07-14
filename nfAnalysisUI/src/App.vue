@@ -22,8 +22,10 @@ export default defineComponent({
 </script>
 
 <template>
-
-    <router-view></router-view>
+    <div class="container">
+        <router-view></router-view>
+    </div>
+    
 
 
 
