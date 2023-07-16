@@ -74,7 +74,10 @@ function getData(token = props.token) {
                     //generateBoxPlotByKey('memory', 'memory_canvas', true, 'MiB', 'Requested memory in', 'Requested memory');
                     //generateBoxPlotByKey('vmem', 'vmem_canvas', true, 'MiB', 'Virtual memory in', 'Virtual memory');
                     //generateBoxPlotByKey('rss', 'rss_canvas', true, 'MiB', 'Physical memory in', 'Physical memory');
-                    genereateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in', 'Physical memory in '], 'Memory');
+                    generateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'ram_multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '], 'Memory');
+                    generateBoxPlotMultiByKeys([], 'memory_percentage', true, '%', ['Memory usage in '], 'Relative memory usage', generateKeyRelativeData, ['rss', 'memory', 'Memory usage in %', 100]);
+                    generateBoxPlotMultiByKeys(['read_bytes', 'write_bytes'], 'read_write_canvas', true, 'MiB', ['Read in ', 'Written in '], 'I/O'),
+                    generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
                     generateDurationSumChart();
                     //addRamAllocationPercentageToGraph();
                     /*
@@ -248,15 +251,16 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
 
 }
 
-function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string): any {
+function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string, label: string[]): any {
     let datasets: any[] = [];
     let labels: string[] = [];
     let states: any = toRaw(workflowState.process_state);
     let first_loop: boolean = true;
+    let key_index = 0;
     for (let key of keys) {
-        let single_dataset: any = {'label': key, data: []};
+        let single_dataset: any = {'label': label[key_index] + wantedFormat, data: []};
         for(let process in states) {
-            let values: any[] = []
+            let values: any[] = [];
             if (first_loop) {
                 labels.push(process)
             }
@@ -272,8 +276,100 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
         }
         datasets.push(single_dataset);
         first_loop = false;
+        key_index += 1;
     }
     return [labels, datasets];
+}
+
+// func(keys, format, label);
+
+
+function generateMemoryRelativeData(): [string[], any[]] {
+    let datasets: any[] = [];
+    let labels: string[] = [];
+    let states: any = toRaw(workflowState.process_state);
+    let relative_dataset: any = {'label': 'Memory usage in %', 'data': []}
+    for (let process in states) {
+        labels.push(process);
+        let processValues: any[] = [];
+        let tasks: any = states[process]['tasks'];
+        for (let task_id in tasks) {
+            processValues.push(
+                (tasks[task_id]['rss'] / tasks[task_id]['memory']) * 100
+            );
+        }
+        relative_dataset['data'].push(processValues);
+    }
+    datasets.push(relative_dataset);
+    return [labels, datasets];
+
+}
+
+function generateKeyRelativeData(dataKey: string, respectToKey: string, label: string, factor: number = 100): [string[], any[]] {
+    let datasets: any[] = [];
+    let labels: string[] = [];
+    let states: any = toRaw(workflowState.process_state);
+    let relative_dataset: any = {'label': label, 'data': []}
+    for (let process in states) {
+        labels.push(process);
+        let processValues: any[] = [];
+        let tasks: any = states[process]['tasks'];
+        for (let task_id in tasks) {
+            processValues.push(
+                (tasks[task_id][dataKey] / tasks[task_id][respectToKey]) * factor
+            );
+        }
+        relative_dataset['data'].push(processValues);
+    }
+    datasets.push(relative_dataset);
+    return [labels, datasets];
+}
+
+function generateCPUData(): [string[], any[]] {
+    let datasets: any[] = [];
+    let labels: string [] = [];
+    let states: any = toRaw(workflowState.process_state);
+    let key_index = 0;
+    let values: any = {};
+
+    for (let process in states) {
+        labels.push(process);
+        let tasks: any = states[process]['tasks'];
+        if (!(process in values)) {
+            values[process] = {'cpus': [], 'realtime': []};
+        }
+        for (let task_id in tasks){
+            values[process]['cpus'].push(tasks[task_id]['cpus']);
+            values[process]['realtime'].push(tasks[task_id]['realtime']);
+        }
+    }
+
+    let allocation_data = [];
+    let raw_usage_data = [];
+    for (let process in values) {
+        let value_numerator: number = 0;
+        let value_denominator: number = 0;
+        let values_raw: number[] = [];
+        let idx: number = 0;
+        while (idx < values[process]['cpus'].length){
+            value_numerator += values[process]['cpus'][idx] * (values[process]['realtime'][idx] / 1000)
+            value_denominator += (values[process]['realtime'][idx] / 1000);
+            values_raw.push(values[process]['cpus'][idx] * 100)
+            idx += 1;
+        }
+        //console.log(values[process]['cpus'].length)
+        let value: number = 0;
+        if (value_denominator > 0) {
+            value = value_numerator / value_denominator;
+        }
+       
+        allocation_data.push([value * 100]);
+        raw_usage_data.push(values_raw);
+    }
+    datasets.push({'label': 'Requested CPU used in %', 'data': allocation_data})
+    datasets.push({'label': 'CPU usage in %', 'data': raw_usage_data });
+    
+    return [labels, datasets]
 }
 
 
@@ -284,41 +380,6 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
 // more data from api needed - otherwise no possibility to show all relevant metrics
 // check chart.js and available visualizations in nf-tower
 
-
-async function generateChart() {
-    // needs a lot of future adjustments
-    let datax = generateDurationData();
-    await delay(100);
-    new Chart(
-        document.getElementById('chartarea'),
-        {
-            type: 'bar',
-            options: {
-                animation: true,
-                plugins: {
-                    legend: {
-                        display: true
-                    },
-                    tooltip: {
-                        enabled: true
-                    }
-
-                }
-            },
-            data: {
-                labels: datax.map(row => row.process),
-                datasets: [
-                    {
-                        label: 'Duration in seconds',
-                        data: datax.map(row => (row.duration / 1000))
-                    }
-                ]
-            }
-        }
-    );
-
-
-}
 
 /**
  * geht bestimmt noch einfacher - async? warum immer warten bis das ganze fertig ist...
@@ -340,6 +401,8 @@ function generateDiv(elementId: string, title: string): HTMLCanvasElement{
 /**
  * openai: chatgpt - prompt: in javascript, take a list of strings, which can be splitted using the character ':'.
 how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
+___
+needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
 result: 
 */
 function getSuffixes(strings: string[]) {
@@ -361,9 +424,23 @@ function getSuffixes(strings: string[]) {
   return suffixes;
 }
 
+function emptyFunction(): [string[], any[]] {
+    return [[],[]];
+}
 
-async function genereateBoxPlotMultiByKeys(keys: string[], canvasID: string, adjust: boolean, format: string, label: string[], title: string) {
-    let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(keys, adjust, format);
+async function generateBoxPlotMultiByKeys(keys: string[], canvasID: string, adjust: boolean, format: string, label: string[], title: string, func: (...params: any) => [string[], any[]] = emptyFunction, args: any[] = []) {
+    let generatedDatasets: [string[], any[]] = [[], []];
+    if (func === emptyFunction) {
+        generatedDatasets = generateDataByMultipleKeys(keys, adjust, format, label);
+    } else {
+        if (args.length > 0) {
+            generatedDatasets = func(...args);
+        } else {
+            generatedDatasets = func();
+        }
+        
+    }
+   
     await delay(300);
     let canvas = generateDiv(canvasID, title);
     new Chart(
@@ -392,14 +469,21 @@ async function genereateBoxPlotMultiByKeys(keys: string[], canvasID: string, adj
 
 
 async function generateDurationSumChart() {
-    let data = generateSummarizedDataByKey('duration', 1000);
+    let data_sum = generateSummarizedDataByKey('duration', 1000);
+    let data_exec = generateDataByKey('realtime', false, 's')['data'];
+    let data_execution: any[] = [];
+    data_exec.forEach((element: any[]) => {
+        let mapped: any[] = element.map((value) => value / 1000);
+        data_execution.push(mapped);
+    });
+    let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
+    console.log(data_allocated);
     await delay(300);
     let canvas = generateDiv('duration_sum_canvas', 'Duration by process');
 
     new Chart(
         canvas,
         {
-            type: 'bar',
             options: {
                 responsive: true,
                 plugins: {
@@ -414,14 +498,25 @@ async function generateDurationSumChart() {
             },
             data: {
                 
-                labels: getSuffixes(data["labels"]),
+                labels: getSuffixes(data_sum["labels"]),
                 datasets: 
                     [
                         {
-                        label: `Summarized Duration in seconds`,
-                        //data: data["data"],
-                        data: data["data"],
-                    }   
+                            type: 'bar',
+                            label: `Summarized Duration in seconds`,
+                            //data: data["data"],
+                            data: data_sum["data"],
+                        },
+                        {
+                            type: 'boxplot',
+                            label: 'Execution in real-time',
+                            data: data_execution,
+                        },
+                        {
+                            type: 'boxplot',
+                            label: 'Requested time used in %',
+                            data: data_allocated[1],
+                        }
                 ],
                 
                 
@@ -689,21 +784,21 @@ onMounted(() => {
                 </DataTable>
             </div>
         </div>
-        <div class="card-body">
-            <h5 class="card-title">Visualization</h5>
-            <h6>Duration</h6> <!-- adjust to have this in chartjs itself -->
-            <div style="width: 75rem;"><canvas id="chartarea"></canvas></div>
-        </div>
-        <hr>
-        <div class="card-body" id="canvas_area">
-
-        </div>
-        <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
-            <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
-                Delete token
+        <div class="p-4 row-gap-3">
+            <div>
+                <h4>Metric visualization</h4>
             </div>
-
+            <div class="card-body" id="canvas_area">
+    
+            </div>
+            <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
+                <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
+                    Delete token
+                </div>
+    
+            </div>
         </div>
+        
         <div class="card-body" v-if="workflowState.error_on_request">
             <div class="alert alert-info">
                 This token is not correct, please enter another token
