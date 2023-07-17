@@ -6,7 +6,7 @@ import "bootstrap/dist/js/bootstrap.min.js"
 import type { RunTrace } from "@/models/RunTrace";
 import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
-import { Chart, LinearScale, CategoryScale} from 'chart.js/auto';
+import { Chart, LinearScale, CategoryScale } from 'chart.js/auto';
 import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
 import Accordion from 'primevue/accordion';
 import AccordionTab from 'primevue/accordiontab';
@@ -55,6 +55,7 @@ const workflowState = reactive<{
     error_on_request: boolean;
     process_state: any;
     state_by_task: any;
+    dynamicChart: any;
     //connection: WebSocket;
 }>({
     loading: true,
@@ -64,6 +65,7 @@ const workflowState = reactive<{
     error_on_request: false,
     process_state: {},
     state_by_task: {},
+    dynamicChart: {},
     //connection: null,
 });
 
@@ -91,6 +93,7 @@ function getData(token = props.token) {
                     generateBoxPlotMultiByKeys(['read_bytes', 'write_bytes'], 'read_write_canvas', true, 'MiB', ['Read in ', 'Written in '], 'I/O'),
                     generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
                     generateDurationSumChart();
+                    createDynamicDataPlot();
                     //addRamAllocationPercentageToGraph();
                     /*
                     - add IO read write graph
@@ -591,6 +594,32 @@ async function generateBoxPlotByKey(key: string, canvasID: string, adjust: boole
         }
     );
 }
+
+async function createDynamicDataPlot() {
+
+  // check https://www.chartjs.org/docs/latest/developers/charts.html#new-charts
+  // and https://www.chartjs.org/docs/latest/developers/updates.html
+  await delay(300);
+  let canvas = generateDiv('dynamic_canvas', 'Dynamic metrics');
+  workflowState.dynamicChart = new Chart(
+      canvas, {
+        type: 'boxplot',
+        options: {},
+        data: {
+          labels: ['label'],
+          datasets: [
+
+            {
+              label: 'TestLabel',
+              data: [[0,1]]
+
+          },
+          ]
+        },
+  });
+}
+
+
 
 onMounted(() => {
     getData();
