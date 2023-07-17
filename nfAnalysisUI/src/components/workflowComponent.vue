@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, setTransitionHooks, toRaw, watch } from "vue";
+import {onMounted, reactive, ref, setTransitionHooks, toRaw, watch} from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
@@ -17,13 +17,16 @@ import Card from 'primevue/card';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Tag from 'primevue/tag';
+import MultiSelect from "primevue/multiselect";
+import { FilterMatchMode } from 'primevue/api';
+import InputText from 'primevue/inputtext';
 
 
 /**
- * 
+ *
  * We need a function that transforms the indexes of the tasks per process into menuItem-like objects
  * So we can use these menu items to toggle between the tasks in a process accordion
- * 
+ *
  * */
 
  Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
@@ -34,6 +37,15 @@ const route = useRoute();
 const props = defineProps<{
     token: string;
 }>();
+
+const statuses = ['SUBMITTED', 'RUNNING', 'COMPLETED', 'FAILED'];
+const filters = ref({
+  'status': {value: null, matchMode: FilterMatchMode.IN },
+  'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
+  'process': { value: null, matchMode: FilterMatchMode.CONTAINS },
+  'tag': { value: null, matchMode: FilterMatchMode.CONTAINS },
+
+});
 
 const workflowState = reactive<{
     loading: boolean;
@@ -187,19 +199,29 @@ function generateDurationData(): any[] {
 
 }
 
+function reasonableDataFormat(input: number) {
+  const types: string[] = ['b', 'kiB', 'MiB', 'GiB', 'TiB'];
+  let iteration: number = 0;
+  while (input >= 1024 && iteration < types.length) {
+    input = input / 1024;
+    iteration += 1;
+  }
+
+  return `${input.toFixed(3)} ${types[iteration]}`;
+}
 
 function getDataInValidFormat(byte_numbers: number[], wantedType: string): [number[], string] {
     const types: string[] = ['b', 'kiB', 'MiB', 'GiB'];
     let iteration: number = 0;
-    
+
     if (byte_numbers.length > 0) {
         while(byte_numbers.some(elm => elm > 10000) && iteration < types.length - 1 && types[iteration] !== wantedType) {
             byte_numbers = byte_numbers.map((num): number => num / 1024);
             iteration++;
-        }        
+        }
     }
     return [byte_numbers, types[iteration]]
-    
+
 }
 
 function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
@@ -219,7 +241,7 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
         }
         data_pair["data"].push(values.reduce((a, b) => a + b, 0));
     }
-    
+
     return data_pair;
 }
 
@@ -246,7 +268,7 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
         data_pair["data"].push(values);
 
     }
-    
+
     return data_pair;
 
 }
@@ -346,7 +368,7 @@ function generateCPUData(): [string[], any[]] {
 
     let allocation_data = [];
     let raw_usage_data = [];
-    for (let process in values) {
+    for (let process in values){
         let value_numerator: number = 0;
         let value_denominator: number = 0;
         let values_raw: number[] = [];
@@ -357,26 +379,25 @@ function generateCPUData(): [string[], any[]] {
             values_raw.push(values[process]['cpus'][idx] * 100)
             idx += 1;
         }
-        //console.log(values[process]['cpus'].length)
         let value: number = 0;
         if (value_denominator > 0) {
             value = value_numerator / value_denominator;
         }
-       
+
         allocation_data.push([value * 100]);
         raw_usage_data.push(values_raw);
     }
     datasets.push({'label': 'Requested CPU used in %', 'data': allocation_data})
     datasets.push({'label': 'CPU usage in %', 'data': raw_usage_data });
-    
+
     return [labels, datasets]
 }
 
 
- 
 
 
-// how to combine the metrics from currentState and process state - what about meta? 
+
+// how to combine the metrics from currentState and process state - what about meta?
 // more data from api needed - otherwise no possibility to show all relevant metrics
 // check chart.js and available visualizations in nf-tower
 
@@ -403,7 +424,7 @@ function generateDiv(elementId: string, title: string): HTMLCanvasElement{
 how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
 ___
 needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
-result: 
+result:
 */
 function getSuffixes(strings: string[]) {
   if (strings.length === 0) {
@@ -412,7 +433,7 @@ function getSuffixes(strings: string[]) {
 
   const parts = strings[0].split(':');
   const commonPrefix = parts.slice(0, -1).join(':');
-  
+
   // Remove common prefix from each string
   const suffixes = strings.map(string => {
     if (string.startsWith(commonPrefix)) {
@@ -438,9 +459,9 @@ async function generateBoxPlotMultiByKeys(keys: string[], canvasID: string, adju
         } else {
             generatedDatasets = func();
         }
-        
+
     }
-   
+
     await delay(300);
     let canvas = generateDiv(canvasID, title);
     new Chart(
@@ -477,7 +498,7 @@ async function generateDurationSumChart() {
         data_execution.push(mapped);
     });
     let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
-    console.log(data_allocated);
+
     await delay(300);
     let canvas = generateDiv('duration_sum_canvas', 'Duration by process');
 
@@ -497,9 +518,9 @@ async function generateDurationSumChart() {
                 }
             },
             data: {
-                
+
                 labels: getSuffixes(data_sum["labels"]),
-                datasets: 
+                datasets:
                     [
                         {
                             type: 'bar',
@@ -518,10 +539,10 @@ async function generateDurationSumChart() {
                             data: data_allocated[1],
                         }
                 ],
-                
-                
+
+
             },
-            
+
         }
     );
 
@@ -533,7 +554,7 @@ async function generateBoxPlotByKey(key: string, canvasID: string, adjust: boole
     await delay(300);
 
     let canvas = generateDiv(canvasID, title);
-    
+
 
 
     new Chart(
@@ -553,26 +574,27 @@ async function generateBoxPlotByKey(key: string, canvasID: string, adjust: boole
                 }
             },
             data: {
-                
+
                 labels: getSuffixes(data["labels"]),
-                datasets: 
+                datasets:
                     [
                         {
                         label: `${label} ${data['type']}`,
                         //data: data["data"],
                         data: data["data"],
-                    }   
+                    }
                 ],
-                
-                
+
+
             },
-            
+
         }
     );
 }
 
 onMounted(() => {
     getData();
+
 });
 </script>
 
@@ -718,42 +740,77 @@ onMounted(() => {
             <div class="card-body">
                 <h5 class="card-title">Trace Information</h5>
 
-                <DataTable :value="workflowState.state_by_task" sortField="task_id" :sortOrder="1"
+                <DataTable :value="workflowState.state_by_task" sortField="task_id" :sortOrder="1" v-model:filters="filters"
+                           filterDisplay="row"
                     tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" removableSort>
                     <Column field="task_id" header="Task-ID" sortable></Column>
-                    <Column field="name" header="Name" sortable></Column>
-                    <Column field="status" header="Status" sortable>
+                    <Column field="name" style="min-width: 20rem" header="Name" sortable :show-filter-menu="false" filter-field="name">
+                      <template #body="{ data }">
+                        {{data['name']}}
+                      </template>
+                      <template #filter="{ filterModel, filterCallback }">
+                        <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter" placeholder="Filter name" />
+                      </template>
+                    </Column>
+                    <Column field="status" style="min-width: 12rem" header="Status" sortable filter-field="status" :show-filter-menu="false" :filter-match-mode="'contains'">
+                      <!-- adjust it to be a dropdown! -->
                         <template #body="{ data }">
                             <Tag :value="data.status" />
                         </template>
+                      <template #filter="{ filterModel, filterCallback }">
+                        <MultiSelect v-model="filterModel.value" style="max-width: 12rem" display="chip" @change="filterCallback()"
+                                     :pt="{
+                                        token: {
+                                          style: { 'max-width': '8rem' }
+                                        },
+                                        tokenLabel: { style: { 'font-size': '10px'} }
+                                     }"
+                                     :options="statuses" placeholder="Any" class="p-column-filter">
+                          <template #header>
+
+                          </template>
+                          <template #option="slotProps">
+                            <Tag :value="slotProps.option" />
+                          </template>
+                        </MultiSelect>
+                      </template>
                     </Column>
-                    <Column field="process" header="Process" sortable></Column>
-                    <Column field="tag" header="Tag" sortable></Column>
+                    <Column field="process" header="Process" style="min-width: 20rem" sortable :show-filter-menu="false" filter-field="process">
+                      <template #filter="{ filterModel, filterCallback }">
+                        <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter" placeholder="Search by process" />
+                      </template>
+                    </Column>
+
+                    <Column field="tag" header="Tag"  style="min-width: 20rem" filter-field="tag" :show-filter-menu="false" sortable>
+                      <template #filter="{ filterModel, filterCallback }">
+                        <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter" placeholder="Search by name" />
+                      </template>
+                    </Column>
                     <Column field="timestamp" header="Timestamp" sortable></Column>
                     <Column field="duration" sortable header="Duration">
                         <template #body="{ data }">
-                            {{ (data.duration / 1000) }} s
+                            {{ (data['duration'] / 1000).toFixed(2) }} s
                         </template>
                     </Column>
                     <Column field="cpu_percentage" header="CPU %" sortable></Column>
                     <Column field="memory_percentage" header="Memory %" sortable></Column>
                     <Column field="memory" header="Memory">
                         <template #body="{ data }">
-                            {{ (data.memory / 1024) }} kiB
+                          {{ reasonableDataFormat(data['memory']) }}
                         </template>
                     </Column>
                     <Column field="disk" header="Disk"></Column>
                     <Column field="rchar" header="rchar" sortable>
                         <template #body="{ data }">
-                            {{ data.rchar / 1024 }} kiB
+                          {{ reasonableDataFormat(data['rchar']) }}
                         </template></Column>
                     <Column field="wchar" header="wchar" sortable>
                         <template #body="{ data }">
-                            {{ data.wchar / 1024 }} kiB
+                          {{ reasonableDataFormat(data['wchar']) }}
                         </template></Column>
                     <Column field="rss" header="rss" sortable>
                         <template #body="{ data }">
-                            {{ data.rss / 1024}} kiB
+                          {{ reasonableDataFormat(data['rss']) }}
                         </template>
                     </Column>
                     <Column field="peak_rss" header="Peak rss" sortable></Column>
@@ -761,12 +818,12 @@ onMounted(() => {
                     <Column field="syscw" header="syscw" sortable></Column>
                     <Column field="peak_vmem" header="Peak VMem" sortable>
                         <template #body="{ data }">
-                            {{ (data.peak_vmem / 1024) }} kiB
+                          {{ reasonableDataFormat(data['peak_vmem']) }}
                         </template>
                     </Column>
                     <Column field="vmem" header="VMem" sortable>
                         <template #body="{ data }">
-                            {{ data.vmem / 1024 }} kiB
+                            {{ reasonableDataFormat(data['vmem']) }}
                         </template>
                     </Column>
                     <Column field="read_bytes" header="Read bytes" sortable></Column>
@@ -774,13 +831,16 @@ onMounted(() => {
                     </Column>
                     <Column field="vol_ctxt" header="Voluntary context switches" sortable></Column>
                     <Column field="inv_ctxt" header="Involuntary cs" sortable></Column>
-                    <Column field="time" header="Time" sortable></Column>
+                    <Column field="time" header="Time" sortable>
+                      <template #body="{ data }">
+                        {{data['time'] / 1000}} s
+                      </template>
+                    </Column>
                     <Column field="realtime" header="Realtime" sortable>
                         <template #body="{ data }">
-                            {{(data.realtime / 1000)}} s
+                            {{(data['realtime'] / 1000)}} s
                          </template>
                     </Column>
-                    <Column field="tag" header="Tag" sortable></Column>
                 </DataTable>
             </div>
         </div>
@@ -789,22 +849,22 @@ onMounted(() => {
                 <h4>Metric visualization</h4>
             </div>
             <div class="card-body" id="canvas_area">
-    
+
             </div>
             <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
                 <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
                     Delete token
                 </div>
-    
+
             </div>
         </div>
-        
+
         <div class="card-body" v-if="workflowState.error_on_request">
             <div class="alert alert-info">
                 This token is not correct, please enter another token
             </div>
         </div>
-        
+
 </div></template>
 
 <style scoped></style>
