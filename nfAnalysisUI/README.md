@@ -15,3 +15,16 @@
  - [ ] more generic handling of traces --> also use meta
  - [ ] check router history - how to add "back-button" ?
  - [ ] adjust layout
+ - [ ] adjust naming function
+ - [ ] oberen Teil in fortschrittsbereich umbauen, keine zweite tabelle
+ - [ ] filter für weitere metriken in der tabelle
+ - [ ] tags der prozesse mit in die übersicht oben
+ - [ ] wie zeigt man an, welcher prozess gerade mit welchem tag läuft, welcher schon submitted ist, welcher schon durch ist usw, dabei schlank lassen
+ - [ ] retry usw als event states betrachten - zahl der attempts mit anzeigen
+ - [ ] filter auch für processe im fortschritt oben
+ - [ ] anzeigen: wie weit ist der workflow gerade? (wie viele von wie vielen fertig)
+ - [ ] generell status anzeigen
+ - [ ] melde, wenn z.b ein prozess über 100% memory usage hat
+
+
+

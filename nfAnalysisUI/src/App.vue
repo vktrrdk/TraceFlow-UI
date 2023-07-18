@@ -22,7 +22,7 @@ export default defineComponent({
 </script>
 
 <template>
-    <div class="container">
+    <div class="container-fluid m-4">
         <router-view></router-view>
     </div>
     

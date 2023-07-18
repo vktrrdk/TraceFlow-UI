@@ -8,9 +8,6 @@ import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
 import { Chart, LinearScale, CategoryScale } from 'chart.js/auto';
 import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
-import Accordion from 'primevue/accordion';
-import AccordionTab from 'primevue/accordiontab';
-import ProgressBar from 'primevue/progressbar';
 import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel';
 import Card from 'primevue/card';
@@ -20,6 +17,17 @@ import Tag from 'primevue/tag';
 import MultiSelect from "primevue/multiselect";
 import { FilterMatchMode } from 'primevue/api';
 import InputText from 'primevue/inputtext';
+import Message from 'primevue/message'; // could replace alerts
+import {Chart as PrimeChart} from 'primevue/chart' // for progess per process (mutliple instances) - pie-chart
+import OrganizationChart from 'primevue/organizationchart'; // could be useful to show stuff
+import Timeline from 'primevue/timeline'; // per task (process instance) --> show progress instead of a bar
+import Skeleton from 'primevue/skeleton'; // while loading
+import ProgressSpinner from 'primevue/progressspinner'; // same
+import Listbox from 'primevue/listbox'; // for top
+import Panel from 'primevue/panel';
+import Knob from 'primevue/knob';
+import Steps from 'primevue/steps';
+
 
 
 /**
@@ -51,21 +59,25 @@ const workflowState = reactive<{
     loading: boolean;
     token: string;
     token_info_requested: boolean
-    chart: any;
     error_on_request: boolean;
     process_state: any;
     state_by_task: any;
     dynamicChart: any;
+    selectedKeys: string[];
+    selectedProcesses: string[];
+    selectionFilters: any;
     //connection: WebSocket;
 }>({
     loading: true,
     token: "",
     token_info_requested: false,
-    chart: {},
     error_on_request: false,
     process_state: {},
     state_by_task: {},
     dynamicChart: {},
+    selectedKeys: [],
+    selectedProcesses: [],
+    selectionFilters: {},
     //connection: null,
 });
 
@@ -94,6 +106,7 @@ function getData(token = props.token) {
                     generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
                     generateDurationSumChart();
                     createDynamicDataPlot();
+                    
                     //addRamAllocationPercentageToGraph();
                     /*
                     - add IO read write graph
@@ -175,15 +188,7 @@ function getNumberOfCompletedSubprocesses(info: any): number {
 function deleteToken(token: string) {
     // needs implementation
 }
-/*
-function generateChart() { OLD
-    let x_data = workflowState.run_traces.map((trace: RunTrace) => Date.parse(trace.timestamp));
-    let y_data = workflowState.run_traces.map((trace: RunTrace) => trace.memory);
-    let data = workflowState.run_traces.map((trace: RunTrace) => new Object({"date": trace.timestamp, "memory": trace.memory }));
-    const width = 800;
-    const height = 500;
-    // TODO: continue chart stuff here
-} */
+
 
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -306,6 +311,17 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
     return [labels, datasets];
 }
 
+function generateDynamicData(keys: string[], label: string[], selectedProcesses: string[], selectionFilters: any){
+    let datasets: any[] = [];
+    let labels: string[] = [];
+    let states: any = toRaw(workflowState.process_state);
+    let first_loop: boolean = true;
+    let key_index = 0;
+    for (let key of keys){
+        // only processes and tags selected
+    }
+}
+
 // func(keys, format, label);
 
 
@@ -412,7 +428,7 @@ function generateDiv(elementId: string, title: string): HTMLCanvasElement{
     const divWithCanvas = document.createElement('div');
     const titleElement = document.createElement('h5');
     titleElement.textContent = title;
-    divWithCanvas.style.width = '75rem';
+    divWithCanvas.style.width = '80vw';
     const canvas = document.createElement('canvas');
     canvas.id = elementId;
     divWithCanvas.appendChild(titleElement);
@@ -429,23 +445,11 @@ ___
 needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
 result:
 */
-function getSuffixes(strings: string[]) {
-  if (strings.length === 0) {
-    return [];
-  }
-
-  const parts = strings[0].split(':');
-  const commonPrefix = parts.slice(0, -1).join(':');
-
-  // Remove common prefix from each string
-  const suffixes = strings.map(string => {
-    if (string.startsWith(commonPrefix)) {
-      return string.substring(commonPrefix.length + 1);
-    }
-    return string;
+function getSuffixes(strings) {
+  return strings.map(str => {
+    const parts = str.split(':');
+    return parts[parts.length - 1];
   });
-
-  return suffixes;
 }
 
 function emptyFunction(): [string[], any[]] {
@@ -619,6 +623,16 @@ async function createDynamicDataPlot() {
   });
 }
 
+function updateDynamicMetrics(): void {
+    console.log(workflowState.selectedProcesses);
+    console.log(workflowState.selectedKeys);
+    console.log(workflowState.selectionFilters);
+}
+
+function getStuff(an: any) {
+    return 5;
+}
+
 
 
 onMounted(() => {
@@ -672,97 +686,36 @@ onMounted(() => {
             v-if="workflowState.token_info_requested && workflowState.state_by_task?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
             <h5 class="card-title">By process</h5>
             <hr>
+            <div>
+            <div v-for="(info, process) in workflowState.process_state">
+                <Panel :header="process" toggleable collapsed
+                :pt="{
+                    header: { style: {'max-height': '40px'}},
+                    root: { class : 'mt-1 mb-1'}
+                }">
+                <template #header>
+                    <div class="row">
+                    <strong>{{process}}</strong> 
+                        <!-- we want progress here https://primevue.org/datatable/#rowgroup_expandable -->
+                </div>
+                </template>
 
-            <div v-for="(info, process) in workflowState.process_state" :id="process + '_accordion'">
-                <Accordion>
-                    <AccordionTab>
-                        <template #header>
-                            <span>{{ process }} - {{ processNumbers(info) }} Completed</span>
-
-                        </template>
-                        <div>
-                            <Card>
-                                <template #title> Metrics </template>
-                                <template #content>
-                                    <ProgressBar
-                                        :value="(getProcessCurrentScore(info) / (getNumberOfTasksForProcess(info) * 100)) * 100"
-                                        :pt="{
-                                            root: { style: { height: '3px' } },
-                                            value: { style: { height: '3px' } },
-                                            label: { style: { display: 'none' } },
-                                        }"></ProgressBar>
-                                    <TabView>
-                                        <TabPanel v-for="(task, id) in info['tasks']" :header="`#${id}`">
-
-                                            <div class="table-responsive">
-                                                <table class="table align-middle">
-                                                    <thead>
-                                                        <tr>
-                                                            <th scope="col">Name</th>
-                                                            <th scope="col">CPUs</th>
-                                                            <th scope="col">Memory</th>
-                                                            <th scope="col">Disk</th>
-                                                            <th scope="col">Duration</th>
-                                                            <th scope="col">Realtime</th>
-                                                            <th scope="col">wchar</th>
-                                                            <th scope="col">rchar</th>
-                                                            <th scope="col">rss</th>
-                                                            <th scope="col">%cpu</th>
-                                                            <th scope="col">%mem</th>
-                                                            <th scope="col">Virtual Memory</th>
-                                                            <th scope="col">peak VMem</th>
-                                                            <th scope="col">syscr</th>
-                                                            <th scope="col">syscw</th>
-                                                            <th scope="col">peak rss</th>
-                                                            <th scope="col">Read bytes</th>
-                                                            <th scope="col">Written bytes</th>
-                                                            <th scope="col">Voluntary CTXT</th>
-                                                            <th scope="col">Involuntary CTXT</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-
-                                                        <tr>
-                                                            <th scope="row">{{ `${process}${task['sub_task'] != null ? ':' +
-                                                                task['sub_task'] : ''}` }}</th>
-                                                            <td>{{ task["cpus"] }}</td>
-                                                            <td>{{ task["memory"] / 1024}} kiB</td>
-                                                            <td>{{ task["disk"] }}</td>
-                                                            <td>{{ (task["duration"] / 1000) }} s</td>
-                                                            <td>{{ task["realtime"] / 1000 }} s</td>
-                                                            <td>{{ task["wchar"] / 1024 }} kiB</td>
-                                                            <td>{{ task["rchar"] / 1024 }} kiB</td>
-                                                            <td>{{ task["rss"] / 1024}} kiB </td>
-                                                            <td>{{ task["cpu_percentage"]}}</td>
-                                                            <td>{{ task["memory_percentage"] }}</td>
-                                                            <td>{{ task["vmem"] / 1024 }} kiB</td>
-                                                            <td>{{ task["peak_vmem"] / 1024}} kiB</td>
-                                                            <td>{{ task["syscr"] }}</td>
-                                                            <td>{{ task["syscw"] }}</td>
-                                                            <td>{{ task["peak_rss"] }}</td>
-                                                            <td>{{ task["read_bytes"] }}</td>
-                                                            <td>{{ task["write_bytes"] }}</td>
-                                                            <td>{{ task["vol_ctxt"] }}</td>
-                                                            <td>{{ task["inv_ctxt"] }}</td>
-
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </TabPanel>
-                                    </TabView>
-
-                                </template>
-
-
-                            </Card>
-
-
-                        </div>
-                    </AccordionTab>
-                </Accordion>
+                    <p class="m-0">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item" v-for="(task, id) in info['tasks']">
+                                <Tag :value="`#${id} - ${task['tag']}`"></Tag>
+                                <!-- get progress here-->
+                            </li>
+                        </ul>
+                        
+                    </p>
+                </Panel>
+                
+            
+                 
 
             </div>
+        </div>
 
 
             <hr>
@@ -878,6 +831,12 @@ onMounted(() => {
                 <h4>Metric visualization</h4>
             </div>
             <div class="card-body" id="canvas_area">
+
+            </div>
+            <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
+                <div type="button" class="btn btn-outline-primary" @click="updateDynamicMetrics()">
+                    Adjust
+                </div>
 
             </div>
             <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
