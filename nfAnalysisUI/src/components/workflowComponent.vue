@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {onMounted, reactive, ref, setTransitionHooks, toRaw, watch} from "vue";
+import { onMounted, reactive, ref, setTransitionHooks, toRaw, watch } from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
@@ -18,7 +18,7 @@ import MultiSelect from "primevue/multiselect";
 import { FilterMatchMode } from 'primevue/api';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message'; // could replace alerts
-import {Chart as PrimeChart} from 'primevue/chart' // for progess per process (mutliple instances) - pie-chart
+import { Chart as PrimeChart } from 'primevue/chart' // for progess per process (mutliple instances) - pie-chart
 import OrganizationChart from 'primevue/organizationchart'; // could be useful to show stuff
 import Timeline from 'primevue/timeline'; // per task (process instance) --> show progress instead of a bar
 import Skeleton from 'primevue/skeleton'; // while loading
@@ -36,7 +36,7 @@ import Steps from 'primevue/steps';
  *
  * */
 
- Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
+Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
 
 const router = useRouter();
 const route = useRoute();
@@ -47,10 +47,10 @@ const props = defineProps<{
 
 const statuses = ['SUBMITTED', 'RUNNING', 'COMPLETED', 'FAILED'];
 const filters = ref({
-  'status': {value: null, matchMode: FilterMatchMode.IN },
-  'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
-  'process': { value: null, matchMode: FilterMatchMode.CONTAINS },
-  'tag': { value: null, matchMode: FilterMatchMode.CONTAINS },
+    'status': { value: null, matchMode: FilterMatchMode.IN },
+    'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
+    'process': { value: null, matchMode: FilterMatchMode.CONTAINS },
+    'tag': { value: null, matchMode: FilterMatchMode.CONTAINS },
 
 });
 
@@ -84,8 +84,9 @@ const metricCharts = reactive<{
     ioChart: any;
     cpuChart: any;
     durationChart: any;
-    dynamicChart: any;
-    dynamicCanvas: any;
+    dynamicChart: Chart;
+    dynamicCanvas: HTMLCanvasElement;
+
     generatedDynamicCanvas: boolean;
 }>({
     memoryChart: {},
@@ -93,8 +94,8 @@ const metricCharts = reactive<{
     ioChart: {},
     cpuChart: {},
     durationChart: {},
-    dynamicChart: {'empty': true},
-    dynamicCanvas: {},
+    dynamicChart: null,
+    dynamicCanvas: null,
     generatedDynamicCanvas: false,
 });
 
@@ -105,7 +106,7 @@ const filterState = reactive<{
     selectedTags: string[];
     tagTaskMapping: any;
     processTaskMapping: any;
-    
+
 }>({
     availableProcesses: [],
     availableTags: [],
@@ -137,14 +138,15 @@ function getData(token = props.token) {
                     filterState.tagTaskMapping = mapAvailableTags();
                     filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
 
-                
+
                     generateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'ram_multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '], 'Memory');
                     generateBoxPlotMultiByKeys([], 'memory_percentage', true, '%', ['Memory usage in '], 'Relative memory usage', generateKeyRelativeData, ['rss', 'memory', 'Memory usage in %', 100]);
                     generateBoxPlotMultiByKeys(['read_bytes', 'write_bytes'], 'read_write_canvas', true, 'MiB', ['Read in ', 'Written in '], 'I/O'),
                     generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
+                    createDynamicDataPlot();
                     generateDurationSumChart();
-    
-                    
+
+
                     //addRamAllocationPercentageToGraph();
                     /*  
                     - add IO read write graph
@@ -165,7 +167,7 @@ function getProcessNamesOnly(): string[] {
     return Object.keys(state);
 }
 
-function mapAvailableProcesses(): any{
+function mapAvailableProcesses(): any {
     let result: any = {};
     let state: any = toRaw(workflowState.process_state);
     let keys: string[] = transformStrings(Object.keys(state));
@@ -190,12 +192,12 @@ function mapAvailableTags(): any {
 
         let tasks: any = state[process]['tasks'];
         for (let task in tasks) {
-           let tag: any = tasks[task]['tag'];
-           if (!(tag in result)) {
-            result[tag] = [task];
-           } else {
-            result[tag].push(task);
-           }
+            let tag: any = tasks[task]['tag'];
+            if (!(tag in result)) {
+                result[tag] = [task];
+            } else {
+                result[tag].push(task);
+            }
         }
     }
     return result;
@@ -212,24 +214,24 @@ so the folliwing input should produce the following output:
 input: ['abc:def:ghi', 'abc:fer:der', 'esf:ang:der', 'esf:ang:zir']
 output: ['ghi', 'fer:der', 'ang:der', 'zir']
  */
- function transformStrings(input) {
-   return input;
+function transformStrings(input) {
+    return input;
 }
 
 
 
 function findDuplicates(arr: any) {
-  let sorted_arr = arr.slice().sort(); // You can define the comparing function here. 
-  // JS by default uses a crappy string compare.
-  // (we use slice to clone the array so the
-  // original array won't be modified)
-  let results = [];
-  for (let i = 0; i < sorted_arr.length - 1; i++) {
-    if (sorted_arr[i + 1] == sorted_arr[i]) {
-      results.push(sorted_arr[i]);
+    let sorted_arr = arr.slice().sort(); // You can define the comparing function here. 
+    // JS by default uses a crappy string compare.
+    // (we use slice to clone the array so the
+    // original array won't be modified)
+    let results = [];
+    for (let i = 0; i < sorted_arr.length - 1; i++) {
+        if (sorted_arr[i + 1] == sorted_arr[i]) {
+            results.push(sorted_arr[i]);
+        }
     }
-  }
-  return results;
+    return results;
 }
 
 
@@ -319,14 +321,14 @@ function generateDurationData(): any[] {
 }
 
 function reasonableDataFormat(input: number) {
-  const types: string[] = ['b', 'kiB', 'MiB', 'GiB', 'TiB'];
-  let iteration: number = 0;
-  while (input >= 1024 && iteration < types.length) {
-    input = input / 1024;
-    iteration += 1;
-  }
+    const types: string[] = ['b', 'kiB', 'MiB', 'GiB', 'TiB'];
+    let iteration: number = 0;
+    while (input >= 1024 && iteration < types.length) {
+        input = input / 1024;
+        iteration += 1;
+    }
 
-  return `${input.toFixed(3)} ${types[iteration]}`;
+    return `${input.toFixed(3)} ${types[iteration]}`;
 }
 
 function getDataInValidFormat(byte_numbers: number[], wantedType: string): [number[], string] {
@@ -334,7 +336,7 @@ function getDataInValidFormat(byte_numbers: number[], wantedType: string): [numb
     let iteration: number = 0;
 
     if (byte_numbers.length > 0) {
-        while(byte_numbers.some(elm => elm > 10000) && iteration < types.length - 1 && types[iteration] !== wantedType) {
+        while (byte_numbers.some(elm => elm > 10000) && iteration < types.length - 1 && types[iteration] !== wantedType) {
             byte_numbers = byte_numbers.map((num): number => num / 1024);
             iteration++;
         }
@@ -401,17 +403,14 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
     let first_loop: boolean = true;
     let key_index = 0;
     let processesToFilterBy: string[] = filterState.availableProcesses;
-    if (processFilter.length !== 0){
+    if (processFilter.length !== 0) {
         processesToFilterBy = toRaw(processFilter);
-        console.log("IT IS NOT 0")
     }
     for (let key of keys) {
-        let single_dataset: any = {'label': label[key_index] + wantedFormat, data: []};
+        let single_dataset: any = { 'label': label[key_index] + wantedFormat, data: [] };
         for (let process in states) {
-            //console.log(process);
-            //console.log(processesToFilterBy);
-            if (process in processesToFilterBy) {
-                console.log("TRUE");
+            if (processesToFilterBy.includes(process)) {
+                // now check why the chart generation fails;
                 let values: any[] = [];
                 if (first_loop) {
                     labels.push(process)
@@ -440,7 +439,7 @@ function generateMemoryRelativeData(): [string[], any[]] {
     let datasets: any[] = [];
     let labels: string[] = [];
     let states: any = toRaw(workflowState.process_state);
-    let relative_dataset: any = {'label': 'Memory usage in %', 'data': []}
+    let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
     for (let process in states) {
         labels.push(process);
         let processValues: any[] = [];
@@ -461,7 +460,7 @@ function generateKeyRelativeData(dataKey: string, respectToKey: string, label: s
     let datasets: any[] = [];
     let labels: string[] = [];
     let states: any = toRaw(workflowState.process_state);
-    let relative_dataset: any = {'label': label, 'data': []}
+    let relative_dataset: any = { 'label': label, 'data': [] }
     for (let process in states) {
         labels.push(process);
         let processValues: any[] = [];
@@ -479,7 +478,7 @@ function generateKeyRelativeData(dataKey: string, respectToKey: string, label: s
 
 function generateCPUData(): [string[], any[]] {
     let datasets: any[] = [];
-    let labels: string [] = [];
+    let labels: string[] = [];
     let states: any = toRaw(workflowState.process_state);
     let key_index = 0;
     let values: any = {};
@@ -488,9 +487,9 @@ function generateCPUData(): [string[], any[]] {
         labels.push(process);
         let tasks: any = states[process]['tasks'];
         if (!(process in values)) {
-            values[process] = {'cpus': [], 'realtime': []};
+            values[process] = { 'cpus': [], 'realtime': [] };
         }
-        for (let task_id in tasks){
+        for (let task_id in tasks) {
             values[process]['cpus'].push(tasks[task_id]['cpus']);
             values[process]['realtime'].push(tasks[task_id]['realtime']);
         }
@@ -498,12 +497,12 @@ function generateCPUData(): [string[], any[]] {
 
     let allocation_data = [];
     let raw_usage_data = [];
-    for (let process in values){
+    for (let process in values) {
         let value_numerator: number = 0;
         let value_denominator: number = 0;
         let values_raw: number[] = [];
         let idx: number = 0;
-        while (idx < values[process]['cpus'].length){
+        while (idx < values[process]['cpus'].length) {
             value_numerator += values[process]['cpus'][idx] * (values[process]['realtime'][idx] / 1000)
             value_denominator += (values[process]['realtime'][idx] / 1000);
             values_raw.push(values[process]['cpus'][idx] * 100)
@@ -517,8 +516,8 @@ function generateCPUData(): [string[], any[]] {
         allocation_data.push([value * 100]);
         raw_usage_data.push(values_raw);
     }
-    datasets.push({'label': 'Requested CPU used in %', 'data': allocation_data})
-    datasets.push({'label': 'CPU usage in %', 'data': raw_usage_data });
+    datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data })
+    datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data });
 
     return [labels, datasets]
 }
@@ -535,7 +534,7 @@ function generateCPUData(): [string[], any[]] {
 /**
  * geht bestimmt noch einfacher - async? warum immer warten bis das ganze fertig ist...
  */
-function generateDiv(elementId: string, title: string): HTMLCanvasElement{
+function generateDiv(elementId: string, title: string): HTMLCanvasElement {
     const divWithCanvas = document.createElement('div');
     const titleElement = document.createElement('h5');
     titleElement.textContent = title;
@@ -557,14 +556,14 @@ needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the 
 result:
 */
 function getSuffixes(strings) {
-  return strings.map(str => {
-    const parts = str.split(':');
-    return parts[parts.length - 1];
-  });
+    return strings.map(str => {
+        const parts = str.split(':');
+        return parts[parts.length - 1];
+    });
 }
 
 function emptyFunction(): [string[], any[]] {
-    return [[],[]];
+    return [[], []];
 }
 
 async function generateBoxPlotMultiByKeys(keys: string[], canvasID: string, adjust: boolean, format: string, label: string[], title: string, func: (...params: any) => [string[], any[]] = emptyFunction, args: any[] = []) {
@@ -656,7 +655,7 @@ async function generateDurationSumChart() {
                             label: 'Requested time used in %',
                             data: data_allocated[1],
                         }
-                ],
+                    ],
 
 
             },
@@ -669,29 +668,22 @@ async function generateDurationSumChart() {
 
 async function createDynamicDataPlot() {
 
-  // check https://www.chartjs.org/docs/latest/developers/charts.html#new-charts
-  // and https://www.chartjs.org/docs/latest/developers/updates.html
+    // check https://www.chartjs.org/docs/latest/developers/charts.html#new-charts
+    // and https://www.chartjs.org/docs/latest/developers/updates.html
 
-  // update in the future!
+    // update in the future!
 
-  let generatedDatasets: [string[], any[]] = [[], []];
-  await delay(300);
-
-    generatedDatasets = generateDataByMultipleKeys(['memory', 'vmem', 'rss'], true, 'MiB', ['Requested (d) in ', 'Virtual (d) in ', 'Physical (d) in '], filterState.selectedProcesses);
     
-  await delay(300);
 
-  if (!metricCharts.generatedDynamicCanvas) {
-    let canvas = generateDiv('dynamic_canvas', 'Dynamic metrics');
-    metricCharts.dynamicCanvas = canvas;
-    metricCharts.generatedDynamicCanvas = true;
-  }
-  
-  
-  if (!metricCharts.dynamicChart["empty"]) {
-    metricCharts.dynamicChart.destroy();
+    await delay(300);
+
+    if (!metricCharts.generatedDynamicCanvas) {
+        let canvas = generateDiv('dynamic_canvas', 'Dynamic metrics');
+        metricCharts.dynamicCanvas = canvas;
+        metricCharts.generatedDynamicCanvas = true;
     }
-  metricCharts.dynamicChart = new Chart(
+
+    const dynChart = new Chart(
         metricCharts.dynamicCanvas,
         {
             type: 'boxplot',
@@ -707,22 +699,31 @@ async function createDynamicDataPlot() {
                 }
             },
             data: {
-                labels: getSuffixes(generatedDatasets[0]),
-                datasets: generatedDatasets[1],
+                labels: [],
+                datasets: [],
             }
         }
     );
+    Object.seal(dynChart);
+    metricCharts.dynamicChart = dynChart;
 }
 
-function updateDynamicMetrics(): void {
+async function updateDynamicMetrics(): Promise<void> {
+    await delay(300);
+    let generatedDatasets: [string[], any[]] = [[], []];
+
+    generatedDatasets = generateDataByMultipleKeys(['vmem', 'rss'], true, 'MiB', ['Virtual (d) in ', 'Physical (d) in '], filterState.selectedProcesses);
+    console.log(generatedDatasets);
+
+    metricCharts.dynamicChart.data.labels = getSuffixes(generatedDatasets[0]);
+    metricCharts.dynamicChart.data.datasets = generatedDatasets[1];
+    metricCharts.dynamicChart.update();
+
 }
 
 
 function metricProcessSelectionChanged(): void {
-    console.log("changed");
-    //updateDynamicMetrics();+
-    createDynamicDataPlot();
-    // and we want to update metrics
+    updateDynamicMetrics();
 }
 
 onMounted(() => {
@@ -758,7 +759,8 @@ onMounted(() => {
             <div class="alert alert-dark">
                 The following steps need to be taken:
                 <ul>
-                    <li>Take a look at the current token - the full token is: <strong>{{ workflowState.token }}</strong> </li>
+                    <li>Take a look at the current token - the full token is: <strong>{{ workflowState.token }}</strong>
+                    </li>
                     <li>Start your nextflow workflow as you are used to. Just add the following command line arguments to
                         the execution:
                         <strong>{{ `-with-weblog http://localhost:8000/run/${workflowState.token}/` }}</strong>
@@ -777,35 +779,34 @@ onMounted(() => {
             <h5 class="card-title">By process</h5>
             <hr>
             <div>
-            <div v-for="(info, process) in workflowState.process_state">
-                <Panel :header="process" toggleable collapsed
-                :pt="{
-                    header: { style: {'max-height': '40px'}},
-                    root: { class : 'mt-1 mb-1'}
-                }">
-                <template #header>
-                    <div class="row">
-                    <strong>{{process}}</strong> 
-                        <!-- we want progress here https://primevue.org/datatable/#rowgroup_expandable -->
-                </div>
-                </template>
+                <div v-for="(info, process) in workflowState.process_state">
+                    <Panel :header="process" toggleable collapsed :pt="{
+                        header: { style: { 'max-height': '40px' } },
+                        root: { class: 'mt-1 mb-1' }
+                    }">
+                        <template #header>
+                            <div class="row">
+                                <strong>{{ process }}</strong>
+                                <!-- we want progress here https://primevue.org/datatable/#rowgroup_expandable -->
+                            </div>
+                        </template>
 
-                    <p class="m-0">
+                        <p class="m-0">
                         <ul class="list-group list-group-flush">
                             <li class="list-group-item" v-for="(task, id) in info['tasks']">
                                 <Tag :value="`#${id} - ${task['tag']}`"></Tag>
                                 <!-- get progress here-->
                             </li>
                         </ul>
-                        
-                    </p>
-                </Panel>
-                
-            
-                 
 
+                        </p>
+                    </Panel>
+
+
+
+
+                </div>
             </div>
-        </div>
 
 
             <hr>
@@ -813,50 +814,56 @@ onMounted(() => {
                 <h5 class="card-title">Trace Information</h5>
 
                 <DataTable :value="workflowState.state_by_task" sortField="task_id" :sortOrder="1" v-model:filters="filters"
-                           filterDisplay="row"
-                    tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" removableSort>
+                    filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10"
+                    :rowsPerPageOptions="[10, 20, 50]" removableSort>
                     <Column field="task_id" header="Task-ID" sortable></Column>
-                    <Column field="name" style="min-width: 20rem" header="Name" sortable :show-filter-menu="false" filter-field="name">
-                      <template #body="{ data }">
-                        {{data['name']}}
-                      </template>
-                      <template #filter="{ filterModel, filterCallback }">
-                        <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter" placeholder="Filter name" />
-                      </template>
+                    <Column field="name" style="min-width: 20rem" header="Name" sortable :show-filter-menu="false"
+                        filter-field="name">
+                        <template #body="{ data }">
+                            {{ data['name'] }}
+                        </template>
+                        <template #filter="{ filterModel, filterCallback }">
+                            <InputText v-model="filterModel.value" type="text" @input="filterCallback()"
+                                class="p-column-filter" placeholder="Filter name" />
+                        </template>
                     </Column>
-                    <Column field="status" style="min-width: 12rem" header="Status" sortable filter-field="status" :show-filter-menu="false" :filter-match-mode="'contains'">
-                      <!-- adjust it to be a dropdown! -->
+                    <Column field="status" style="min-width: 12rem" header="Status" sortable filter-field="status"
+                        :show-filter-menu="false" :filter-match-mode="'contains'">
+                        <!-- adjust it to be a dropdown! -->
                         <template #body="{ data }">
                             <Tag :value="data.status" />
                         </template>
-                      <template #filter="{ filterModel, filterCallback }">
-                        <MultiSelect v-model="filterModel.value" style="max-width: 12rem" display="chip" @change="filterCallback()"
-                                     :pt="{
-                                        token: {
-                                          style: { 'max-width': '8rem' }
-                                        },
-                                        tokenLabel: { style: { 'font-size': '10px'} }
-                                     }"
-                                     :options="statuses" placeholder="Any" class="p-column-filter">
-                          <template #header>
+                        <template #filter="{ filterModel, filterCallback }">
+                            <MultiSelect v-model="filterModel.value" style="max-width: 12rem" display="chip"
+                                @change="filterCallback()" :pt="{
+                                    token: {
+                                        style: { 'max-width': '8rem' }
+                                    },
+                                    tokenLabel: { style: { 'font-size': '10px' } }
+                                }" :options="statuses" placeholder="Any" class="p-column-filter">
+                                <template #header>
 
-                          </template>
-                          <template #option="slotProps">
-                            <Tag :value="slotProps.option" />
-                          </template>
-                        </MultiSelect>
-                      </template>
+                                </template>
+                                <template #option="slotProps">
+                                    <Tag :value="slotProps.option" />
+                                </template>
+                            </MultiSelect>
+                        </template>
                     </Column>
-                    <Column field="process" header="Process" style="min-width: 20rem" sortable :show-filter-menu="false" filter-field="process">
-                      <template #filter="{ filterModel, filterCallback }">
-                        <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter" placeholder="Search by process" />
-                      </template>
+                    <Column field="process" header="Process" style="min-width: 20rem" sortable :show-filter-menu="false"
+                        filter-field="process">
+                        <template #filter="{ filterModel, filterCallback }">
+                            <InputText v-model="filterModel.value" type="text" @input="filterCallback()"
+                                class="p-column-filter" placeholder="Search by process" />
+                        </template>
                     </Column>
 
-                    <Column field="tag" header="Tag"  style="min-width: 20rem" filter-field="tag" :show-filter-menu="false" sortable>
-                      <template #filter="{ filterModel, filterCallback }">
-                        <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter" placeholder="Search by name" />
-                      </template>
+                    <Column field="tag" header="Tag" style="min-width: 20rem" filter-field="tag" :show-filter-menu="false"
+                        sortable>
+                        <template #filter="{ filterModel, filterCallback }">
+                            <InputText v-model="filterModel.value" type="text" @input="filterCallback()"
+                                class="p-column-filter" placeholder="Search by name" />
+                        </template>
                     </Column>
                     <Column field="timestamp" header="Timestamp" sortable></Column>
                     <Column field="duration" sortable header="Duration">
@@ -868,21 +875,23 @@ onMounted(() => {
                     <Column field="memory_percentage" header="Memory %" sortable></Column>
                     <Column field="memory" header="Memory">
                         <template #body="{ data }">
-                          {{ reasonableDataFormat(data['memory']) }}
+                            {{ reasonableDataFormat(data['memory']) }}
                         </template>
                     </Column>
                     <Column field="disk" header="Disk"></Column>
                     <Column field="rchar" header="rchar" sortable>
                         <template #body="{ data }">
-                          {{ reasonableDataFormat(data['rchar']) }}
-                        </template></Column>
+                            {{ reasonableDataFormat(data['rchar']) }}
+                        </template>
+                    </Column>
                     <Column field="wchar" header="wchar" sortable>
                         <template #body="{ data }">
-                          {{ reasonableDataFormat(data['wchar']) }}
-                        </template></Column>
+                            {{ reasonableDataFormat(data['wchar']) }}
+                        </template>
+                    </Column>
                     <Column field="rss" header="rss" sortable>
                         <template #body="{ data }">
-                          {{ reasonableDataFormat(data['rss']) }}
+                            {{ reasonableDataFormat(data['rss']) }}
                         </template>
                     </Column>
                     <Column field="peak_rss" header="Peak rss" sortable></Column>
@@ -890,7 +899,7 @@ onMounted(() => {
                     <Column field="syscw" header="syscw" sortable></Column>
                     <Column field="peak_vmem" header="Peak VMem" sortable>
                         <template #body="{ data }">
-                          {{ reasonableDataFormat(data['peak_vmem']) }}
+                            {{ reasonableDataFormat(data['peak_vmem']) }}
                         </template>
                     </Column>
                     <Column field="vmem" header="VMem" sortable>
@@ -904,14 +913,14 @@ onMounted(() => {
                     <Column field="vol_ctxt" header="Voluntary context switches" sortable></Column>
                     <Column field="inv_ctxt" header="Involuntary cs" sortable></Column>
                     <Column field="time" header="Time" sortable>
-                      <template #body="{ data }">
-                        {{data['time'] / 1000}} s
-                      </template>
+                        <template #body="{ data }">
+                            {{ data['time'] / 1000 }} s
+                        </template>
                     </Column>
                     <Column field="realtime" header="Realtime" sortable>
                         <template #body="{ data }">
-                            {{(data['realtime'] / 1000)}} s
-                         </template>
+                            {{ (data['realtime'] / 1000) }} s
+                        </template>
                     </Column>
                 </DataTable>
             </div>
@@ -921,8 +930,9 @@ onMounted(() => {
                 <h4>Metric visualization</h4>
             </div>
             <div class="card-body" v-if="filterState.selectedProcesses">
-                <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses" v-on:update:model-value="metricProcessSelectionChanged();" filter placeholder="Select Processes"
-                display="chip" class="w-full" />
+                <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses"
+                    v-on:update:model-value="metricProcessSelectionChanged();" filter placeholder="Select Processes"
+                    display="chip" class="w-full" />
             </div>
             <div class="card-body" id="canvas_area">
 
@@ -943,9 +953,9 @@ onMounted(() => {
 
         <div class="card-body" v-if="workflowState.error_on_request">
             <div class="alert alert-info">
-                This token is not correct, please enter another token
-            </div>
+            This token is not correct, please enter another token
         </div>
+    </div>
 
 </div></template>
 
