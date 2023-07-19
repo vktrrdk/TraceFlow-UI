@@ -29,7 +29,6 @@ import Knob from 'primevue/knob';
 import Steps from 'primevue/steps';
 
 
-
 /**
  *
  * We need a function that transforms the indexes of the tasks per process into menuItem-like objects
@@ -62,7 +61,6 @@ const workflowState = reactive<{
     error_on_request: boolean;
     process_state: any;
     state_by_task: any;
-    dynamicChart: any;
     selectedKeys: string[];
     selectedProcesses: string[];
     selectionFilters: any;
@@ -74,12 +72,50 @@ const workflowState = reactive<{
     error_on_request: false,
     process_state: {},
     state_by_task: {},
-    dynamicChart: {},
     selectedKeys: [],
     selectedProcesses: [],
     selectionFilters: {},
     //connection: null,
 });
+
+const metricCharts = reactive<{
+    memoryChart: any;
+    relativeMemoryChart: any;
+    ioChart: any;
+    cpuChart: any;
+    durationChart: any;
+    dynamicChart: any;
+    dynamicCanvas: any;
+    generatedDynamicCanvas: boolean;
+}>({
+    memoryChart: {},
+    relativeMemoryChart: {},
+    ioChart: {},
+    cpuChart: {},
+    durationChart: {},
+    dynamicChart: {'empty': true},
+    dynamicCanvas: {},
+    generatedDynamicCanvas: false,
+});
+
+const filterState = reactive<{
+    availableProcesses: string[];
+    availableTags: string[];
+    selectedProcesses: string[];
+    selectedTags: string[];
+    tagTaskMapping: any;
+    processTaskMapping: any;
+    
+}>({
+    availableProcesses: [],
+    availableTags: [],
+    selectedProcesses: [],
+    selectedTags: [],
+    processTaskMapping: {},
+    tagTaskMapping: {},
+
+});
+
 
 function getData(token = props.token) {
     if (token.length > 0) {
@@ -96,19 +132,21 @@ function getData(token = props.token) {
                     workflowState.token_info_requested = true;
                     workflowState.token = token;
                     workflowState.error_on_request = false;
-                    //generateChart();
-                    //generateBoxPlotByKey('memory', 'memory_canvas', true, 'MiB', 'Requested memory in', 'Requested memory');
-                    //generateBoxPlotByKey('vmem', 'vmem_canvas', true, 'MiB', 'Virtual memory in', 'Virtual memory');
-                    //generateBoxPlotByKey('rss', 'rss_canvas', true, 'MiB', 'Physical memory in', 'Physical memory');
+                    filterState.processTaskMapping = mapAvailableProcesses();
+                    filterState.availableProcesses = getProcessNamesOnly();
+                    filterState.tagTaskMapping = mapAvailableTags();
+                    filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
+
+                
                     generateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'ram_multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '], 'Memory');
                     generateBoxPlotMultiByKeys([], 'memory_percentage', true, '%', ['Memory usage in '], 'Relative memory usage', generateKeyRelativeData, ['rss', 'memory', 'Memory usage in %', 100]);
                     generateBoxPlotMultiByKeys(['read_bytes', 'write_bytes'], 'read_write_canvas', true, 'MiB', ['Read in ', 'Written in '], 'I/O'),
                     generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
                     generateDurationSumChart();
-                    createDynamicDataPlot();
+    
                     
                     //addRamAllocationPercentageToGraph();
-                    /*
+                    /*  
                     - add IO read write graph
                     - add CPU raw usage and % allocated graph
                     */
@@ -121,6 +159,79 @@ function getData(token = props.token) {
     }
 
 }
+
+function getProcessNamesOnly(): string[] {
+    let state: any = toRaw(filterState.processTaskMapping);
+    return Object.keys(state);
+}
+
+function mapAvailableProcesses(): any{
+    let result: any = {};
+    let state: any = toRaw(workflowState.process_state);
+    let keys: string[] = transformStrings(Object.keys(state));
+    // console.log(findDuplicates(keys)); there are none..
+    for (let key of keys) {
+        let tasks: any = state[key]['tasks'];
+        result[key] = Object.keys(tasks);
+    }
+
+    return result;
+}
+
+function getTagNamesOnly(): string[] {
+    //TODO implement;
+    return [];
+}
+
+function mapAvailableTags(): any {
+    let result: any = {};
+    let state: any = toRaw(workflowState.process_state);
+    for (let process in state) {
+
+        let tasks: any = state[process]['tasks'];
+        for (let task in tasks) {
+           let tag: any = tasks[task]['tag'];
+           if (!(tag in result)) {
+            result[tag] = [task];
+           } else {
+            result[tag].push(task);
+           }
+        }
+    }
+    return result;
+
+}
+/*
+ again openai:
+in javascript, i have a list of strings, which have the following format:
+'a:b:c...', with a, b,c and so on being substrings.
+i want a function to transform these strings, which have ':'-chars as concatenators so only the distinguishable part at the end of the string is left.
+
+so the folliwing input should produce the following output:
+
+input: ['abc:def:ghi', 'abc:fer:der', 'esf:ang:der', 'esf:ang:zir']
+output: ['ghi', 'fer:der', 'ang:der', 'zir']
+ */
+ function transformStrings(input) {
+   return input;
+}
+
+
+
+function findDuplicates(arr: any) {
+  let sorted_arr = arr.slice().sort(); // You can define the comparing function here. 
+  // JS by default uses a crappy string compare.
+  // (we use slice to clone the array so the
+  // original array won't be modified)
+  let results = [];
+  for (let i = 0; i < sorted_arr.length - 1; i++) {
+    if (sorted_arr[i + 1] == sorted_arr[i]) {
+      results.push(sorted_arr[i]);
+    }
+  }
+  return results;
+}
+
 
 function sortTraces(a: RunTrace, b: RunTrace): number {
     if (Date.parse(a.timestamp) < Date.parse(b.timestamp)) {
@@ -281,27 +392,39 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
 
 }
 
-function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string, label: string[]): any {
+
+
+function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string, label: string[], processFilter: string[] = []): any {
     let datasets: any[] = [];
     let labels: string[] = [];
     let states: any = toRaw(workflowState.process_state);
     let first_loop: boolean = true;
     let key_index = 0;
+    let processesToFilterBy: string[] = filterState.availableProcesses;
+    if (processFilter.length !== 0){
+        processesToFilterBy = toRaw(processFilter);
+        console.log("IT IS NOT 0")
+    }
     for (let key of keys) {
         let single_dataset: any = {'label': label[key_index] + wantedFormat, data: []};
-        for(let process in states) {
-            let values: any[] = [];
-            if (first_loop) {
-                labels.push(process)
-            }
-            let tasks: any = states[process]['tasks'];
-            for (let task_id in tasks) {
-                values.push(tasks[task_id][key]);
-            }
-            if (adjust) {
-                single_dataset['data'].push(getDataInValidFormat(values, wantedFormat)[0]);
-            } else {
-                single_dataset['data'].push(values);
+        for (let process in states) {
+            //console.log(process);
+            //console.log(processesToFilterBy);
+            if (process in processesToFilterBy) {
+                console.log("TRUE");
+                let values: any[] = [];
+                if (first_loop) {
+                    labels.push(process)
+                }
+                let tasks: any = states[process]['tasks'];
+                for (let task_id in tasks) {
+                    values.push(tasks[task_id][key]);
+                }
+                if (adjust) {
+                    single_dataset['data'].push(getDataInValidFormat(values, wantedFormat)[0]);
+                } else {
+                    single_dataset['data'].push(values);
+                }
             }
         }
         datasets.push(single_dataset);
@@ -311,18 +434,6 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
     return [labels, datasets];
 }
 
-function generateDynamicData(keys: string[], label: string[], selectedProcesses: string[], selectionFilters: any){
-    let datasets: any[] = [];
-    let labels: string[] = [];
-    let states: any = toRaw(workflowState.process_state);
-    let first_loop: boolean = true;
-    let key_index = 0;
-    for (let key of keys){
-        // only processes and tags selected
-    }
-}
-
-// func(keys, format, label);
 
 
 function generateMemoryRelativeData(): [string[], any[]] {
@@ -555,85 +666,64 @@ async function generateDurationSumChart() {
 
 }
 
-async function generateBoxPlotByKey(key: string, canvasID: string, adjust: boolean, format: string, label: string, title: string) {
-    // adjust here - get the data in the function to display ranges and so on.
-    let data = generateDataByKey(key, adjust, format);
-    await delay(300);
 
-    let canvas = generateDiv(canvasID, title);
+async function createDynamicDataPlot() {
 
+  // check https://www.chartjs.org/docs/latest/developers/charts.html#new-charts
+  // and https://www.chartjs.org/docs/latest/developers/updates.html
 
+  // update in the future!
 
-    new Chart(
-        canvas,
+  let generatedDatasets: [string[], any[]] = [[], []];
+  await delay(300);
+
+    generatedDatasets = generateDataByMultipleKeys(['memory', 'vmem', 'rss'], true, 'MiB', ['Requested (d) in ', 'Virtual (d) in ', 'Physical (d) in '], filterState.selectedProcesses);
+    
+  await delay(300);
+
+  if (!metricCharts.generatedDynamicCanvas) {
+    let canvas = generateDiv('dynamic_canvas', 'Dynamic metrics');
+    metricCharts.dynamicCanvas = canvas;
+    metricCharts.generatedDynamicCanvas = true;
+  }
+  
+  
+  if (!metricCharts.dynamicChart["empty"]) {
+    metricCharts.dynamicChart.destroy();
+    }
+  metricCharts.dynamicChart = new Chart(
+        metricCharts.dynamicCanvas,
         {
             type: 'boxplot',
             options: {
                 responsive: true,
                 plugins: {
                     legend: {
-                        display: true
+                        display: true,
                     },
                     tooltip: {
                         enabled: true
                     }
-
                 }
             },
             data: {
-
-                labels: getSuffixes(data["labels"]),
-                datasets:
-                    [
-                        {
-                        label: `${label} ${data['type']}`,
-                        //data: data["data"],
-                        data: data["data"],
-                    }
-                ],
-
-
-            },
-
+                labels: getSuffixes(generatedDatasets[0]),
+                datasets: generatedDatasets[1],
+            }
         }
     );
 }
 
-async function createDynamicDataPlot() {
-
-  // check https://www.chartjs.org/docs/latest/developers/charts.html#new-charts
-  // and https://www.chartjs.org/docs/latest/developers/updates.html
-  await delay(300);
-  let canvas = generateDiv('dynamic_canvas', 'Dynamic metrics');
-  workflowState.dynamicChart = new Chart(
-      canvas, {
-        type: 'boxplot',
-        options: {},
-        data: {
-          labels: ['label'],
-          datasets: [
-
-            {
-              label: 'TestLabel',
-              data: [[0,1]]
-
-          },
-          ]
-        },
-  });
-}
-
 function updateDynamicMetrics(): void {
-    console.log(workflowState.selectedProcesses);
-    console.log(workflowState.selectedKeys);
-    console.log(workflowState.selectionFilters);
-}
-
-function getStuff(an: any) {
-    return 5;
 }
 
 
+function metricProcessSelectionChanged(): void {
+    console.log("changed");
+    //updateDynamicMetrics();+
+    createDynamicDataPlot();
+    // and we want to update metrics
+}
 
 onMounted(() => {
     getData();
@@ -829,6 +919,10 @@ onMounted(() => {
         <div class="p-4 row-gap-3">
             <div>
                 <h4>Metric visualization</h4>
+            </div>
+            <div class="card-body" v-if="filterState.selectedProcesses">
+                <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses" v-on:update:model-value="metricProcessSelectionChanged();" filter placeholder="Select Processes"
+                display="chip" class="w-full" />
             </div>
             <div class="card-body" id="canvas_area">
 
