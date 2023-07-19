@@ -57,9 +57,10 @@ const filters = ref({
 const workflowState = reactive<{
     loading: boolean;
     token: string;
-    token_info_requested: boolean
+    token_info_requested: boolean;
     error_on_request: boolean;
     process_state: any;
+    filteredProcesses: any;
     state_by_task: any;
     selectedKeys: string[];
     selectedProcesses: string[];
@@ -71,6 +72,7 @@ const workflowState = reactive<{
     token_info_requested: false,
     error_on_request: false,
     process_state: {},
+    filteredProcesses: {},
     state_by_task: {},
     selectedKeys: [],
     selectedProcesses: [],
@@ -103,6 +105,7 @@ const filterState = reactive<{
     availableProcesses: string[];
     availableTags: string[];
     selectedProcesses: string[];
+    selectedProgressProcesses: string[];
     selectedTags: string[];
     tagTaskMapping: any;
     processTaskMapping: any;
@@ -111,11 +114,13 @@ const filterState = reactive<{
     availableProcesses: [],
     availableTags: [],
     selectedProcesses: [],
+    selectedProgressProcesses: [],
     selectedTags: [],
     processTaskMapping: {},
     tagTaskMapping: {},
 
 });
+
 
 
 function getData(token = props.token) {
@@ -142,7 +147,7 @@ function getData(token = props.token) {
                     generateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'ram_multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '], 'Memory');
                     generateBoxPlotMultiByKeys([], 'memory_percentage', true, '%', ['Memory usage in '], 'Relative memory usage', generateKeyRelativeData, ['rss', 'memory', 'Memory usage in %', 100]);
                     generateBoxPlotMultiByKeys(['read_bytes', 'write_bytes'], 'read_write_canvas', true, 'MiB', ['Read in ', 'Written in '], 'I/O'),
-                    generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
+                        generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
                     createDynamicDataPlot();
                     generateDurationSumChart();
 
@@ -673,7 +678,7 @@ async function createDynamicDataPlot() {
 
     // update in the future!
 
-    
+
 
     await delay(300);
 
@@ -721,10 +726,27 @@ async function updateDynamicMetrics(): Promise<void> {
 
 }
 
+function getFilteredProcesses(): any[] {
+    let filtered: any = {};
+    for (let process in workflowState.process_state){
+        if (filterState.selectedProgressProcesses.includes(process)) {
+            console.log("true");
+            filtered[process] = workflowState.process_state[process];
+        }
+    }
+    return filtered;
+}
+
+
+function progressProcessSelectionChanged(): void {
+    console.log(filterState.selectedProgressProcesses);
+    workflowState.filteredProcesses = getFilteredProcesses();
+}
 
 function metricProcessSelectionChanged(): void {
     updateDynamicMetrics();
 }
+
 
 onMounted(() => {
     getData();
@@ -779,7 +801,11 @@ onMounted(() => {
             <h5 class="card-title">By process</h5>
             <hr>
             <div>
-                <div v-for="(info, process) in workflowState.process_state">
+                <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses"
+                    v-on:update:model-value="progressProcessSelectionChanged" filter placeholder="Select Processes"
+                    display="chip" class="w-full" />
+                    <!-- also check if this can be made better-->
+                <div v-for="(info, process) in workflowState.filteredProcesses">
                     <Panel :header="process" toggleable collapsed :pt="{
                         header: { style: { 'max-height': '40px' } },
                         root: { class: 'mt-1 mb-1' }
@@ -933,6 +959,7 @@ onMounted(() => {
                 <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses"
                     v-on:update:model-value="metricProcessSelectionChanged();" filter placeholder="Select Processes"
                     display="chip" class="w-full" />
+                <!-- check if we could push this to the datatable and have checkboxes instead?!-->
             </div>
             <div class="card-body" id="canvas_area">
 
@@ -953,10 +980,11 @@ onMounted(() => {
 
         <div class="card-body" v-if="workflowState.error_on_request">
             <div class="alert alert-info">
-            This token is not correct, please enter another token
+                This token is not correct, please enter another token
+            </div>
         </div>
-    </div>
 
-</div></template>
+    </div>
+</template>
 
 <style scoped></style>
