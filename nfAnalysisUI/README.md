@@ -9,8 +9,10 @@
  - [x] more generic handling of tasks/processes --> not only by task ids 
  - [x] **filter for trace information list**
  - [ ] **remove empty columns from list** - or show possibility to disable certain columns
- - [ ] **plot filters dynamically, not only by processes, also by tags and so on**
- - [ ] integrate polling or websockets
+ - [x] **plot filters dynamically, not only by processes, also by tags and so on**
+ - [ ] better handling of "select all" occurances --> if updates are there, show that there are new processes and if "all" is picked, update shown processes and metrics so all are shown
+ - [x] integrate polling or websocket
+ - [ ] consider polling changes more stable
  - [ ] how do we get information about current non-submitted processes/tasks?
  - [ ] more generic handling of traces --> also use meta
  - [ ] check router history - how to add "back-button" ?

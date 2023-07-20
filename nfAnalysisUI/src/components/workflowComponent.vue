@@ -40,6 +40,7 @@ Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
 const router = useRouter();
 const route = useRoute();
 
+
 const props = defineProps<{
   token: string;
 }>();
@@ -54,6 +55,7 @@ const filters = ref({
 });
 
 const workflowState = reactive<{
+  pollInterval: number;
   loading: boolean;
   token: string;
   token_info_requested: boolean;
@@ -66,6 +68,7 @@ const workflowState = reactive<{
   selectionFilters: any;
   //connection: WebSocket;
 }>({
+  pollInterval: 10000,
   loading: true,
   token: "",
   token_info_requested: false,
@@ -133,39 +136,40 @@ function getDataInitial(token = props.token) {
   if (token.length > 0) {
     workflowState.loading = true;
     axios.get(`http://localhost:8000/run/${token}/`).then(
-        response => {
-          if (response.data["error"]) {
-            workflowState.state_by_task = [];
-            workflowState.error_on_request = true;
+      response => {
+        if (response.data["error"]) {
+          workflowState.state_by_task = [];
+          workflowState.error_on_request = true;
 
-          } else {
-            workflowState.state_by_task = response.data["result_by_task"];
-            workflowState.process_state = response.data["result_processes"];
-            workflowState.token_info_requested = true;
-            workflowState.token = token;
-            workflowState.error_on_request = false;
-            filterState.processTaskMapping = mapAvailableProcesses();
-            filterState.availableProcesses = getProcessNamesOnly();
-            filterState.selectedProcesses = filterState.availableProcesses;
-            progressProcessSelectionChanged();
-            filterState.tagTaskMapping = mapAvailableTags();
-            filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
+        } else {
+          workflowState.state_by_task = response.data["result_by_task"];
+          workflowState.process_state = response.data["result_processes"];
+          workflowState.token_info_requested = true;
+          workflowState.token = token;
+          workflowState.error_on_request = false;
+          filterState.processTaskMapping = mapAvailableProcesses();
+          filterState.availableProcesses = getProcessNamesOnly();
+          filterState.selectedProcesses = filterState.availableProcesses;
+          progressProcessSelectionChanged();
+          filterState.tagTaskMapping = mapAvailableTags();
+          filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
 
-            createPlots();
-            //generateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'ram_multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '], 'Memory');
-            //generateBoxPlotMultiByKeys([], 'memory_percentage', true, '%', ['Memory usage in '], 'Relative memory usage', generateKeyRelativeData, ['rss', 'memory', 'Memory usage in %', 100]);
-            //generateBoxPlotMultiByKeys(['read_bytes', 'write_bytes'], 'read_write_canvas', true, 'MiB', ['Read in ', 'Written in '], 'I/O'),
-            //generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
-            //createDynamicDataPlot();
-            // generateDurationSumChart();
+          createPlots();
+          dataPollingLoop();
+          //generateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'ram_multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '], 'Memory');
+          //generateBoxPlotMultiByKeys([], 'memory_percentage', true, '%', ['Memory usage in '], 'Relative memory usage', generateKeyRelativeData, ['rss', 'memory', 'Memory usage in %', 100]);
+          //generateBoxPlotMultiByKeys(['read_bytes', 'write_bytes'], 'read_write_canvas', true, 'MiB', ['Read in ', 'Written in '], 'I/O'),
+          //generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
+          //createDynamicDataPlot();
+          // generateDurationSumChart();
 
-            //addRamAllocationPercentageToGraph();
-            /*
-            - add IO read write graph
-            - add CPU raw usage and % allocated graph
-            */
-          }
-        },
+          //addRamAllocationPercentageToGraph();
+          /*
+          - add IO read write graph
+          - add CPU raw usage and % allocated graph
+          */
+        }
+      },
     );
     //workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`);
     //workflowState.connection. TODO: add websocket stuff
@@ -174,7 +178,29 @@ function getDataInitial(token = props.token) {
 
 }
 
+function dataPollingLoop() {
+  console.log("I am polling")
+  axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
+    response => {
+      if (response.data["error"]) {
+        workflowState.state_by_task = [];
+        workflowState.error_on_request = true;
 
+      } else {
+        workflowState.state_by_task = response.data["result_by_task"];
+        workflowState.process_state = response.data["result_processes"];
+        workflowState.token_info_requested = true;
+        workflowState.error_on_request = false;
+        filterState.availableProcesses = getProcessNamesOnly();
+        filterState.selectedProcesses = filterState.availableProcesses;
+        updateIOPlot();
+        
+      }
+    }).finally((): void => {
+      setTimeout(dataPollingLoop, 10000); 
+    })
+    
+}
 
 async function createPlots() {
   await delay(300);
@@ -191,25 +217,25 @@ async function createRelativeRamPlot() {
   metricCharts.relativeMemoryCanvas = canvas;
   await delay(300);
   const relativeRamChart = new Chart(
-      metricCharts.relativeMemoryCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.relativeMemoryCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(relativeRamChart);
   metricCharts.relativeMemoryChart = relativeRamChart;
@@ -224,25 +250,25 @@ async function createIOPlot() {
   await delay(300);
 
   const ioChart = new Chart(
-      metricCharts.ioCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.ioCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(ioChart);
   metricCharts.ioChart = ioChart;
@@ -252,28 +278,28 @@ async function createIOPlot() {
 
 async function createDurationPlot() {
   const canvas: HTMLCanvasElement = generateDiv('duration_canvas', 'Duration');
-    metricCharts.durationCanvas = canvas;
+  metricCharts.durationCanvas = canvas;
   await delay(300);
   const durationChart = new Chart(
-      metricCharts.durationCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.durationCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(durationChart);
   metricCharts.durationChart = durationChart;
@@ -287,25 +313,25 @@ async function createRamPlot() {
   await delay(300);
 
   const memoryChart = new Chart(
-      metricCharts.memoryCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.memoryCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(memoryChart);
   metricCharts.memoryChart = memoryChart;
@@ -318,25 +344,25 @@ async function createCPUPlot() {
   metricCharts.cpuCanvas = canvas;
   await delay(300);
   const cpuChart = new Chart(
-      metricCharts.cpuCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.cpuCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(cpuChart);
   metricCharts.cpuChart = cpuChart;
@@ -354,11 +380,11 @@ function updatePlots() {
 
 function updateIOPlot() {
   let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
-      ['read_bytes', 'write_bytes'],
-      true,
-      'MiB',
-      ['Read in ', 'Written in '],
-      filterState.selectedProcesses
+    ['read_bytes', 'write_bytes'],
+    true,
+    'MiB',
+    ['Read in ', 'Written in '],
+    filterState.selectedProcesses
   );
 
   metricCharts.ioChart.data.labels = getSuffixes(generatedDatasets[0]);
@@ -368,11 +394,11 @@ function updateIOPlot() {
 
 function updateRamPlot() {
   let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
-      ['memory', 'vmem', 'rss'],
-      true,
-      'MiB',
-      ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '],
-      filterState.selectedProcesses,
+    ['memory', 'vmem', 'rss'],
+    true,
+    'MiB',
+    ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '],
+    filterState.selectedProcesses,
   );
 
   metricCharts.memoryChart.data.labels = getSuffixes(generatedDatasets[0]);
@@ -684,7 +710,7 @@ function generateMemoryRelativeData(): [string[], any[]] {
     let tasks: any = states[process]['tasks'];
     for (let task_id in tasks) {
       processValues.push(
-          (tasks[task_id]['rss'] / tasks[task_id]['memory']) * 100
+        (tasks[task_id]['rss'] / tasks[task_id]['memory']) * 100
       );
     }
     relative_dataset['data'].push(processValues);
@@ -705,7 +731,7 @@ function generateKeyRelativeData(dataKey: string, respectToKey: string, label: s
     let tasks: any = states[process]['tasks'];
     for (let task_id in tasks) {
       processValues.push(
-          (tasks[task_id][dataKey] / tasks[task_id][respectToKey]) * factor
+        (tasks[task_id][dataKey] / tasks[task_id][respectToKey]) * factor
       );
     }
     relative_dataset['data'].push(processValues);
@@ -820,25 +846,25 @@ async function generateBoxPlotMultiByKeys(keys: string[], canvasID: string, adju
   await delay(300);
   let canvas = generateDiv(canvasID, title);
   new Chart(
-      canvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    canvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: getSuffixes(generatedDatasets[0]),
-          datasets: generatedDatasets[1],
         }
+      },
+      data: {
+        labels: getSuffixes(generatedDatasets[0]),
+        datasets: generatedDatasets[1],
       }
+    }
   );
 }
 
@@ -858,47 +884,47 @@ async function generateDurationSumChart() {
   let canvas = generateDiv('duration_sum_canvas', 'Duration by process');
 
   new Chart(
-      canvas,
-      {
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true
-            },
-            tooltip: {
-              enabled: true
-            }
-
+    canvas,
+    {
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
 
-          labels: getSuffixes(data_sum["labels"]),
-          datasets:
-              [
-                {
-                  type: 'bar',
-                  label: `Summarized Duration in seconds`,
-                  //data: data["data"],
-                  data: data_sum["data"],
-                },
-                {
-                  type: 'boxplot',
-                  label: 'Execution in real-time',
-                  data: data_execution,
-                },
-                {
-                  type: 'boxplot',
-                  label: 'Requested time used in %',
-                  data: data_allocated[1],
-                }
-              ],
+        }
+      },
+      data: {
+
+        labels: getSuffixes(data_sum["labels"]),
+        datasets:
+          [
+            {
+              type: 'bar',
+              label: `Summarized Duration in seconds`,
+              //data: data["data"],
+              data: data_sum["data"],
+            },
+            {
+              type: 'boxplot',
+              label: 'Execution in real-time',
+              data: data_execution,
+            },
+            {
+              type: 'boxplot',
+              label: 'Requested time used in %',
+              data: data_allocated[1],
+            }
+          ],
 
 
-        },
+      },
 
-      }
+    }
   );
 
 }
@@ -918,25 +944,25 @@ async function createDynamicDataPlot() {
   metricCharts.dynamicCanvas = canvas;
 
   const dynChart = new Chart(
-      metricCharts.dynamicCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.dynamicCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(dynChart);
   metricCharts.dynamicChart = dynChart;
@@ -954,7 +980,7 @@ async function updateDynamicMetrics(): Promise<void> {
 
 function getFilteredProcesses(): any[] {
   let filtered: any = {};
-  for (let process in workflowState.process_state){
+  for (let process in workflowState.process_state) {
     if (filterState.selectedProgressProcesses.includes(process)) {
       console.log("true");
       filtered[process] = workflowState.process_state[process];
@@ -985,14 +1011,14 @@ onMounted(() => {
     <h5 class="card-header">Enter token</h5>
     <div class="card-body">
       <div class="alert"
-           :class="{ 'alert-dark': !workflowState.error_on_request, 'alert-danger': workflowState.error_on_request }">
+        :class="{ 'alert-dark': !workflowState.error_on_request, 'alert-danger': workflowState.error_on_request }">
         Please enter a valid token to show the corresponding workflow information for this token.
         <strong>The entered token is not valid.</strong>
       </div>
       <div class="input-group mb-3">
         <span class="input-group-text" id="basic-addon1">Token</span>
         <input v-model="workflowState.token" type="text" class="form-control" placeholder="Token" aria-label="token"
-               aria-describedby="basic-addon1">
+          aria-describedby="basic-addon1">
         <button @click="getDataInitial(workflowState.token)" class="btn btn-outline-primary" type="button">Show</button>
       </div>
     </div>
@@ -1016,26 +1042,26 @@ onMounted(() => {
         </ul>
         So your command to execute will look similar to this: <br>
         <span class="text-muted">./nextflow run nextflow-io/elixir-workshop-21 -r master -with-docker -with-weblog
-                    http://localhost:8000/run/{{ workflowState.token }}</span>
+          http://localhost:8000/run/{{ workflowState.token }}</span>
         <br>
         As soon as the first metrics have been sent to the token-specific-endpoint, you will be able to see the
         progress here.
       </div>
     </div>
     <div class="card-body"
-         v-if="workflowState.token_info_requested && workflowState.state_by_task?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
+      v-if="workflowState.token_info_requested && workflowState.state_by_task?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
       <h5 class="card-title">By process</h5>
       <hr>
       <div>
         <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses"
-                     v-on:update:model-value="progressProcessSelectionChanged()" showToggleAll filter placeholder="Select Processes"
-                     display="chip" class="w-full" />
+          v-on:update:model-value="progressProcessSelectionChanged()" showToggleAll filter placeholder="Select Processes"
+          display="chip" class="w-full" />
         <!-- also check if this can be made better-->
         <div v-for="(info, process) in workflowState.filteredProcesses">
           <Panel :header="process" toggleable collapsed :pt="{
-                        header: { style: { 'max-height': '40px' } },
-                        root: { class: 'mt-1 mb-1' }
-                    }">
+            header: { style: { 'max-height': '40px' } },
+            root: { class: 'mt-1 mb-1' }
+          }">
             <template #header>
               <div class="row">
                 <strong>{{ process }}</strong>
@@ -1044,12 +1070,12 @@ onMounted(() => {
             </template>
 
             <p class="m-0">
-              <ul class="list-group list-group-flush">
-                <li class="list-group-item" v-for="(task, id) in info['tasks']">
-                  <Tag :value="`#${id} - ${task['tag']}`"></Tag>
-                  <!-- get progress here-->
-                </li>
-              </ul>
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item" v-for="(task, id) in info['tasks']">
+                <Tag :value="`#${id} - ${task['tag']}`"></Tag>
+                <!-- get progress here-->
+              </li>
+            </ul>
 
             </p>
           </Panel>
@@ -1066,33 +1092,33 @@ onMounted(() => {
         <h5 class="card-title">Trace Information</h5>
 
         <DataTable :value="workflowState.state_by_task" sortField="task_id" :sortOrder="1" v-model:filters="filters"
-                   filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10"
-                   :rowsPerPageOptions="[10, 20, 50]" removableSort>
+          filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
+          removableSort>
           <Column field="task_id" header="Task-ID" sortable></Column>
           <Column field="name" style="min-width: 20rem" header="Name" sortable :show-filter-menu="false"
-                  filter-field="name">
+            filter-field="name">
             <template #body="{ data }">
               {{ data['name'] }}
             </template>
             <template #filter="{ filterModel, filterCallback }">
-              <InputText v-model="filterModel.value" type="text" @input="filterCallback()"
-                         class="p-column-filter" placeholder="Filter name" />
+              <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
+                placeholder="Filter name" />
             </template>
           </Column>
           <Column field="status" style="min-width: 12rem" header="Status" sortable filter-field="status"
-                  :show-filter-menu="false" :filter-match-mode="'contains'">
+            :show-filter-menu="false" :filter-match-mode="'contains'">
             <!-- adjust it to be a dropdown! -->
             <template #body="{ data }">
               <Tag :value="data['status']" />
             </template>
             <template #filter="{ filterModel, filterCallback }">
-              <MultiSelect v-model="filterModel.value" style="max-width: 12rem" display="chip"
-                           @change="filterCallback()" :pt="{
-                                    token: {
-                                        style: { 'max-width': '8rem' }
-                                    },
-                                    tokenLabel: { style: { 'font-size': '10px' } }
-                                }" :options="STATUSES" placeholder="Any" class="p-column-filter">
+              <MultiSelect v-model="filterModel.value" style="max-width: 12rem" display="chip" @change="filterCallback()"
+                :pt="{
+                  token: {
+                    style: { 'max-width': '8rem' }
+                  },
+                  tokenLabel: { style: { 'font-size': '10px' } }
+                }" :options="STATUSES" placeholder="Any" class="p-column-filter">
                 <template #header>
 
                 </template>
@@ -1103,18 +1129,17 @@ onMounted(() => {
             </template>
           </Column>
           <Column field="process" header="Process" style="min-width: 20rem" sortable :show-filter-menu="false"
-                  filter-field="process">
+            filter-field="process">
             <template #filter="{ filterModel, filterCallback }">
-              <InputText v-model="filterModel.value" type="text" @input="filterCallback()"
-                         class="p-column-filter" placeholder="Search by process" />
+              <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
+                placeholder="Search by process" />
             </template>
           </Column>
 
-          <Column field="tag" header="Tag" style="min-width: 20rem" filter-field="tag" :show-filter-menu="false"
-                  sortable>
+          <Column field="tag" header="Tag" style="min-width: 20rem" filter-field="tag" :show-filter-menu="false" sortable>
             <template #filter="{ filterModel, filterCallback }">
-              <InputText v-model="filterModel.value" type="text" @input="filterCallback()"
-                         class="p-column-filter" placeholder="Search by name" />
+              <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
+                placeholder="Search by name" />
             </template>
           </Column>
           <Column field="timestamp" header="Timestamp" sortable></Column>
@@ -1183,8 +1208,8 @@ onMounted(() => {
       </div>
       <div class="card-body" v-if="filterState.selectedProcesses">
         <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses"
-                     v-on:update:model-value="metricProcessSelectionChanged();" filter placeholder="Select Processes"
-                     display="chip" class="w-full" />
+          v-on:update:model-value="metricProcessSelectionChanged();" filter placeholder="Select Processes" display="chip"
+          class="w-full" />
         <!-- check if we could push this to the datatable and have checkboxes instead?!-->
       </div>
       <div class="card-body" id="canvas_area">
