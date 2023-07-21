@@ -179,7 +179,6 @@ function getDataInitial(token = props.token) {
 }
 
 function dataPollingLoop() {
-  console.log("I am polling")
   axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
     response => {
       if (response.data["error"]) {
@@ -192,7 +191,8 @@ function dataPollingLoop() {
         workflowState.token_info_requested = true;
         workflowState.error_on_request = false;
         filterState.availableProcesses = getProcessNamesOnly();
-        filterState.selectedProcesses = filterState.availableProcesses;
+        //filterState.selectedProcesses = filterState.availableProcesses;
+        // check how this is, when "all" are selected
         updateIOPlot();
         
       }
@@ -283,7 +283,6 @@ async function createDurationPlot() {
   const durationChart = new Chart(
     metricCharts.durationCanvas,
     {
-      type: 'boxplot',
       options: {
         responsive: true,
         plugins: {
@@ -375,7 +374,7 @@ function updatePlots() {
   //updateRelativeRamPlot();
   updateCPUPlot();
   updateIOPlot();
-  //updateDurationPlot();
+  updateDurationPlot();
 }
 
 function updateIOPlot() {
@@ -389,7 +388,7 @@ function updateIOPlot() {
 
   metricCharts.ioChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.ioChart.data.datasets = generatedDatasets[1];
-  metricCharts.ioChart.update();
+  metricCharts.ioChart.update('none');
 }
 
 function updateRamPlot() {
@@ -403,7 +402,7 @@ function updateRamPlot() {
 
   metricCharts.memoryChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.memoryChart.data.datasets = generatedDatasets[1];
-  metricCharts.memoryChart.update();
+  metricCharts.memoryChart.update('none');
 }
 
 function updateCPUPlot() {
@@ -412,11 +411,15 @@ function updateCPUPlot() {
 
   metricCharts.cpuChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.cpuChart.data.datasets = generatedDatasets[1];
-  metricCharts.cpuChart.update();
+  metricCharts.cpuChart.update('none');
 }
 
 function updateDurationPlot() {
-  // check
+  let generatedDatasets: [string[], any[]] = generateDurationData();
+  // getSuffixes is already part of generateDurationData-function
+  metricCharts.durationChart.data.labels = generatedDatasets[0];
+  metricCharts.durationChart.data.datasets = generatedDatasets[1];
+  metricCharts.durationChart.update('none');
 }
 
 function updateRelativeRamPlot() {
@@ -571,18 +574,7 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function generateDurationData(): any[] {
-  let data = [];
-  for (let process in workflowState.process_state) {
-    const tasks = workflowState.process_state[process].tasks
-    for (let tsk in tasks) {
-      data.push({ process: process, duration: tasks[tsk]['duration'] });
-      break;
-    }
-  }
-  return data;
 
-}
 
 function reasonableDataFormat(input: number) {
   const types: string[] = ['b', 'kiB', 'MiB', 'GiB', 'TiB'];
@@ -615,16 +607,18 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
   data_pair["data"] = [];
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
-    data_pair["labels"].push(process);
-    let tasks: any = states[process]['tasks'];
-    let values: number[] = [];
-    for (let task_id in tasks) {
-      values.push(tasks[task_id][key]);
+    if (filterState.selectedProcesses.includes(process)) {
+      data_pair["labels"].push(process);
+      let tasks: any = states[process]['tasks'];
+      let values: number[] = [];
+      for (let task_id in tasks) {
+        values.push(tasks[task_id][key]);
+      }
+      if (factorizer !== 1) {
+        values = values.map((elem) => elem / factorizer);
+      }
+      data_pair["data"].push(values.reduce((a, b) => a + b, 0));
     }
-    if (factorizer !== 1) {
-      values = values.map((elem) => elem / factorizer);
-    }
-    data_pair["data"].push(values.reduce((a, b) => a + b, 0));
   }
 
   return data_pair;
@@ -638,22 +632,22 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   data_pair['type'] = wantedFormat;
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
-    data_pair["labels"].push(process);
-    let tasks: any = states[process]['tasks'];
-    let values: number[] = [];
-    for (let task_id in tasks) {
-      values.push(tasks[task_id][key]);
-    }
-    if (adjustFormat) {
-      data_pair["data"].push(getDataInValidFormat(values, wantedFormat)[0]);
-    } else {
+    if (filterState.selectedProcesses.includes(process)){
+      data_pair["labels"].push(process);
+      let tasks: any = states[process]['tasks'];
+      let values: number[] = [];
+      for (let task_id in tasks) {
+        values.push(tasks[task_id][key]);
+      }
+      if (adjustFormat) {
+        data_pair["data"].push(getDataInValidFormat(values, wantedFormat)[0]);
+      } else {
+        data_pair["data"].push(values);
+      }
+      values = [values.reduce((a, b) => a + b, 0)];
       data_pair["data"].push(values);
     }
-    values = [values.reduce((a, b) => a + b, 0)];
-    data_pair["data"].push(values);
-
   }
-
   return data_pair;
 
 }
@@ -744,18 +738,19 @@ function generateCPUData(): [string[], any[]] {
   let datasets: any[] = [];
   let labels: string[] = [];
   let states: any = toRaw(workflowState.process_state);
-  let key_index = 0;
   let values: any = {};
 
   for (let process in states) {
-    labels.push(process);
-    let tasks: any = states[process]['tasks'];
-    if (!(process in values)) {
-      values[process] = { 'cpus': [], 'realtime': [] };
-    }
-    for (let task_id in tasks) {
-      values[process]['cpus'].push(tasks[task_id]['cpus']);
-      values[process]['realtime'].push(tasks[task_id]['realtime']);
+    if (filterState.selectedProcesses.includes(process)) {
+      labels.push(process);
+      let tasks: any = states[process]['tasks'];
+      if (!(process in values)) {
+        values[process] = {'cpus': [], 'realtime': []};
+      }
+      for (let task_id in tasks) {
+        values[process]['cpus'].push(tasks[task_id]['cpus']);
+        values[process]['realtime'].push(tasks[task_id]['realtime']);
+      }
     }
   }
 
@@ -870,8 +865,9 @@ async function generateBoxPlotMultiByKeys(keys: string[], canvasID: string, adju
 
 
 
-async function generateDurationSumChart() {
+function generateDurationData(): [string[], any[]] {
   let data_sum = generateSummarizedDataByKey('duration', 1000);
+  console.log(data_sum);
   let data_exec = generateDataByKey('realtime', false, 's')['data'];
   let data_execution: any[] = [];
   data_exec.forEach((element: any[]) => {
@@ -880,28 +876,7 @@ async function generateDurationSumChart() {
   });
   let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
 
-  await delay(300);
-  let canvas = generateDiv('duration_sum_canvas', 'Duration by process');
-
-  new Chart(
-    canvas,
-    {
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            display: true
-          },
-          tooltip: {
-            enabled: true
-          }
-
-        }
-      },
-      data: {
-
-        labels: getSuffixes(data_sum["labels"]),
-        datasets:
+  let datasets: any[] =
           [
             {
               type: 'bar',
@@ -919,13 +894,8 @@ async function generateDurationSumChart() {
               label: 'Requested time used in %',
               data: data_allocated[1],
             }
-          ],
-
-
-      },
-
-    }
-  );
+          ];
+  return [getSuffixes(data_sum["labels"]), datasets];
 
 }
 
