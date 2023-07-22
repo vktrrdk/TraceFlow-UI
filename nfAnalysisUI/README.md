@@ -12,6 +12,8 @@
  - [x] better handling of "select all" occurances --> if updates are there, show that there are new processes and if "all" is picked, update shown processes and metrics so all are shown --> TODO: CHECK THIS
  - [x] integrate polling or websocket
  - [x] consider polling changes more stable
+ - [ ] take a look on the programm logic - can it be simplified? 
+ - [ ] ** autoselect enabled - multiple parts need update**: process progress list and metrics not updated regardless of polling
  - [ ] **remove empty columns from list** - or show possibility to disable certain columns
  - [ ] fix bugs regarding filters (multiselect) 
  - [ ] how do we get information about current non-submitted processes/tasks?

@@ -13,9 +13,9 @@ import TabPanel from 'primevue/tabpanel';
 import Card from 'primevue/card';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
-import Checkbox from 'primevue/checkbox';
+import CascadeSelect from 'primevue/cascadeselect'; // could be used to show aprocess names as a "tree"
 import Button from 'primevue/button';
-import SelectButton from 'primevue/selectbutton';
+import ToggleButton from 'primevue/togglebutton';
 import Tag from 'primevue/tag';
 import MultiSelect from "primevue/multiselect";
 import {FilterMatchMode, FilterService} from 'primevue/api';
@@ -193,6 +193,7 @@ function updateSelectedProcessesForFilter(all: boolean = false): void {
     filterState.selectedProcesses = getProcessNamesOnly();
   }
   else {
+    // what to do here ? nothing?
   }
 
 
@@ -392,7 +393,6 @@ async function createCPUPlot() {
 }
 
 function updatePlots() {
-  console.log("updates plots");
   updateRamPlot();
   //updateRelativeRamPlot();
   updateCPUPlot();
@@ -988,7 +988,6 @@ function updateFilteredProcesses(all: boolean = false): void{
   if (all) {
     filterState.selectedProgressProcesses = toRaw(filterState.availableProcesses);
   }
-  console.log(filterState.selectedProgressProcesses);
   for (let process in workflowState.process_state) {
     if (filterState.selectedProgressProcesses.some(obj => obj['name'] === process)) {
       filtered[process] = workflowState.process_state[process];
@@ -1009,7 +1008,6 @@ function metricProcessSelectionChanged(): void {
 }
 
 function changeValueAllProgressProcesses(bool: boolean): void {
-
   if (!bool) {
     filterState.selectedProgressProcesses = [];
   }
@@ -1018,20 +1016,21 @@ function changeValueAllProgressProcesses(bool: boolean): void {
 
 function changeValueAllMetricProcesses(bool: boolean): void {
   if (!bool) {
-    filterState.selectedProcesses = []
+    filterState.selectedProcesses = [];
+  } else {
+    updateSelectedProcessesForFilter(true);
   }
   metricProcessSelectionChanged();
-
 }
 
-function progressAllProcessSelectionChanged(): void {
+function progressProcessAutoSelectionChanged(): void {
   if (filterState.autoselectAllProgressProcesses)
   {
     updateFilteredProcesses(true);
   }
 }
 
-function metricAllProcessSelectionChanged(): void {
+function metricProcessAutoSelectionChanged(): void {
   if (filterState.autoselectAllMetricProcesses) {
     updateSelectedProcessesForFilter(true)
   }
@@ -1104,13 +1103,13 @@ onMounted(() => {
                          display="chip" class="md:w-20rem" style="max-width: 40vw"/>
           </div>
           <div class="col-3">
-            <Button v-on:click="changeValueAllProgressProcesses(false)" label="Deselect all" />
-            <Button v-on:click="changeValueAllProgressProcesses(true)" label="Select all" />
+            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="changeValueAllProgressProcesses(false)" label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="changeValueAllProgressProcesses(true)" label="Select all" />
           </div>
           <div class="col-3">
-
-            <label for="progressSelectButton" :class="['flex justify-content-center']"> Autoselect all </label>
-            <SelectButton id="progressSelectButton" v-model="filterState.autoselectAllProgressProcesses"  :options="[true, false]"  /> <!-- need function to handle this -->
+            <ToggleButton v-model="filterState.autoselectAllProgressProcesses" v-on:change="progressProcessAutoSelectionChanged()"
+                          onLabel="Autoselect enabled" offLabel="Autoselect disabled"
+                          onIcon="pi pi-check" offIcon="pi pi-times"/> <!-- need function to handle this -->
           </div>
         </div>
         <!-- also check if this can be made better-->
@@ -1276,12 +1275,14 @@ onMounted(() => {
             </MultiSelect>
           </div>
           <div class="col-3">
-            <Button v-on:click="changeValueAllMetricProcesses(false)" label="Deselect all" />
-            <Button v-on:click="changeValueAllMetricProcesses(true)" label="Select all" />
+            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="changeValueAllMetricProcesses(false)" label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="changeValueAllMetricProcesses(true)" label="Select all" />
           </div>
           <div class="col-3">
-            <label for="metricSelectButton" :class="['flex justify-content-center']"> Autoselect all </label>
-            <SelectButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"  :options="[true, false]"  /> <!-- need function to handle this -->
+            <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"
+                          onLabel="Autoselect enabled" offLabel="Autoselect disabled"
+                          onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricProcessAutoSelectionChanged()"
+            />
           </div>
         </div>
 
