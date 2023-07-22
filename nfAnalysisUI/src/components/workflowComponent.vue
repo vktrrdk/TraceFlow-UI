@@ -14,6 +14,8 @@ import Card from 'primevue/card';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Checkbox from 'primevue/checkbox';
+import Button from 'primevue/button';
+import SelectButton from 'primevue/selectbutton';
 import Tag from 'primevue/tag';
 import MultiSelect from "primevue/multiselect";
 import {FilterMatchMode, FilterService} from 'primevue/api';
@@ -114,8 +116,9 @@ const filterState = reactive<{
   availableTags: string[];
   selectedProcesses: string[];
   selectAllMetricProcesses: boolean;
+  autoselectAllMetricProcesses: boolean;
   selectedProgressProcesses: string[];
-  selectAllProgressProcesses: boolean;
+  autoselectAllProgressProcesses: boolean;
   selectedTags: string[];
   processTaskMapping: any;
   tagTaskMapping: any;
@@ -125,8 +128,9 @@ const filterState = reactive<{
   availableTags: [],
   selectedProcesses: [],
   selectAllMetricProcesses: true,
+  autoselectAllMetricProcesses: true,
   selectedProgressProcesses: [],
-  selectAllProgressProcesses: true,
+  autoselectAllProgressProcesses: true,
   selectedTags: [],
   processTaskMapping: {},
   tagTaskMapping: {},
@@ -986,8 +990,7 @@ function updateFilteredProcesses(all: boolean = false): void{
 
 
 function progressProcessSelectionChanged(): void {
-  updateFilteredProcesses(filterState.selectAllProgressProcesses);
-
+  updateFilteredProcesses(filterState.autoselectAllProgressProcesses);
 
 }
 
@@ -996,21 +999,36 @@ function metricProcessSelectionChanged(): void {
   updatePlots();
 }
 
+function changeValueAllProgressProcesses(bool: boolean): void {
+
+  if (!bool) {
+    filterState.selectedProgressProcesses = [];
+  }
+  updateFilteredProcesses(bool);
+}
+
+function changeValueAllMetricProcesses(bool: boolean): void {
+  if (!bool) {
+    filterState.selectedProcesses = []
+  }
+  updateSelectedProcessesForFilter(bool)
+}
+
 function progressAllProcessSelectionChanged(): void {
-  if (filterState.selectAllProgressProcesses)
+  if (filterState.autoselectAllProgressProcesses)
   {
     updateFilteredProcesses(true);
   }
 }
 
 function metricAllProcessSelectionChanged(): void {
-  if (filterState.selectAllMetricProcesses) {
+  if (filterState.autoselectAllMetricProcesses) {
     updateSelectedProcessesForFilter(true)
   }
 }
 
 function adjustFilteredProcessState(): void {
-  if (filterState.selectAllMetricProcesses) {
+  if (filterState.autoselectAllMetricProcesses) {
     updateSelectedProcessesForFilter(true);
   }
 }
@@ -1070,17 +1088,19 @@ onMounted(() => {
       <hr>
       <div>
         <div class="row">
-          <div class="col-8">
-            <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses" :disabled="filterState.selectAllProgressProcesses"
+          <div class="col-6">
+            <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses" :disabled="filterState.autoselectAllProgressProcesses"
                          v-on:update:model-value="progressProcessSelectionChanged()" :showToggleAll="false" filter placeholder="Select Processes"
-                         display="chip" class="md:w-20rem" style="max-width: 50vw"/>
+                         display="chip" class="md:w-20rem" style="max-width: 40vw"/>
           </div>
-          <div class="col-4">
-          <Checkbox
-              v-model="filterState.selectAllProgressProcesses" :binary="true"
-              v-on:change="progressAllProcessSelectionChanged();"
-          />
-          <label>Select All</label>
+          <div class="col-3">
+            <Button v-on:click="changeValueAllProgressProcesses(false)" label="Deselect all" />
+            <Button v-on:click="changeValueAllProgressProcesses(true)" label="Select all" />
+          </div>
+          <div class="col-3">
+
+            <label for="progressSelectButton" :class="['flex justify-content-center']"> Autoselect all </label>
+            <SelectButton id="progressSelectButton" v-model="filterState.autoselectAllProgressProcesses"  :options="[true, false]"  /> <!-- need function to handle this -->
           </div>
         </div>
         <!-- also check if this can be made better-->
@@ -1241,15 +1261,17 @@ onMounted(() => {
             <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses"
                          v-on:update:model-value="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes" display="chip"
                          class="md:w-20rem" style="max-width: 50vw"
-                         :disabled="filterState.selectAllMetricProcesses"
+                         :disabled="filterState.autoselectAllMetricProcesses"
             >
             </MultiSelect>
           </div>
-          <div class="col-4">
-            <Checkbox
-                v-model="filterState.selectAllMetricProcesses" :binary="true"
-                v-on:change="metricAllProcessSelectionChanged();"
-            />
+          <div class="col-3">
+            <Button v-on:click="changeValueAllMetricProcesses(false)" label="Deselect all" />
+            <Button v-on:click="changeValueAllMetricProcesses(true)" label="Select all" />
+          </div>
+          <div class="col-3">
+            <label for="metricSelectButton" :class="['flex justify-content-center']"> Autoselect all </label>
+            <SelectButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"  :options="[true, false]"  /> <!-- need function to handle this -->
             <label>Select All</label>
           </div>
         </div>
