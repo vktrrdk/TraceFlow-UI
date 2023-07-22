@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, setTransitionHooks, toRaw, watch } from "vue";
+import { onMounted, reactive, ref, toRaw} from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
@@ -13,9 +13,10 @@ import TabPanel from 'primevue/tabpanel';
 import Card from 'primevue/card';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
+import Checkbox from 'primevue/checkbox';
 import Tag from 'primevue/tag';
 import MultiSelect from "primevue/multiselect";
-import { FilterMatchMode } from 'primevue/api';
+import {FilterMatchMode, FilterService} from 'primevue/api';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message'; // could replace alerts
 import OrganizationChart from 'primevue/organizationchart'; // could be useful to show stuff
@@ -24,8 +25,6 @@ import Skeleton from 'primevue/skeleton'; // while loading
 import ProgressSpinner from 'primevue/progressspinner'; // same
 import Listbox from 'primevue/listbox'; // for top
 import Panel from 'primevue/panel';
-import Knob from 'primevue/knob';
-import Steps from 'primevue/steps';
 
 
 /**
@@ -114,16 +113,20 @@ const filterState = reactive<{
   availableProcesses: string[];
   availableTags: string[];
   selectedProcesses: string[];
+  selectAllMetricProcesses: boolean;
   selectedProgressProcesses: string[];
+  selectAllProgressProcesses: boolean;
   selectedTags: string[];
-  tagTaskMapping: any;
   processTaskMapping: any;
+  tagTaskMapping: any;
 
 }>({
   availableProcesses: [],
   availableTags: [],
   selectedProcesses: [],
+  selectAllMetricProcesses: true,
   selectedProgressProcesses: [],
+  selectAllProgressProcesses: true,
   selectedTags: [],
   processTaskMapping: {},
   tagTaskMapping: {},
@@ -148,12 +151,11 @@ function getDataInitial(token = props.token) {
           workflowState.token = token;
           workflowState.error_on_request = false;
           filterState.processTaskMapping = mapAvailableProcesses();
-          filterState.availableProcesses = getProcessNamesOnly();
+          getAvailableProcessNamesForFilter();
           filterState.selectedProcesses = filterState.availableProcesses;
           progressProcessSelectionChanged();
           filterState.tagTaskMapping = mapAvailableTags();
           filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
-
           createPlots();
           dataPollingLoop();
           //generateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'ram_multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '], 'Memory');
@@ -171,9 +173,20 @@ function getDataInitial(token = props.token) {
         }
       },
     );
-    //workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`);
-    //workflowState.connection. TODO: add websocket stuff
+    /*workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`);
+    workflowState.connection. TODO: add websocket stuff */
 
+  }
+
+}
+
+function getAvailableProcessNamesForFilter(): void {
+  filterState.availableProcesses = getProcessNamesOnly();
+}
+
+function updateSelectedProcessesForFilter(all: boolean = false): void {
+  if (all) {
+    filterState.selectedProcesses = getProcessNamesOnly();
   }
 
 }
@@ -190,10 +203,11 @@ function dataPollingLoop() {
         workflowState.process_state = response.data["result_processes"];
         workflowState.token_info_requested = true;
         workflowState.error_on_request = false;
-        filterState.availableProcesses = getProcessNamesOnly();
+        getAvailableProcessNamesForFilter();
+        updateSelectedProcessesForFilter();
         //filterState.selectedProcesses = filterState.availableProcesses;
         // check how this is, when "all" are selected
-        updateIOPlot();
+        updatePlots();
         
       }
     }).finally((): void => {
@@ -579,12 +593,16 @@ function delay(ms: number) {
 function reasonableDataFormat(input: number) {
   const types: string[] = ['b', 'kiB', 'MiB', 'GiB', 'TiB'];
   let iteration: number = 0;
-  while (input >= 1024 && iteration < types.length) {
-    input = input / 1024;
-    iteration += 1;
+  if (input) {
+    while (input >= 1024 && iteration < types.length) {
+      input = input / 1024;
+      iteration += 1;
+    }
+    return `${input.toFixed(3)} ${types[iteration]}`;
+  } else {
+    return "";
   }
 
-  return `${input.toFixed(3)} ${types[iteration]}`;
 }
 
 function getDataInValidFormat(byte_numbers: number[], wantedType: string): [number[], string] {
@@ -821,6 +839,12 @@ function getSuffixes(strings) {
   });
 }
 
+function getSuffix(str: string) {
+  const parts: string[] = str.split(":");
+
+  return parts[parts.length - 1];
+}
+
 function emptyFunction(): [string[], any[]] {
   return [[], []];
 }
@@ -867,7 +891,6 @@ async function generateBoxPlotMultiByKeys(keys: string[], canvasID: string, adju
 
 function generateDurationData(): [string[], any[]] {
   let data_sum = generateSummarizedDataByKey('duration', 1000);
-  console.log(data_sum);
   let data_exec = generateDataByKey('realtime', false, 's')['data'];
   let data_execution: any[] = [];
   data_exec.forEach((element: any[]) => {
@@ -948,25 +971,48 @@ async function updateDynamicMetrics(): Promise<void> {
 
 }
 
-function getFilteredProcesses(): any[] {
+function updateFilteredProcesses(all: boolean = false): void{
   let filtered: any = {};
+  if (all) {
+    filterState.selectedProgressProcesses = toRaw(filterState.availableProcesses);
+  }
   for (let process in workflowState.process_state) {
     if (filterState.selectedProgressProcesses.includes(process)) {
-      console.log("true");
       filtered[process] = workflowState.process_state[process];
     }
   }
-  return filtered;
+  workflowState.filteredProcesses = filtered;
 }
 
 
 function progressProcessSelectionChanged(): void {
-  workflowState.filteredProcesses = getFilteredProcesses();
+  updateFilteredProcesses(filterState.selectAllProgressProcesses);
+
+
 }
 
 function metricProcessSelectionChanged(): void {
-  console.log(filterState.selectedProcesses);
+  adjustFilteredProcessState();
   updatePlots();
+}
+
+function progressAllProcessSelectionChanged(): void {
+  if (filterState.selectAllProgressProcesses)
+  {
+    updateFilteredProcesses(true);
+  }
+}
+
+function metricAllProcessSelectionChanged(): void {
+  if (filterState.selectAllMetricProcesses) {
+    updateSelectedProcessesForFilter(true)
+  }
+}
+
+function adjustFilteredProcessState(): void {
+  if (filterState.selectAllMetricProcesses) {
+    updateSelectedProcessesForFilter(true);
+  }
 }
 
 
@@ -1023,9 +1069,20 @@ onMounted(() => {
       <h5 class="card-title">By process</h5>
       <hr>
       <div>
-        <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses"
-          v-on:update:model-value="progressProcessSelectionChanged()" showToggleAll filter placeholder="Select Processes"
-          display="chip" class="w-full" />
+        <div class="row">
+          <div class="col-8">
+            <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses" :disabled="filterState.selectAllProgressProcesses"
+                         v-on:update:model-value="progressProcessSelectionChanged()" :showToggleAll="false" filter placeholder="Select Processes"
+                         display="chip" class="md:w-20rem" style="max-width: 50vw"/>
+          </div>
+          <div class="col-4">
+          <Checkbox
+              v-model="filterState.selectAllProgressProcesses" :binary="true"
+              v-on:change="progressAllProcessSelectionChanged();"
+          />
+          <label>Select All</label>
+          </div>
+        </div>
         <!-- also check if this can be made better-->
         <div v-for="(info, process) in workflowState.filteredProcesses">
           <Panel :header="process" toggleable collapsed :pt="{
@@ -1115,8 +1172,10 @@ onMounted(() => {
           <Column field="timestamp" header="Timestamp" sortable></Column>
           <Column field="duration" sortable header="Duration">
             <template #body="{ data }">
-              {{ (data['duration'] / 1000).toFixed(2) }} s
+              <span v-if="data['duration']">{{ (data['duration'] / 1000).toFixed(2) }} </span>
+              <span v-else>No data</span>
             </template>
+
           </Column>
           <Column field="cpu_percentage" header="CPU %" sortable></Column>
           <Column field="memory_percentage" header="Memory %" sortable></Column>
@@ -1177,9 +1236,24 @@ onMounted(() => {
         <h4>Metric visualization</h4>
       </div>
       <div class="card-body" v-if="filterState.selectedProcesses">
-        <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses"
-          v-on:update:model-value="metricProcessSelectionChanged();" filter placeholder="Select Processes" display="chip"
-          class="w-full" />
+        <div class="row">
+          <div class="col-8">
+            <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses"
+                         v-on:update:model-value="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes" display="chip"
+                         class="md:w-20rem" style="max-width: 50vw"
+                         :disabled="filterState.selectAllMetricProcesses"
+            >
+            </MultiSelect>
+          </div>
+          <div class="col-4">
+            <Checkbox
+                v-model="filterState.selectAllMetricProcesses" :binary="true"
+                v-on:change="metricAllProcessSelectionChanged();"
+            />
+            <label>Select All</label>
+          </div>
+        </div>
+
         <!-- check if we could push this to the datatable and have checkboxes instead?!-->
       </div>
       <div class="card-body" id="canvas_area">
