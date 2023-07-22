@@ -192,6 +192,10 @@ function updateSelectedProcessesForFilter(all: boolean = false): void {
   if (all) {
     filterState.selectedProcesses = getProcessNamesOnly();
   }
+  else {
+  }
+
+
 
 }
 
@@ -388,7 +392,8 @@ async function createCPUPlot() {
 }
 
 function updatePlots() {
-  updateRamPlot()
+  console.log("updates plots");
+  updateRamPlot();
   //updateRelativeRamPlot();
   updateCPUPlot();
   updateIOPlot();
@@ -438,15 +443,17 @@ function updateDurationPlot() {
   metricCharts.durationChart.data.labels = generatedDatasets[0];
   metricCharts.durationChart.data.datasets = generatedDatasets[1];
   metricCharts.durationChart.update('none');
+  // there is a bug somewhere, which leads to wrong calculation of datasets on filter change
 }
 
 function updateRelativeRamPlot() {
-  // check
+  // check TODO: do it!
 }
 
-function getProcessNamesOnly(): string[] {
+function getProcessNamesOnly(): any[] {
   let state: any = toRaw(filterState.processTaskMapping);
-  return Object.keys(state);
+  let keys: string[] = Object.keys(state);
+  return keys.map(name => ({ name }));
 }
 
 function mapAvailableProcesses(): any {
@@ -629,7 +636,8 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
   data_pair["data"] = [];
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
-    if (filterState.selectedProcesses.includes(process)) {
+    // check why not updating
+    if (filterState.selectedProcesses.some(obj => obj['name'] === process)) {
       data_pair["labels"].push(process);
       let tasks: any = states[process]['tasks'];
       let values: number[] = [];
@@ -654,7 +662,7 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   data_pair['type'] = wantedFormat;
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
-    if (filterState.selectedProcesses.includes(process)){
+    if (filterState.selectedProcesses.some(obj => obj['name'] === process)){
       data_pair["labels"].push(process);
       let tasks: any = states[process]['tasks'];
       let values: number[] = [];
@@ -682,14 +690,14 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
   let states: any = toRaw(workflowState.process_state);
   let first_loop: boolean = true;
   let key_index = 0;
-  let processesToFilterBy: string[] = filterState.availableProcesses;
+  let processesToFilterBy: any[] = filterState.availableProcesses;
   if (processFilter.length !== 0) {
     processesToFilterBy = toRaw(processFilter);
   }
   for (let key of keys) {
     let single_dataset: any = { 'label': label[key_index] + wantedFormat, data: [] };
     for (let process in states) {
-      if (processesToFilterBy.includes(process)) {
+      if (processesToFilterBy.some(obj => obj['name'] === process)) {
         // now check why the chart generation fails;
         let values: any[] = [];
         if (first_loop) {
@@ -763,7 +771,7 @@ function generateCPUData(): [string[], any[]] {
   let values: any = {};
 
   for (let process in states) {
-    if (filterState.selectedProcesses.includes(process)) {
+    if (filterState.selectedProcesses.some(obj => obj['name'] === process)) {
       labels.push(process);
       let tasks: any = states[process]['tasks'];
       if (!(process in values)) {
@@ -980,8 +988,9 @@ function updateFilteredProcesses(all: boolean = false): void{
   if (all) {
     filterState.selectedProgressProcesses = toRaw(filterState.availableProcesses);
   }
+  console.log(filterState.selectedProgressProcesses);
   for (let process in workflowState.process_state) {
-    if (filterState.selectedProgressProcesses.includes(process)) {
+    if (filterState.selectedProgressProcesses.some(obj => obj['name'] === process)) {
       filtered[process] = workflowState.process_state[process];
     }
   }
@@ -1011,7 +1020,8 @@ function changeValueAllMetricProcesses(bool: boolean): void {
   if (!bool) {
     filterState.selectedProcesses = []
   }
-  updateSelectedProcessesForFilter(bool)
+  metricProcessSelectionChanged();
+
 }
 
 function progressAllProcessSelectionChanged(): void {
@@ -1090,7 +1100,7 @@ onMounted(() => {
         <div class="row">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses" :disabled="filterState.autoselectAllProgressProcesses"
-                         v-on:update:model-value="progressProcessSelectionChanged()" :showToggleAll="false" filter placeholder="Select Processes"
+                         v-on:update:model-value="progressProcessSelectionChanged()" :showToggleAll="false" filter placeholder="Select Processes" optionLabel="name"
                          display="chip" class="md:w-20rem" style="max-width: 40vw"/>
           </div>
           <div class="col-3">
@@ -1257,10 +1267,10 @@ onMounted(() => {
       </div>
       <div class="card-body" v-if="filterState.selectedProcesses">
         <div class="row">
-          <div class="col-8">
+          <div class="col-6">
             <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses"
                          v-on:update:model-value="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes" display="chip"
-                         class="md:w-20rem" style="max-width: 50vw"
+                         class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
                          :disabled="filterState.autoselectAllMetricProcesses"
             >
             </MultiSelect>
@@ -1272,7 +1282,6 @@ onMounted(() => {
           <div class="col-3">
             <label for="metricSelectButton" :class="['flex justify-content-center']"> Autoselect all </label>
             <SelectButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"  :options="[true, false]"  /> <!-- need function to handle this -->
-            <label>Select All</label>
           </div>
         </div>
 
