@@ -28,14 +28,6 @@ import ProgressSpinner from 'primevue/progressspinner'; // same
 import Listbox from 'primevue/listbox'; // for top
 import Panel from 'primevue/panel';
 
-
-/**
- *
- * We need a function that transforms the indexes of the tasks per process into menuItem-like objects
- * So we can use these menu items to toggle between the tasks in a process accordion
- *
- * */
-
 Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
 
 const router = useRouter();
@@ -46,13 +38,12 @@ const props = defineProps<{
   token: string;
 }>();
 
-const STATUSES = ['SUBMITTED', 'RUNNING', 'COMPLETED', 'FAILED'];
+const STATUSES = ['SUBMITTED', 'RUNNING', 'COMPLETED', 'FAILED', 'ABORTED'];
 const filters = ref({
   'status': { value: null, matchMode: FilterMatchMode.IN },
   'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
   'process': { value: null, matchMode: FilterMatchMode.CONTAINS },
   'tag': { value: null, matchMode: FilterMatchMode.CONTAINS },
-
 });
 
 const workflowState = reactive<{
@@ -62,7 +53,7 @@ const workflowState = reactive<{
   token_info_requested: boolean;
   error_on_request: boolean;
   process_state: any;
-  filteredProcesses: any;
+  filteredProgressProcesses: any;
   state_by_task: any;
   selectedKeys: string[];
   selectedProcesses: string[];
@@ -75,7 +66,7 @@ const workflowState = reactive<{
   token_info_requested: false,
   error_on_request: false,
   process_state: {},
-  filteredProcesses: {},
+  filteredProgressProcesses: {},
   state_by_task: {},
   selectedKeys: [],
   selectedProcesses: [],
@@ -114,8 +105,7 @@ const metricCharts = reactive<{
 const filterState = reactive<{
   availableProcesses: string[];
   availableTags: string[];
-  selectedProcesses: string[];
-  selectAllMetricProcesses: boolean;
+  selectedMetricProcesses: string[];
   autoselectAllMetricProcesses: boolean;
   selectedProgressProcesses: string[];
   autoselectAllProgressProcesses: boolean;
@@ -126,8 +116,7 @@ const filterState = reactive<{
 }>({
   availableProcesses: [],
   availableTags: [],
-  selectedProcesses: [],
-  selectAllMetricProcesses: true,
+  selectedMetricProcesses: [],
   autoselectAllMetricProcesses: true,
   selectedProgressProcesses: [],
   autoselectAllProgressProcesses: true,
@@ -137,12 +126,45 @@ const filterState = reactive<{
 
 });
 
+/** functions on init and polling */
 
-
-function getDataInitial(token = props.token) {
+function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
     axios.get(`http://localhost:8000/run/${token}/`).then(
+        response => {
+          if (response.data["error"]) {
+            workflowState.state_by_task = [];
+            workflowState.error_on_request = true;
+
+          } else {
+            workflowState.state_by_task = response.data["result_by_task"];
+            workflowState.process_state = response.data["result_processes"];
+            workflowState.token_info_requested = true;
+            workflowState.token = token;
+            workflowState.error_on_request = false;
+            initiateFilterState();
+            progressProcessSelectionChanged();
+            filterState.tagTaskMapping = mapAvailableTags();
+            filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
+            createPlots();
+            dataPollingLoop();
+
+          }
+        },
+    );
+    /*
+    workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`);
+    workflowState.connection. TODO: add websocket stuff
+      */
+
+  }
+
+}
+
+
+function dataPollingLoop(): void {
+  axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
       response => {
         if (response.data["error"]) {
           workflowState.state_by_task = [];
@@ -152,78 +174,118 @@ function getDataInitial(token = props.token) {
           workflowState.state_by_task = response.data["result_by_task"];
           workflowState.process_state = response.data["result_processes"];
           workflowState.token_info_requested = true;
-          workflowState.token = token;
           workflowState.error_on_request = false;
-          filterState.processTaskMapping = mapAvailableProcesses();
-          getAvailableProcessNamesForFilter();
-          filterState.selectedProcesses = filterState.availableProcesses;
+          updateAvailableProcessNamesForFilter();
+          updateIfAutoselectEnabled();
           progressProcessSelectionChanged();
-          filterState.tagTaskMapping = mapAvailableTags();
-          filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
-          createPlots();
-          dataPollingLoop();
-          //generateBoxPlotMultiByKeys(['memory', 'vmem', 'rss'], 'ram_multiple_canvas', true, 'MiB', ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '], 'Memory');
-          //generateBoxPlotMultiByKeys([], 'memory_percentage', true, '%', ['Memory usage in '], 'Relative memory usage', generateKeyRelativeData, ['rss', 'memory', 'Memory usage in %', 100]);
-          //generateBoxPlotMultiByKeys(['read_bytes', 'write_bytes'], 'read_write_canvas', true, 'MiB', ['Read in ', 'Written in '], 'I/O'),
-          //generateBoxPlotMultiByKeys([], 'cpu_canvas', true, '%', ['Raw usage in ', 'Allocated in '], 'CPU', generateCPUData);
-          //createDynamicDataPlot();
-          // generateDurationSumChart();
+          updatePlots();
 
-          //addRamAllocationPercentageToGraph();
-          /*
-          - add IO read write graph
-          - add CPU raw usage and % allocated graph
-          */
         }
-      },
-    );
-    /*workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`);
-    workflowState.connection. TODO: add websocket stuff */
-
-  }
+      }).finally((): void => {
+    setTimeout(dataPollingLoop, 10000);
+  })
 
 }
 
-function getAvailableProcessNamesForFilter(): void {
+/** end of init and pollign */
+
+/**
+ * filter state functions
+ */
+
+function initiateFilterState(): void {
+  updateAvailableProcessNamesForFilter();
+  setSelectedProgressProcesses(filterState.availableProcesses);
+  setSelectedMetricProcesses(filterState.availableProcesses);
+}
+
+function updateAvailableProcessNamesForFilter(): void {
   filterState.availableProcesses = getProcessNamesOnly();
 }
 
-function updateSelectedProcessesForFilter(all: boolean = false): void {
+
+function setSelectedMetricProcesses(processes: any[]): void {
+  filterState.selectedMetricProcesses = processes;
+}
+
+function setSelectedProgressProcesses(processes: any[]): void {
+  filterState.selectedProgressProcesses = processes;
+}
+
+function selectAllMetricProcesses(): void {
+  updateAvailableProcessNamesForFilter();
+  setSelectedMetricProcesses(filterState.availableProcesses);
+  metricProcessSelectionChanged();
+}
+
+function unselectAllMetricProcesses(): void {
+  setSelectedMetricProcesses([]);
+  metricProcessSelectionChanged();
+}
+
+function selectAllProgressProcesses(): void {
+  updateAvailableProcessNamesForFilter();
+  setSelectedProgressProcesses(filterState.availableProcesses);
+  progressProcessSelectionChanged();
+}
+
+function unselectAllProgressProcesses(): void{
+  setSelectedProgressProcesses([]);
+  progressProcessSelectionChanged();
+}
+
+function updateIfAutoselectEnabled(): void {
+  if (filterState.autoselectAllProgressProcesses) {
+    selectAllProgressProcesses();
+  }
+  if (filterState.autoselectAllMetricProcesses) {
+    selectAllMetricProcesses();
+  }
+}
+
+function updateFilteredProgressProcesses(all: boolean = false): void {
+  let filtered: any = {};
   if (all) {
-    filterState.selectedProcesses = getProcessNamesOnly();
+    filterState.selectedProgressProcesses = toRaw(filterState.availableProcesses);
   }
-  else {
-    // what to do here ? nothing?
+  for (let process in workflowState.process_state) {
+    if (filterState.selectedProgressProcesses.some(obj => obj['name'] === process)) {
+      filtered[process] = workflowState.process_state[process];
+    }
   }
-
-
-
+  workflowState.filteredProgressProcesses = filtered;
 }
 
-function dataPollingLoop() {
-  axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
-    response => {
-      if (response.data["error"]) {
-        workflowState.state_by_task = [];
-        workflowState.error_on_request = true;
 
-      } else {
-        workflowState.state_by_task = response.data["result_by_task"];
-        workflowState.process_state = response.data["result_processes"];
-        workflowState.token_info_requested = true;
-        workflowState.error_on_request = false;
-        getAvailableProcessNamesForFilter();
-        updateSelectedProcessesForFilter();
-        //filterState.selectedProcesses = filterState.availableProcesses;
-        // check how this is, when "all" are selected
-        updatePlots();
-        
-      }
-    }).finally((): void => {
-      setTimeout(dataPollingLoop, 10000); 
-    })
-    
+function progressProcessSelectionChanged(): void {
+  updateFilteredProgressProcesses();
 }
+
+function metricProcessSelectionChanged(): void {
+  updatePlots();
+}
+
+function metricProcessAutoSelectionChanged(): void {
+  if (filterState.autoselectAllMetricProcesses) {
+    selectAllProgressProcesses();
+  } else {
+    // what to do here?
+  }
+}
+
+function progressProcessAutoSelectionChanged(): void {
+  if (filterState.autoselectAllProgressProcesses)
+  {
+    updateFilteredProgressProcesses(true);
+  } else {
+    // what to do here?
+  }
+}
+
+
+/** end of filter state functions */
+
+/** Plot creation **/
 
 async function createPlots() {
   await delay(300);
@@ -232,33 +294,52 @@ async function createPlots() {
   createCPUPlot();
   createIOPlot();
   createDurationPlot();
+  /*
+          - add IO read write graph
+          - add CPU raw usage and % allocated graph
+          */
 }
 
+/* TODO: REFACTOR regarding asynchron
+*/
+function generateDiv(elementId: string, title: string): HTMLCanvasElement {
+  const divWithCanvas = document.createElement('div');
+  const titleElement = document.createElement('h5');
+  titleElement.textContent = title;
+  divWithCanvas.style.width = '80vw';
+  const canvas = document.createElement('canvas');
+  canvas.id = elementId;
+  divWithCanvas.appendChild(titleElement);
+  divWithCanvas.appendChild(canvas);
+  const targetDiv = document.getElementById('canvas_area');
+  targetDiv.appendChild(divWithCanvas);
+  return canvas;
+}
 
 async function createRelativeRamPlot() {
   const canvas: HTMLCanvasElement = generateDiv('relative_ram_canvas', 'Relative RAM');
   metricCharts.relativeMemoryCanvas = canvas;
   await delay(300);
   const relativeRamChart = new Chart(
-    metricCharts.relativeMemoryCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
+      metricCharts.relativeMemoryCanvas,
+      {
+        type: 'boxplot',
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true,
+            },
+            tooltip: {
+              enabled: true
+            }
           }
+        },
+        data: {
+          labels: [],
+          datasets: [],
         }
-      },
-      data: {
-        labels: [],
-        datasets: [],
       }
-    }
   );
   Object.seal(relativeRamChart);
   metricCharts.relativeMemoryChart = relativeRamChart;
@@ -273,25 +354,25 @@ async function createIOPlot() {
   await delay(300);
 
   const ioChart = new Chart(
-    metricCharts.ioCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
+      metricCharts.ioCanvas,
+      {
+        type: 'boxplot',
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true,
+            },
+            tooltip: {
+              enabled: true
+            }
           }
+        },
+        data: {
+          labels: [],
+          datasets: [],
         }
-      },
-      data: {
-        labels: [],
-        datasets: [],
       }
-    }
   );
   Object.seal(ioChart);
   metricCharts.ioChart = ioChart;
@@ -304,24 +385,24 @@ async function createDurationPlot() {
   metricCharts.durationCanvas = canvas;
   await delay(300);
   const durationChart = new Chart(
-    metricCharts.durationCanvas,
-    {
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
+      metricCharts.durationCanvas,
+      {
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true,
+            },
+            tooltip: {
+              enabled: true
+            }
           }
+        },
+        data: {
+          labels: [],
+          datasets: [],
         }
-      },
-      data: {
-        labels: [],
-        datasets: [],
       }
-    }
   );
   Object.seal(durationChart);
   metricCharts.durationChart = durationChart;
@@ -335,25 +416,25 @@ async function createRamPlot() {
   await delay(300);
 
   const memoryChart = new Chart(
-    metricCharts.memoryCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
+      metricCharts.memoryCanvas,
+      {
+        type: 'boxplot',
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true,
+            },
+            tooltip: {
+              enabled: true
+            }
           }
+        },
+        data: {
+          labels: [],
+          datasets: [],
         }
-      },
-      data: {
-        labels: [],
-        datasets: [],
       }
-    }
   );
   Object.seal(memoryChart);
   metricCharts.memoryChart = memoryChart;
@@ -366,31 +447,35 @@ async function createCPUPlot() {
   metricCharts.cpuCanvas = canvas;
   await delay(300);
   const cpuChart = new Chart(
-    metricCharts.cpuCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
+      metricCharts.cpuCanvas,
+      {
+        type: 'boxplot',
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true,
+            },
+            tooltip: {
+              enabled: true
+            }
           }
+        },
+        data: {
+          labels: [],
+          datasets: [],
         }
-      },
-      data: {
-        labels: [],
-        datasets: [],
       }
-    }
   );
   Object.seal(cpuChart);
   metricCharts.cpuChart = cpuChart;
 
   updateCPUPlot();
 }
+
+/** End of Plot creation */
+
+/** Plot updating **/
 
 function updatePlots() {
   updateRamPlot();
@@ -406,7 +491,7 @@ function updateIOPlot() {
     true,
     'MiB',
     ['Read in ', 'Written in '],
-    filterState.selectedProcesses
+    filterState.selectedMetricProcesses
   );
 
   metricCharts.ioChart.data.labels = getSuffixes(generatedDatasets[0]);
@@ -420,7 +505,7 @@ function updateRamPlot() {
     true,
     'MiB',
     ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '],
-    filterState.selectedProcesses,
+    filterState.selectedMetricProcesses,
   );
 
   metricCharts.memoryChart.data.labels = getSuffixes(generatedDatasets[0]);
@@ -450,32 +535,56 @@ function updateRelativeRamPlot() {
   // check TODO: do it!
 }
 
+/** end of plot updating */
+
+
+/** helper functions */
+
+
+ /**
+ * openai: chatgpt - prompt: in javascript, take a list of strings, which can be splitted using the character ':'.
+ how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
+ ___
+ needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
+ result:
+ */
+function getSuffixes(strings) {
+  return strings.map(str => {
+    const parts = str.split(':');
+    return parts[parts.length - 1];
+  });
+}
+
+function getSuffix(str: string) {
+  const parts: string[] = str.split(":");
+
+  return parts[parts.length - 1];
+}
+
 function getProcessNamesOnly(): any[] {
+  mapAvailableProcesses();
   let state: any = toRaw(filterState.processTaskMapping);
   let keys: string[] = Object.keys(state);
   return keys.map(name => ({ name }));
 }
 
-function mapAvailableProcesses(): any {
+function mapAvailableProcesses(): void {
   let result: any = {};
   let state: any = toRaw(workflowState.process_state);
   let keys: string[] = transformStrings(Object.keys(state));
-  // console.log(findDuplicates(keys)); there are none..
   for (let key of keys) {
     let tasks: any = state[key]['tasks'];
     result[key] = Object.keys(tasks);
   }
 
-  return result;
+  filterState.processTaskMapping = result;
 }
-
-
-
 
 function getTagNamesOnly(): string[] {
   //TODO implement;
   return [];
 }
+
 
 function mapAvailableTags(): any {
   let result: any = {};
@@ -495,44 +604,9 @@ function mapAvailableTags(): any {
   return result;
 
 }
-/*
- again openai:
-in javascript, i have a list of strings, which have the following format:
-'a:b:c...', with a, b,c and so on being substrings.
-i want a function to transform these strings, which have ':'-chars as concatenators so only the distinguishable part at the end of the string is left.
 
-so the folliwing input should produce the following output:
-
-input: ['abc:def:ghi', 'abc:fer:der', 'esf:ang:der', 'esf:ang:zir']
-output: ['ghi', 'fer:der', 'ang:der', 'zir']
- */
 function transformStrings(input) {
-  return input;
-}
-
-
-
-function findDuplicates(arr: any) {
-  let sorted_arr = arr.slice().sort(); // You can define the comparing function here.
-  // JS by default uses a crappy string compare.
-  // (we use slice to clone the array so the
-  // original array won't be modified)
-  let results = [];
-  for (let i = 0; i < sorted_arr.length - 1; i++) {
-    if (sorted_arr[i + 1] == sorted_arr[i]) {
-      results.push(sorted_arr[i]);
-    }
-  }
-  return results;
-}
-
-
-function sortTraces(a: RunTrace, b: RunTrace): number {
-  if (Date.parse(a.timestamp) < Date.parse(b.timestamp)) {
-    return -1;
-  } else {
-    return 1;
-  }
+  return input; // TODO Implement
 }
 
 function getProgressValue(task: any): number {
@@ -630,6 +704,10 @@ function getDataInValidFormat(byte_numbers: number[], wantedType: string): [numb
 
 }
 
+/** end of helper functions */
+
+/** data retrieval functions */
+
 function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
   let data_pair: any = {};
   data_pair["labels"] = [];
@@ -637,7 +715,7 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
     // check why not updating
-    if (filterState.selectedProcesses.some(obj => obj['name'] === process)) {
+    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
       data_pair["labels"].push(process);
       let tasks: any = states[process]['tasks'];
       let values: number[] = [];
@@ -662,7 +740,7 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   data_pair['type'] = wantedFormat;
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
-    if (filterState.selectedProcesses.some(obj => obj['name'] === process)){
+    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)){
       data_pair["labels"].push(process);
       let tasks: any = states[process]['tasks'];
       let values: number[] = [];
@@ -771,7 +849,7 @@ function generateCPUData(): [string[], any[]] {
   let values: any = {};
 
   for (let process in states) {
-    if (filterState.selectedProcesses.some(obj => obj['name'] === process)) {
+    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
       labels.push(process);
       let tasks: any = states[process]['tasks'];
       if (!(process in values)) {
@@ -811,96 +889,6 @@ function generateCPUData(): [string[], any[]] {
   return [labels, datasets]
 }
 
-
-
-
-
-// how to combine the metrics from currentState and process state - what about meta?
-// more data from api needed - otherwise no possibility to show all relevant metrics
-// check chart.js and available visualizations in nf-tower
-
-
-/**
- * geht bestimmt noch einfacher - async? warum immer warten bis das ganze fertig ist...
- */
-function generateDiv(elementId: string, title: string): HTMLCanvasElement {
-  const divWithCanvas = document.createElement('div');
-  const titleElement = document.createElement('h5');
-  titleElement.textContent = title;
-  divWithCanvas.style.width = '80vw';
-  const canvas = document.createElement('canvas');
-  canvas.id = elementId;
-  divWithCanvas.appendChild(titleElement);
-  divWithCanvas.appendChild(canvas);
-  const targetDiv = document.getElementById('canvas_area');
-  targetDiv.appendChild(divWithCanvas);
-  return canvas;
-}
-
-/**
- * openai: chatgpt - prompt: in javascript, take a list of strings, which can be splitted using the character ':'.
- how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
- ___
- needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
- result:
- */
-function getSuffixes(strings) {
-  return strings.map(str => {
-    const parts = str.split(':');
-    return parts[parts.length - 1];
-  });
-}
-
-function getSuffix(str: string) {
-  const parts: string[] = str.split(":");
-
-  return parts[parts.length - 1];
-}
-
-function emptyFunction(): [string[], any[]] {
-  return [[], []];
-}
-
-async function generateBoxPlotMultiByKeys(keys: string[], canvasID: string, adjust: boolean, format: string, label: string[], title: string, func: (...params: any) => [string[], any[]] = emptyFunction, args: any[] = []) {
-  let generatedDatasets: [string[], any[]] = [[], []];
-  if (func === emptyFunction) {
-    generatedDatasets = generateDataByMultipleKeys(keys, adjust, format, label);
-  } else {
-    if (args.length > 0) {
-      generatedDatasets = func(...args);
-    } else {
-      generatedDatasets = func();
-    }
-
-  }
-
-  await delay(300);
-  let canvas = generateDiv(canvasID, title);
-  new Chart(
-    canvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        }
-      },
-      data: {
-        labels: getSuffixes(generatedDatasets[0]),
-        datasets: generatedDatasets[1],
-      }
-    }
-  );
-}
-
-
-
 function generateDurationData(): [string[], any[]] {
   let data_sum = generateSummarizedDataByKey('duration', 1000);
   let data_exec = generateDataByKey('realtime', false, 's')['data'];
@@ -912,141 +900,37 @@ function generateDurationData(): [string[], any[]] {
   let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
 
   let datasets: any[] =
-          [
-            {
-              type: 'bar',
-              label: `Summarized Duration in seconds`,
-              //data: data["data"],
-              data: data_sum["data"],
-            },
-            {
-              type: 'boxplot',
-              label: 'Execution in real-time',
-              data: data_execution,
-            },
-            {
-              type: 'boxplot',
-              label: 'Requested time used in %',
-              data: data_allocated[1],
-            }
-          ];
+      [
+        {
+          type: 'bar',
+          label: `Summarized Duration in seconds`,
+          //data: data["data"],
+          data: data_sum["data"],
+        },
+        {
+          type: 'boxplot',
+          label: 'Execution in real-time',
+          data: data_execution,
+        },
+        {
+          type: 'boxplot',
+          label: 'Requested time used in %',
+          data: data_allocated[1],
+        }
+      ];
   return [getSuffixes(data_sum["labels"]), datasets];
 
 }
 
 
-async function createDynamicDataPlot() {
+/** end of data retrieval functions */
 
-  // check https://www.chartjs.org/docs/latest/developers/charts.html#new-charts
-  // and https://www.chartjs.org/docs/latest/developers/updates.html
-
-  // update in the future!
-
-
-
-  await delay(300);
-  let canvas = generateDiv('dynamic_canvas', 'Dynamic metrics');
-  metricCharts.dynamicCanvas = canvas;
-
-  const dynChart = new Chart(
-    metricCharts.dynamicCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        }
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-    }
-  );
-  Object.seal(dynChart);
-  metricCharts.dynamicChart = dynChart;
-}
-
-async function updateDynamicMetrics(): Promise<void> {
-  await delay(300);
-  let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(['vmem', 'rss'], true, 'MiB', ['Virtual (d) in ', 'Physical (d) in '], filterState.selectedProcesses);
-
-  metricCharts.dynamicChart.data.labels = getSuffixes(generatedDatasets[0]);
-  metricCharts.dynamicChart.data.datasets = generatedDatasets[1];
-  metricCharts.dynamicChart.update();
-
-}
-
-function updateFilteredProcesses(all: boolean = false): void{
-  let filtered: any = {};
-  if (all) {
-    filterState.selectedProgressProcesses = toRaw(filterState.availableProcesses);
-  }
-  for (let process in workflowState.process_state) {
-    if (filterState.selectedProgressProcesses.some(obj => obj['name'] === process)) {
-      filtered[process] = workflowState.process_state[process];
-    }
-  }
-  workflowState.filteredProcesses = filtered;
-}
-
-
-function progressProcessSelectionChanged(): void {
-  updateFilteredProcesses(filterState.autoselectAllProgressProcesses);
-
-}
-
-function metricProcessSelectionChanged(): void {
-  adjustFilteredProcessState();
-  updatePlots();
-}
-
-function changeValueAllProgressProcesses(bool: boolean): void {
-  if (!bool) {
-    filterState.selectedProgressProcesses = [];
-  }
-  updateFilteredProcesses(bool);
-}
-
-function changeValueAllMetricProcesses(bool: boolean): void {
-  if (!bool) {
-    filterState.selectedProcesses = [];
-  } else {
-    updateSelectedProcessesForFilter(true);
-  }
-  metricProcessSelectionChanged();
-}
-
-function progressProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllProgressProcesses)
-  {
-    updateFilteredProcesses(true);
-  }
-}
-
-function metricProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricProcesses) {
-    updateSelectedProcessesForFilter(true)
-  }
-}
-
-function adjustFilteredProcessState(): void {
-  if (filterState.autoselectAllMetricProcesses) {
-    updateSelectedProcessesForFilter(true);
-  }
-}
-
+/* on mounted */
 
 onMounted(() => {
   getDataInitial();
-
 });
+
 </script>
 
 <template>
@@ -1103,8 +987,8 @@ onMounted(() => {
                          display="chip" class="md:w-20rem" style="max-width: 40vw"/>
           </div>
           <div class="col-3">
-            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="changeValueAllProgressProcesses(false)" label="Deselect all" />
-            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="changeValueAllProgressProcesses(true)" label="Select all" />
+            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="unselectAllProgressProcesses()" label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="selectAllProgressProcesses()" label="Select all" />
           </div>
           <div class="col-3">
             <ToggleButton v-model="filterState.autoselectAllProgressProcesses" v-on:change="progressProcessAutoSelectionChanged()"
@@ -1113,8 +997,8 @@ onMounted(() => {
           </div>
         </div>
         <!-- also check if this can be made better-->
-        <div v-for="(info, process) in workflowState.filteredProcesses">
-          <Panel :header="process" toggleable collapsed :pt="{
+        <div v-for="(info, process) in workflowState.filteredProgressProcesses">
+          <Panel :header="process.toString()" toggleable collapsed :pt="{
             header: { style: { 'max-height': '40px' } },
             root: { class: 'mt-1 mb-1' }
           }">
@@ -1264,10 +1148,10 @@ onMounted(() => {
       <div>
         <h4>Metric visualization</h4>
       </div>
-      <div class="card-body" v-if="filterState.selectedProcesses">
+      <div class="card-body">
         <div class="row">
           <div class="col-6">
-            <MultiSelect v-model="filterState.selectedProcesses" :options="filterState.availableProcesses"
+            <MultiSelect v-model="filterState.selectedMetricProcesses" :options="filterState.availableProcesses"
                          v-on:update:model-value="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes" display="chip"
                          class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
                          :disabled="filterState.autoselectAllMetricProcesses"
@@ -1275,8 +1159,8 @@ onMounted(() => {
             </MultiSelect>
           </div>
           <div class="col-3">
-            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="changeValueAllMetricProcesses(false)" label="Deselect all" />
-            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="changeValueAllMetricProcesses(true)" label="Select all" />
+            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="unselectAllMetricProcesses()" label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="selectAllMetricProcesses()" label="Select all" />
           </div>
           <div class="col-3">
             <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"

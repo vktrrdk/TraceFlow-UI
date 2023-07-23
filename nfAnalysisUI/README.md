@@ -1,35 +1,24 @@
 # TODO
 
-
- - [x] first simple visualization of traces with chart.js
- - [x] sum of duration per process
- - [x] boxplot
- - [x] replicate all nf-tower plots
- - [x] workflow status verwerfen
- - [x] more generic handling of tasks/processes --> not only by task ids 
- - [x] **filter for trace information list**
- - [x] **plot filters dynamically, not only by processes, also by tags and so on**
- - [x] better handling of "select all" occurances --> if updates are there, show that there are new processes and if "all" is picked, update shown processes and metrics so all are shown --> TODO: CHECK THIS
- - [x] integrate polling or websocket
- - [x] consider polling changes more stable
- - [ ] take a look on the programm logic - can it be simplified? 
- - [ ] ** autoselect enabled - multiple parts need update**: process progress list and metrics not updated regardless of polling
  - [ ] **remove empty columns from list** - or show possibility to disable certain columns
- - [ ] fix bugs regarding filters (multiselect) 
  - [ ] how do we get information about current non-submitted processes/tasks?
  - [ ] more generic handling of traces --> also use meta
  - [ ] check router history - how to add "back-button" ?
  - [ ] adjust layout
  - [ ] adjust naming function
- - [ ] oberen Teil in fortschrittsbereich umbauen, keine zweite tabelle
- - [ ] filter für weitere metriken in der tabelle
- - [ ] tags der prozesse mit in die übersicht oben
- - [ ] wie zeigt man an, welcher prozess gerade mit welchem tag läuft, welcher schon submitted ist, welcher schon durch ist usw, dabei schlank lassen
- - [ ] retry usw als event states betrachten - zahl der attempts mit anzeigen
- - [ ] filter auch für processe im fortschritt oben
- - [ ] anzeigen: wie weit ist der workflow gerade? (wie viele von wie vielen fertig)
- - [ ] generell status anzeigen
- - [ ] melde, wenn z.b ein prozess über 100% memory usage hat
 
+# Current work
+- [x] fix bugs regarding filters (multiselect) 
+- [x] refactor: ** autoselect enabled - multiple parts need update**: process progress list and metrics not updated regardless of polling
+- [ ] check if multiple tasks of the same process are reflected in the changes of the metrics and progress, when autoselect is disabled
+- [ ] adjust progress information part
+  - [ ] add tags of processes
+  - [ ] show number of processes finished
+  - [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
+    - [ ] show general progress: how many processes currently submitted are finished and so on
+  - [ ] regard retry as state - show number of attempts if available
+- [ ] show workflow state - running, failed or finished? (use meta)
+- [ ] alerting for more than 100% memory usage for process or very low usages
+  
 
 
