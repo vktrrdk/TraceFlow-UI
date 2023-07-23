@@ -19,7 +19,9 @@
     "vue": "^3.3.2",
     "vue-router": "^4.2.2",
     "chart.js": "^4.3.0",
-    "@sgratzl/chartjs-chart-boxplot": "^4.2.4"
+    "@sgratzl/chartjs-chart-boxplot": "^4.2.4",
+    "chartjs-plugin-autocolors": "^0.2.2",
+    "chartjs-plugin-zoom": "^2.0.1"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.2.0",

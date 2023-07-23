@@ -6,7 +6,7 @@ import "bootstrap/dist/js/bootstrap.min.js"
 import type { RunTrace } from "@/models/RunTrace";
 import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
-import { Chart, LinearScale, CategoryScale } from 'chart.js/auto';
+import { Chart, LinearScale, CategoryScale } from 'chart.js/auto'; // check vue-chartjs as wrapper
 import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
 import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel';
@@ -20,6 +20,7 @@ import Tag from 'primevue/tag';
 import MultiSelect from "primevue/multiselect";
 import {FilterMatchMode, FilterService} from 'primevue/api';
 import InputText from 'primevue/inputtext';
+import ProgressBar from 'primevue/progressbar';
 import Message from 'primevue/message'; // could replace alerts
 import OrganizationChart from 'primevue/organizationchart'; // could be useful to show stuff
 import Timeline from 'primevue/timeline'; // per task (process instance) --> show progress instead of a bar
@@ -479,7 +480,7 @@ async function createCPUPlot() {
 
 function updatePlots() {
   updateRamPlot();
-  //updateRelativeRamPlot();
+  updateRelativeRamPlot();
   updateCPUPlot();
   updateIOPlot();
   updateDurationPlot();
@@ -532,7 +533,10 @@ function updateDurationPlot() {
 }
 
 function updateRelativeRamPlot() {
-  // check TODO: do it!
+  let generatedDatasets: [string[], any[]] = generateMemoryRelativeData();
+  metricCharts.relativeMemoryChart.data.labels = getSuffixes(generatedDatasets[0]);
+  metricCharts.relativeMemoryChart.data.datasets = generatedDatasets[1];
+  metricCharts.relativeMemoryChart.update('none');
 }
 
 /** end of plot updating */
@@ -609,18 +613,6 @@ function transformStrings(input) {
   return input; // TODO Implement
 }
 
-function getProgressValue(task: any): number {
-  let x: number = 0
-  if (task["status"] === "SUBMITTED") {
-    x = 10
-  } else if (task["status"] === "RUNNING") {
-    x = 50
-  } else if (task["status"] === "COMPLETED") {
-    x = 100
-  }
-  return x;
-}
-
 function processNumbers(info: any): string {
   const currently_submitted: number = getNumberOfTasksForProcess(info);
   const completed = getNumberOfCompletedSubprocesses(info);
@@ -649,7 +641,45 @@ function getProcessCurrentScore(info: any): number {
       score += 100;
     }
   }
+  console.log(score);
   return score;
+}
+
+
+function generateColorString(status: string): string {
+  switch (status) {
+    case 'SUBMITTED':
+      return 'var(--cyan-300)';
+    case 'ABORTED':
+      return 'var(--orange-400)';
+    case 'FAILED':
+      return 'var(--red-600)';
+    case 'RUNNING':
+      return 'var(--teal-400)';
+    case 'COMPLETED':
+      return 'var(--green-600)';
+    default:
+      return 'var(--teal-50)';
+  }
+}
+
+function getProgressValueForTask(status: string): number {
+
+  switch (status) {
+    case 'SUBMITTED':
+      return 10;
+    case 'ABORTED':
+      return 30;
+    case 'FAILED':
+      return 20;
+    case 'RUNNING':
+      return 50;
+    case 'COMPLETED':
+      return 100;
+    default:
+      return 0;
+  }
+
 }
 
 
@@ -799,7 +829,7 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
   return [labels, datasets];
 }
 
-
+/** this could be more general? **/
 
 function generateMemoryRelativeData(): [string[], any[]] {
   let datasets: any[] = [];
@@ -807,15 +837,17 @@ function generateMemoryRelativeData(): [string[], any[]] {
   let states: any = toRaw(workflowState.process_state);
   let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
   for (let process in states) {
-    labels.push(process);
-    let processValues: any[] = [];
-    let tasks: any = states[process]['tasks'];
-    for (let task_id in tasks) {
-      processValues.push(
-        (tasks[task_id]['rss'] / tasks[task_id]['memory']) * 100
-      );
+    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)){
+      labels.push(process);
+      let processValues: any[] = [];
+      let tasks: any = states[process]['tasks'];
+      for (let task_id in tasks) {
+        processValues.push(
+            (tasks[task_id]['rss'] / tasks[task_id]['memory']) * 100
+        );
+      }
+      relative_dataset['data'].push(processValues);
     }
-    relative_dataset['data'].push(processValues);
   }
   datasets.push(relative_dataset);
   return [labels, datasets];
@@ -1003,17 +1035,38 @@ onMounted(() => {
             root: { class: 'mt-1 mb-1' }
           }">
             <template #header>
-              <div class="row">
-                <strong>{{ process }}</strong>
+              <div class="row col-12">
+                <div class="col-8">
+                  <strong>{{ process }}</strong>
+                </div>
+                <div class="col-4">
+                  {{ processNumbers(info) }} processes complete
+                </div>
                 <!-- we want progress here https://primevue.org/datatable/#rowgroup_expandable -->
+
               </div>
             </template>
 
             <p class="m-0">
             <ul class="list-group list-group-flush">
               <li class="list-group-item" v-for="(task, id) in info['tasks']">
-                <Tag :value="`#${id} - ${task['tag']}`"></Tag>
-                <!-- get progress here-->
+                <div class="row col-12">
+                  <div class="col-6"><Tag :value="`Task #${id} - Tag: ${task['tag']}`"></Tag></div>
+                  <div class="col-3 p-1">
+                    <ProgressBar
+                        class="mt-2" :showValue="false" :value="getProgressValueForTask(task['status'])" style="height: 3px"
+                        :pt="{
+                            value: { style: { background: generateColorString(task['status']) } }
+                          }"
+                    >
+
+
+                    </ProgressBar>
+                  </div>
+                  <div class="col-3">{{ task['status'] }}</div>
+                </div>
+
+
               </li>
             </ul>
 
