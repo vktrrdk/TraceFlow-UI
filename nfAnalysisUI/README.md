@@ -19,6 +19,14 @@
   - [ ] regard retry as state - show number of attempts if available
 - [ ] show workflow state - running, failed or finished? (use meta)
 - [ ] alerting for more than 100% memory usage for process or very low usages
-  
 
 
+# Reihenfolge für nächstes Vorgehen - WICHTIG
+- [ ] Ordentliche Trennung zwischen dev und docker Version
+- [ ] Ordentliche Konfiguration, sodass das compose überall funktioniert wie es soll
+- [ ] Arbeit an Progress Information Part
+- [ ] Arbeit an Tag-Selection Part
+- [ ] Arbeit an Alerting Part
+- [ ] Integration von CloWM
+- [ ] Schreiben
+- [ ] Welcher Webserver? Konfig final abschließen!
