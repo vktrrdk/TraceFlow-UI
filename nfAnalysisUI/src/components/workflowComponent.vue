@@ -40,6 +40,7 @@ const props = defineProps<{
 }>();
 
 const STATUSES = ['SUBMITTED', 'RUNNING', 'COMPLETED', 'FAILED', 'ABORTED'];
+const nonAutoUpdateStates = ["ABORTED", "COMPLETED", "FAILED"];
 const filters = ref({
   'status': { value: null, matchMode: FilterMatchMode.IN },
   'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -48,6 +49,8 @@ const filters = ref({
 });
 
 const workflowState = reactive<{
+  currentState: string;
+  failedProcesses: boolean,
   pollInterval: number;
   loading: boolean;
   token: string;
@@ -59,8 +62,11 @@ const workflowState = reactive<{
   selectedKeys: string[];
   selectedProcesses: string[];
   selectionFilters: any;
+  meta: any;
   //connection: WebSocket;
 }>({
+  currentState: "WAITING",
+  failedProcesses: false,
   pollInterval: 10000,
   loading: true,
   token: "",
@@ -72,10 +78,12 @@ const workflowState = reactive<{
   selectedKeys: [],
   selectedProcesses: [],
   selectionFilters: {},
+  meta: {},
   //connection: null,
 });
 
 const metricCharts = reactive<{
+  chartsGenerated: boolean;
   memoryChart: any | null;
   memoryCanvas: any | null;
   relativeMemoryChart: any | null;
@@ -89,6 +97,7 @@ const metricCharts = reactive<{
   dynamicChart: any | null;
   dynamicCanvas: any | null;
 }>({
+  chartsGenerated: false,
   memoryChart: null,
   memoryCanvas: null,
   relativeMemoryChart: null,
@@ -141,6 +150,8 @@ function getDataInitial(token = props.token): void {
           } else {
             workflowState.state_by_task = response.data["result_by_task"];
             workflowState.process_state = response.data["result_processes"];
+            workflowState.meta = response.data["result_meta"];
+            checkState(response.data["result_meta"], response.data["result_by_task"]);
             workflowState.token_info_requested = true;
             workflowState.token = token;
             workflowState.error_on_request = false;
@@ -148,9 +159,10 @@ function getDataInitial(token = props.token): void {
             progressProcessSelectionChanged();
             filterState.tagTaskMapping = mapAvailableTags();
             filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
-            createPlots();
+            if (workflowState.currentState !== "WAITING") {
+              createPlots();
+            }
             dataPollingLoop();
-
           }
         },
     );
@@ -174,12 +186,21 @@ function dataPollingLoop(): void {
         } else {
           workflowState.state_by_task = response.data["result_by_task"];
           workflowState.process_state = response.data["result_processes"];
+          workflowState.meta = response.data["result_meta"];
+          checkState(response.data["result_meta"], response.data["result_by_task"]);
           workflowState.token_info_requested = true;
           workflowState.error_on_request = false;
           updateAvailableProcessNamesForFilter();
           updateIfAutoselectEnabled();
           progressProcessSelectionChanged();
-          updatePlots();
+          if (workflowState.currentState !== "WAITING") {
+            if (metricCharts.chartsGenerated) {
+              updatePlots();
+            } else {
+              createPlots();
+            }
+          }
+          
 
         }
       }).finally((): void => {
@@ -263,24 +284,35 @@ function progressProcessSelectionChanged(): void {
 }
 
 function metricProcessSelectionChanged(): void {
-  updatePlots();
+  if (filterState.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
+    updatePlots();
+  } 
+
 }
 
 function metricProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricProcesses) {
-    selectAllProgressProcesses();
+  if (filterState.autoselectAllMetricProcesses && !nonAutoUpdateStates.includes(workflowState.currentState) ) {
+    selectAllMetricProcesses();
   } else {
     // what to do here?
   }
 }
 
 function progressProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllProgressProcesses)
+  if (filterState.autoselectAllProgressProcesses && !nonAutoUpdateStates.includes(workflowState.currentState))
   {
     updateFilteredProgressProcesses(true);
   } else {
     // what to do here?
   }
+}
+
+function showAutoUpdateEnableOptionMetric(): boolean {
+  return !(nonAutoUpdateStates.includes(workflowState.currentState) && filterState.autoselectAllMetricProcesses);
+}
+
+function showAutoUpdateEnableOptionProgress(): boolean {
+  return !(nonAutoUpdateStates.includes(workflowState.currentState) && filterState.autoselectAllProgressProcesses);
 }
 
 
@@ -295,10 +327,7 @@ async function createPlots() {
   createCPUPlot();
   createIOPlot();
   createDurationPlot();
-  /*
-          - add IO read write graph
-          - add CPU raw usage and % allocated graph
-          */
+  metricCharts.chartsGenerated = true;
 }
 
 /* TODO: REFACTOR regarding asynchron
@@ -552,6 +581,89 @@ function updateRelativeRamPlot() {
  needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
  result:
  */
+
+
+ function checkState(meta: any, tasks: any): void {
+    adjustCurrentState(meta['event']);
+    tasks = toRaw(tasks);
+    for (let task of tasks) {
+      if (task["status"] == "FAILED") {
+        workflowState.failedProcesses = true;
+        return;
+      }
+    workflowState.failedProcesses = false;   
+  }
+}
+
+ function adjustCurrentState(event: string) {
+    if (event === "started") {
+      let tasks = toRaw(workflowState.state_by_task);
+        if (workflowState.currentState === "SUBMITTED" || workflowState.currentState === "WAITING") {
+        for (let task of tasks) {
+          if (task["status"] == "RUNNING") {
+            workflowState.currentState = "RUNNING";
+            return
+          } else if (task["status"] == "COMPLETED") {
+            workflowState.currentState = "RUNNING";
+            return;
+          }
+        }
+        workflowState.currentState = "SUBMITTED";
+      }
+    } else if (event === "completed") {
+      if (workflowState.meta["error_message"] !== null) {
+        
+        if (workflowState.meta["error_message"] === "SIGINT") {
+          workflowState.currentState = "ABORTED";
+        } else {
+          workflowState.currentState = "FAILED";
+        }
+      } else {
+        workflowState.currentState = "COMPLETED";
+      }
+      
+    }
+  }
+ 
+
+ function severityFromWorkflowState(): string {
+  const state: string = workflowState.currentState;
+  switch(state) {
+    case "SUBMITTED":
+      return "info"
+    case "RUNNING": 
+      return "info"
+    case "FAILED":
+      return "error";
+    case "ABORTED":
+      return "warn";
+    case "COMPLETED":
+      return "success";
+    default:
+      return "info"
+  
+  }
+ }
+
+ function messageFromWorkflowState(): string {
+  const state: string = workflowState.currentState;
+  switch(state) {
+    case "SUBMITTED":
+      return "Your workflow was submitted, but no process has started yet";
+    case "RUNNING": 
+      return "Your workflow is currently running";
+    case "FAILED":
+      return "Your workflow has failed!";
+    case "ABORTED": 
+      return "Your worfklow has been aborted!";
+    case "COMPLETED":
+      return "Your workflow has been successfully completed!";
+    default:
+      return "There is no workflow information yet, seems like it has not started.";
+    
+  }
+ }
+
 function getSuffixes(strings) {
   return strings.map(str => {
     const parts = str.split(':');
@@ -641,7 +753,6 @@ function getProcessCurrentScore(info: any): number {
       score += 100;
     }
   }
-  console.log(score);
   return score;
 }
 
@@ -798,10 +909,7 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
   let states: any = toRaw(workflowState.process_state);
   let first_loop: boolean = true;
   let key_index = 0;
-  let processesToFilterBy: any[] = filterState.availableProcesses;
-  if (processFilter.length !== 0) {
-    processesToFilterBy = toRaw(processFilter);
-  }
+  let processesToFilterBy: any[] = toRaw(processFilter);
   for (let key of keys) {
     let single_dataset: any = { 'label': label[key_index] + wantedFormat, data: [] };
     for (let process in states) {
@@ -952,6 +1060,7 @@ function generateDurationData(): [string[], any[]] {
       ];
   return [getSuffixes(data_sum["labels"]), datasets];
 
+
 }
 
 
@@ -984,7 +1093,12 @@ onMounted(() => {
   </div>
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
-    <div class="card-body" v-if="workflowState.state_by_task?.length == 0 && !workflowState.error_on_request">
+    <div class="card-body">
+      <Message v-if="workflowState.currentState !== 'WAITING'" :closable="false" :severity="severityFromWorkflowState()">{{ messageFromWorkflowState() }}</Message>
+      <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of the workflow!</Message>
+
+    </div>
+    <div class="card-body" v-if="workflowState.state_by_task?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
       <h6 class="card-subtitle mb-2">
         There are no workflows connected to this token. Please use the following instructions to persist workflow
         metrics to this token.
@@ -1024,7 +1138,8 @@ onMounted(() => {
           </div>
           <div class="col-3">
             <ToggleButton v-model="filterState.autoselectAllProgressProcesses" v-on:change="progressProcessAutoSelectionChanged()"
-                          onLabel="Autoselect enabled" offLabel="Autoselect disabled"
+                          onLabel="Autoupdate enabled" offLabel="Autoupdate disabled"
+                          :disabled="showAutoUpdateEnableOptionProgress()"
                           onIcon="pi pi-check" offIcon="pi pi-times"/> <!-- need function to handle this -->
           </div>
         </div>
@@ -1197,7 +1312,7 @@ onMounted(() => {
         </DataTable>
       </div>
     </div>
-    <div class="p-4 row-gap-3">
+    <div class="p-4 row-gap-3" v-if="workflowState.currentState !== 'WAITING'">
       <div>
         <h4>Metric visualization</h4>
       </div>
@@ -1205,7 +1320,7 @@ onMounted(() => {
         <div class="row">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedMetricProcesses" :options="filterState.availableProcesses"
-                         v-on:update:model-value="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes" display="chip"
+                         v-on:change="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes" display="chip"
                          class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
                          :disabled="filterState.autoselectAllMetricProcesses"
             >
@@ -1217,7 +1332,8 @@ onMounted(() => {
           </div>
           <div class="col-3">
             <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"
-                          onLabel="Autoselect enabled" offLabel="Autoselect disabled"
+                          onLabel="Autoupdate enabled" offLabel="Autoupdate disabled"
+                          :disabled="showAutoUpdateEnableOptionMetric()"
                           onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricProcessAutoSelectionChanged()"
             />
           </div>

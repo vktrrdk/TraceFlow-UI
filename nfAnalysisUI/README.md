@@ -22,9 +22,9 @@
 
 
 # Reihenfolge für nächstes Vorgehen - WICHTIG
-- [ ] Ordentliche Trennung zwischen dev und docker Version
-- [ ] Ordentliche Konfiguration, sodass das compose überall funktioniert wie es soll
-- [ ] Arbeit an Progress Information Part
+- [ ] Ordentliche Trennung zwischen dev und docker Version - in Arbeit
+- [ ] Ordentliche Konfiguration, sodass das compose überall funktioniert wie es soll - in Arbeit
+- [ ] Arbeit an Progress Information Part - 
 - [ ] Arbeit an Tag-Selection Part
 - [ ] Arbeit an Alerting Part
 - [ ] Integration von CloWM
