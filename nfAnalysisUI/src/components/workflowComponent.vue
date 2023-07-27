@@ -33,7 +33,12 @@ Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
 
 const router = useRouter();
 const route = useRoute();
-
+const axiosConfig = {
+  headers: {
+    'Content-Type': 'application/json;charset=UTF-8',
+    "Access-Control-Allow-Origin": "*",
+  }
+};
 
 const props = defineProps<{
   token: string;
@@ -132,7 +137,7 @@ const filterState = reactive<{
 function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
-    axios.get(`http://localhost:8000/run/${token}/`).then(
+    axios.get(`http://localhost:8000/run/${token}/`, axiosConfig).then(
         response => {
           if (response.data["error"]) {
             workflowState.state_by_task = [];
@@ -165,7 +170,7 @@ function getDataInitial(token = props.token): void {
 
 
 function dataPollingLoop(): void {
-  axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
+  axios.get(`http://localhost:8000/run/${workflowState.token}/`, axiosConfig).then(
       response => {
         if (response.data["error"]) {
           workflowState.state_by_task = [];
