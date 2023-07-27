@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, toRaw} from "vue";
+import { onMounted, reactive, ref, toRaw }  from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
@@ -8,9 +8,6 @@ import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
 import { Chart, LinearScale, CategoryScale } from 'chart.js/auto'; // check vue-chartjs as wrapper
 import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
-import TabView from 'primevue/tabview';
-import TabPanel from 'primevue/tabpanel';
-import Card from 'primevue/card';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import CascadeSelect from 'primevue/cascadeselect'; // could be used to show aprocess names as a "tree"
@@ -18,15 +15,13 @@ import Button from 'primevue/button';
 import ToggleButton from 'primevue/togglebutton';
 import Tag from 'primevue/tag';
 import MultiSelect from "primevue/multiselect";
-import {FilterMatchMode, FilterService} from 'primevue/api';
+import { FilterMatchMode, FilterService } from 'primevue/api';
 import InputText from 'primevue/inputtext';
 import ProgressBar from 'primevue/progressbar';
 import Message from 'primevue/message'; // could replace alerts
-import OrganizationChart from 'primevue/organizationchart'; // could be useful to show stuff
-import Timeline from 'primevue/timeline'; // per task (process instance) --> show progress instead of a bar
-import Skeleton from 'primevue/skeleton'; // while loading
-import ProgressSpinner from 'primevue/progressspinner'; // same
-import Listbox from 'primevue/listbox'; // for top
+// import Skeleton from 'primevue/skeleton'; // while loading
+// import ProgressSpinner from 'primevue/progressspinner'; // same
+import Knob from 'primevue/knob';
 import Panel from 'primevue/panel';
 
 Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
@@ -50,6 +45,8 @@ const filters = ref({
 
 const workflowState = reactive<{
   currentState: string;
+  progress: any;
+  runningProcesses: any;
   failedProcesses: boolean,
   pollInterval: number;
   loading: boolean;
@@ -59,13 +56,13 @@ const workflowState = reactive<{
   process_state: any;
   filteredProgressProcesses: any;
   state_by_task: any;
-  selectedKeys: string[];
   selectedProcesses: string[];
-  selectionFilters: any;
   meta: any;
   //connection: WebSocket;
 }>({
   currentState: "WAITING",
+  progress: {},
+  runningProcesses: {},
   failedProcesses: false,
   pollInterval: 10000,
   loading: true,
@@ -75,9 +72,7 @@ const workflowState = reactive<{
   process_state: {},
   filteredProgressProcesses: {},
   state_by_task: {},
-  selectedKeys: [],
   selectedProcesses: [],
-  selectionFilters: {},
   meta: {},
   //connection: null,
 });
@@ -142,29 +137,30 @@ function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
     axios.get(`http://localhost:8000/run/${token}/`).then(
-        response => {
-          if (response.data["error"]) {
-            workflowState.state_by_task = [];
-            workflowState.error_on_request = true;
-
-          } else {
-            workflowState.state_by_task = response.data["result_by_task"];
-            workflowState.process_state = response.data["result_processes"];
-            workflowState.meta = response.data["result_meta"];
-            checkState(response.data["result_meta"], response.data["result_by_task"]);
-            workflowState.token_info_requested = true;
-            workflowState.token = token;
-            workflowState.error_on_request = false;
-            initiateFilterState();
-            progressProcessSelectionChanged();
-            filterState.tagTaskMapping = mapAvailableTags();
-            filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
-            if (workflowState.currentState !== "WAITING") {
-              createPlots();
-            }
-            dataPollingLoop();
+      response => {
+        if (response.data["error"]) {
+          workflowState.state_by_task = [];
+          workflowState.error_on_request = true;
+        } else {
+          workflowState.state_by_task = response.data["result_by_task"];
+          workflowState.process_state = response.data["result_processes"];
+          workflowState.runningProcesses = getRunningProcesses();
+          updateProgress();
+          workflowState.meta = response.data["result_meta"];
+          checkState(response.data["result_meta"], response.data["result_by_task"]);
+          workflowState.token_info_requested = true;
+          workflowState.token = token;
+          workflowState.error_on_request = false;
+          initiateFilterState();
+          progressProcessSelectionChanged();
+          filterState.tagTaskMapping = mapAvailableTags();
+          filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
+          if (workflowState.currentState !== "WAITING") {
+            createPlots();
           }
-        },
+          dataPollingLoop();
+        }
+      },
     );
     /*
     workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`);
@@ -178,38 +174,40 @@ function getDataInitial(token = props.token): void {
 
 function dataPollingLoop(): void {
   axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
-      response => {
-        if (response.data["error"]) {
-          workflowState.state_by_task = [];
-          workflowState.error_on_request = true;
+    response => {
+      if (response.data["error"]) {
+        workflowState.state_by_task = [];
+        workflowState.error_on_request = true;
 
-        } else {
-          workflowState.state_by_task = response.data["result_by_task"];
-          workflowState.process_state = response.data["result_processes"];
-          workflowState.meta = response.data["result_meta"];
-          checkState(response.data["result_meta"], response.data["result_by_task"]);
-          workflowState.token_info_requested = true;
-          workflowState.error_on_request = false;
-          updateAvailableProcessNamesForFilter();
-          updateIfAutoselectEnabled();
-          progressProcessSelectionChanged();
-          if (workflowState.currentState !== "WAITING") {
-            if (metricCharts.chartsGenerated) {
-              updatePlots();
-            } else {
-              createPlots();
-            }
+      } else {
+        workflowState.state_by_task = response.data["result_by_task"];
+        workflowState.process_state = response.data["result_processes"];
+        workflowState.runningProcesses = getRunningProcesses();
+        updateProgress();
+        workflowState.meta = response.data["result_meta"];
+        checkState(response.data["result_meta"], response.data["result_by_task"]);
+        workflowState.token_info_requested = true;
+        workflowState.error_on_request = false;
+        updateAvailableProcessNamesForFilter();
+        updateIfAutoselectEnabled();
+        progressProcessSelectionChanged();
+        if (workflowState.currentState !== "WAITING") {
+          if (metricCharts.chartsGenerated) {
+            updatePlots();
+          } else {
+            createPlots();
           }
-          
-
         }
-      }).finally((): void => {
-    setTimeout(dataPollingLoop, 10000);
-  })
+
+
+      }
+    }).finally((): void => {
+      setTimeout(dataPollingLoop, 10000);
+    })
 
 }
 
-/** end of init and pollign */
+/** end of init and polling */
 
 /**
  * filter state functions
@@ -251,7 +249,7 @@ function selectAllProgressProcesses(): void {
   progressProcessSelectionChanged();
 }
 
-function unselectAllProgressProcesses(): void{
+function unselectAllProgressProcesses(): void {
   setSelectedProgressProcesses([]);
   progressProcessSelectionChanged();
 }
@@ -284,14 +282,14 @@ function progressProcessSelectionChanged(): void {
 }
 
 function metricProcessSelectionChanged(): void {
-  if (filterState.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
+  if (filterState.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
     updatePlots();
-  } 
+  }
 
 }
 
 function metricProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricProcesses && !nonAutoUpdateStates.includes(workflowState.currentState) ) {
+  if (filterState.autoselectAllMetricProcesses && !nonAutoUpdateStates.includes(workflowState.currentState)) {
     selectAllMetricProcesses();
   } else {
     // what to do here?
@@ -299,8 +297,7 @@ function metricProcessAutoSelectionChanged(): void {
 }
 
 function progressProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllProgressProcesses && !nonAutoUpdateStates.includes(workflowState.currentState))
-  {
+  if (filterState.autoselectAllProgressProcesses && !nonAutoUpdateStates.includes(workflowState.currentState)) {
     updateFilteredProgressProcesses(true);
   } else {
     // what to do here?
@@ -351,25 +348,25 @@ async function createRelativeRamPlot() {
   metricCharts.relativeMemoryCanvas = canvas;
   await delay(300);
   const relativeRamChart = new Chart(
-      metricCharts.relativeMemoryCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.relativeMemoryCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(relativeRamChart);
   metricCharts.relativeMemoryChart = relativeRamChart;
@@ -384,25 +381,25 @@ async function createIOPlot() {
   await delay(300);
 
   const ioChart = new Chart(
-      metricCharts.ioCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.ioCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(ioChart);
   metricCharts.ioChart = ioChart;
@@ -415,24 +412,24 @@ async function createDurationPlot() {
   metricCharts.durationCanvas = canvas;
   await delay(300);
   const durationChart = new Chart(
-      metricCharts.durationCanvas,
-      {
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.durationCanvas,
+    {
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(durationChart);
   metricCharts.durationChart = durationChart;
@@ -446,25 +443,25 @@ async function createRamPlot() {
   await delay(300);
 
   const memoryChart = new Chart(
-      metricCharts.memoryCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.memoryCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(memoryChart);
   metricCharts.memoryChart = memoryChart;
@@ -477,25 +474,25 @@ async function createCPUPlot() {
   metricCharts.cpuCanvas = canvas;
   await delay(300);
   const cpuChart = new Chart(
-      metricCharts.cpuCanvas,
-      {
-        type: 'boxplot',
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-            },
-            tooltip: {
-              enabled: true
-            }
+    metricCharts.cpuCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
           }
-        },
-        data: {
-          labels: [],
-          datasets: [],
         }
+      },
+      data: {
+        labels: [],
+        datasets: [],
       }
+    }
   );
   Object.seal(cpuChart);
   metricCharts.cpuChart = cpuChart;
@@ -574,64 +571,126 @@ function updateRelativeRamPlot() {
 /** helper functions */
 
 
- /**
- * openai: chatgpt - prompt: in javascript, take a list of strings, which can be splitted using the character ':'.
- how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
- ___
- needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
- result:
- */
+/**
+* openai: chatgpt - prompt: in javascript, take a list of strings, which can be splitted using the character ':'.
+how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
+___
+needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
+result:
+*/
 
 
- function checkState(meta: any, tasks: any): void {
-    adjustCurrentState(meta['event']);
-    tasks = toRaw(tasks);
-    for (let task of tasks) {
-      if (task["status"] == "FAILED") {
-        workflowState.failedProcesses = true;
-        return;
+function checkState(meta: any, tasks: any): void {
+  adjustCurrentState(meta['event']);
+  tasks = toRaw(tasks);
+  for (let task of tasks) {
+    if (task["status"] == "FAILED") {
+      workflowState.failedProcesses = true;
+      return;
+    }
+  }
+  workflowState.failedProcesses = false;
+}
+
+
+function updateProgress(): void {
+  const allProcesses = toRaw(workflowState.process_state);
+  let all: number = 0;
+  let submitted: number = 0
+  let running: number = 0;
+  let completed: number = 0;
+  let failed: number = 0;
+  let aborted: number = 0
+  for (let process in allProcesses) {
+    let processTasks: any = allProcesses[process]["tasks"];
+    for (let task in processTasks) {
+     switch(processTasks[task].status) {
+      case "SUBMITTED":
+        submitted += 1;
+      case "RUNNING":
+        running += 1;
+      case "FAILED":
+        failed += 1;
+      case "ABORTED":
+        aborted += 1 
+      case "COMPLETED":
+        completed += 1;
+      default:
+        all += 1;
+     }
+    }
+  }
+
+  workflowState.progress = {
+    "all": all, 
+    "submitted": submitted,
+    "running": running,
+    "failed": failed,
+    "completed": completed,
+    "aborted": aborted
+  }
+
+  
+}
+
+
+function adjustCurrentState(event: string) {
+  if (event === "started") {
+    let tasks = toRaw(workflowState.state_by_task);
+    if (workflowState.currentState === "SUBMITTED" || workflowState.currentState === "WAITING") {
+      for (let task of tasks) {
+        if (task["status"] == "RUNNING") {
+          workflowState.currentState = "RUNNING";
+          return
+        } else if (task["status"] == "COMPLETED") {
+          workflowState.currentState = "RUNNING";
+          return;
+        }
       }
-    workflowState.failedProcesses = false;   
+      workflowState.currentState = "SUBMITTED";
+    }
+  } else if (event === "completed") {
+    if (workflowState.meta["error_message"] !== null) {
+
+      if (workflowState.meta["error_message"] === "SIGINT") {
+        workflowState.currentState = "ABORTED";
+      } else {
+        workflowState.currentState = "FAILED";
+      }
+    } else {
+      workflowState.currentState = "COMPLETED";
+    }
+
   }
 }
 
- function adjustCurrentState(event: string) {
-    if (event === "started") {
-      let tasks = toRaw(workflowState.state_by_task);
-        if (workflowState.currentState === "SUBMITTED" || workflowState.currentState === "WAITING") {
-        for (let task of tasks) {
-          if (task["status"] == "RUNNING") {
-            workflowState.currentState = "RUNNING";
-            return
-          } else if (task["status"] == "COMPLETED") {
-            workflowState.currentState = "RUNNING";
-            return;
-          }
-        }
-        workflowState.currentState = "SUBMITTED";
-      }
-    } else if (event === "completed") {
-      if (workflowState.meta["error_message"] !== null) {
-        
-        if (workflowState.meta["error_message"] === "SIGINT") {
-          workflowState.currentState = "ABORTED";
-        } else {
-          workflowState.currentState = "FAILED";
-        }
-      } else {
-        workflowState.currentState = "COMPLETED";
-      }
-      
+function getRunningProcesses(): any {
+  let processes: any = {};
+  const allProcesses = toRaw(workflowState.process_state);
+  for (let process in allProcesses) {
+    let tasks: any = {};
+    let processTasks: any = allProcesses[process]["tasks"];
+    for (let task in processTasks) {
+      if (processTasks[task].status === "RUNNING")
+        tasks[task] = processTasks[task];
     }
-  }
- 
+    if (Object.keys(tasks).length > 0) {
+      processes[process] = {};
+      processes[process]["tasks"] = tasks;
+    }
 
- function severityFromWorkflowState(): string {
+
+  }
+  return processes;
+}
+
+
+function severityFromWorkflowState(): string {
   const state: string = workflowState.currentState;
-  switch(state) {
+  switch (state) {
     case "SUBMITTED":
       return "info"
-    case "RUNNING": 
+    case "RUNNING":
       return "info"
     case "FAILED":
       return "error";
@@ -641,28 +700,28 @@ function updateRelativeRamPlot() {
       return "success";
     default:
       return "info"
-  
-  }
- }
 
- function messageFromWorkflowState(): string {
+  }
+}
+
+function messageFromWorkflowState(): string {
   const state: string = workflowState.currentState;
-  switch(state) {
+  switch (state) {
     case "SUBMITTED":
       return "Your workflow was submitted, but no process has started yet";
-    case "RUNNING": 
+    case "RUNNING":
       return "Your workflow is currently running";
     case "FAILED":
       return "Your workflow has failed!";
-    case "ABORTED": 
+    case "ABORTED":
       return "Your worfklow has been aborted!";
     case "COMPLETED":
       return "Your workflow has been successfully completed!";
     default:
       return "There is no workflow information yet, seems like it has not started.";
-    
+
   }
- }
+}
 
 function getSuffixes(strings) {
   return strings.map(str => {
@@ -738,22 +797,6 @@ function getNumberOfTasksForProcess(info: any): number {
     currently_submitted += 1;
   }
   return currently_submitted
-}
-
-function getProcessCurrentScore(info: any): number {
-  const subprocesses: any = info["tasks"];
-  let score: number = 0;
-  for (let sb in subprocesses) {
-    let status: string = subprocesses[sb]["status"];
-    if (status == "SUBMITTED") {
-      score += 10;
-    } else if (status == "RUNNING") {
-      score += 50;
-    } else if (status == "COMPLETED") {
-      score += 100;
-    }
-  }
-  return score;
 }
 
 
@@ -881,7 +924,7 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   data_pair['type'] = wantedFormat;
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
-    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)){
+    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
       data_pair["labels"].push(process);
       let tasks: any = states[process]['tasks'];
       let values: number[] = [];
@@ -945,13 +988,13 @@ function generateMemoryRelativeData(): [string[], any[]] {
   let states: any = toRaw(workflowState.process_state);
   let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
   for (let process in states) {
-    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)){
+    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
       labels.push(process);
       let processValues: any[] = [];
       let tasks: any = states[process]['tasks'];
       for (let task_id in tasks) {
         processValues.push(
-            (tasks[task_id]['rss'] / tasks[task_id]['memory']) * 100
+          (tasks[task_id]['rss'] / tasks[task_id]['memory']) * 100
         );
       }
       relative_dataset['data'].push(processValues);
@@ -993,7 +1036,7 @@ function generateCPUData(): [string[], any[]] {
       labels.push(process);
       let tasks: any = states[process]['tasks'];
       if (!(process in values)) {
-        values[process] = {'cpus': [], 'realtime': []};
+        values[process] = { 'cpus': [], 'realtime': [] };
       }
       for (let task_id in tasks) {
         values[process]['cpus'].push(tasks[task_id]['cpus']);
@@ -1040,24 +1083,24 @@ function generateDurationData(): [string[], any[]] {
   let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
 
   let datasets: any[] =
-      [
-        {
-          type: 'bar',
-          label: `Summarized Duration in seconds`,
-          //data: data["data"],
-          data: data_sum["data"],
-        },
-        {
-          type: 'boxplot',
-          label: 'Execution in real-time',
-          data: data_execution,
-        },
-        {
-          type: 'boxplot',
-          label: 'Requested time used in %',
-          data: data_allocated[1],
-        }
-      ];
+    [
+      {
+        type: 'bar',
+        label: `Summarized Duration in seconds`,
+        //data: data["data"],
+        data: data_sum["data"],
+      },
+      {
+        type: 'boxplot',
+        label: 'Execution in real-time',
+        data: data_execution,
+      },
+      {
+        type: 'boxplot',
+        label: 'Requested time used in %',
+        data: data_allocated[1],
+      }
+    ];
   return [getSuffixes(data_sum["labels"]), datasets];
 
 
@@ -1093,12 +1136,8 @@ onMounted(() => {
   </div>
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
-    <div class="card-body">
-      <Message v-if="workflowState.currentState !== 'WAITING'" :closable="false" :severity="severityFromWorkflowState()">{{ messageFromWorkflowState() }}</Message>
-      <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of the workflow!</Message>
-
-    </div>
-    <div class="card-body" v-if="workflowState.state_by_task?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
+    <div class="card-body"
+      v-if="workflowState.state_by_task?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
       <h6 class="card-subtitle mb-2">
         There are no workflows connected to this token. Please use the following instructions to persist workflow
         metrics to this token.
@@ -1121,6 +1160,61 @@ onMounted(() => {
         progress here.
       </div>
     </div>
+    <div class="card-body">
+      <Message v-if="workflowState.currentState !== 'WAITING'" :closable="false" :severity="severityFromWorkflowState()">
+        {{ messageFromWorkflowState() }}</Message>
+      <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of
+        the workflow!</Message>
+    </div>
+    <div class="card-body">
+      <h5 class="card-title">Progress</h5>
+      <hr>
+      <div>
+        <div class="mb-4">
+          <div class="row justify-content-center">
+            <ProgressBar  class="mt-2" :showValue="false"  style="height: 3px; max-width: 70vw;"
+            :value="(workflowState.progress['completed'] / workflowState.progress['all']) * 100">
+            </ProgressBar>
+          </div>
+          <div class="row justify-content-center">
+            {{ workflowState.progress['completed']}} of {{ workflowState.progress['all'] }} processes completed
+          </div>
+         
+        </div>
+        <div class="row">
+          <div class="col-3">
+            <Knob :min="0" :max="workflowState.progress['all']" v-model="workflowState.progress['submitted']" :size="120"
+              readonly :strokeWidth="5" />
+              <span class="justify-content-center">Submitted</span>
+          </div>
+          <div class="col-3">
+            <Knob :min="0" :max="workflowState.progress['all']"  v-model="workflowState.progress['running']" :size="120"
+              readonly :strokeWidth="5" />
+              <span class="justify-content-center">Running</span>
+          </div>
+          <div class="col-3">
+            <Knob :min="0" :max="workflowState.progress['all']"  valueColor="Green" v-model="workflowState.progress['completed']" :size="120"
+              readonly :strokeWidth="5" />
+              <span class="justify-content-center">Completed</span>
+          </div>
+          <div class="col-3">
+            <Knob :min="0" :max="workflowState.progress['all']" valueColor="Red" v-model="workflowState.progress['failed']" :size="120"
+              readonly :strokeWidth="5" />
+              <span class="justify-content-center">Failed</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"
+      v-if="workflowState.token_info_requested && workflowState.state_by_task?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
+      <h5 class="card-title">Currently running</h5>
+      <hr>
+      <div v-for="(info, process) in workflowState.runningProcesses">
+        <strong>{{ process }}</strong> - {{ Object.keys(info["tasks"]).length > 1 ?
+         Object.keys(info["tasks"]).length + 'processes' : '1 process' }} with tags : <Tag v-for="(task, id) in info['tasks']" :value="task['tag']"></Tag>
+      </div>
+    </div>
+    <hr>
     <div class="card-body"
       v-if="workflowState.token_info_requested && workflowState.state_by_task?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
       <h5 class="card-title">By process</h5>
@@ -1128,19 +1222,23 @@ onMounted(() => {
       <div>
         <div class="row">
           <div class="col-6">
-            <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses" :disabled="filterState.autoselectAllProgressProcesses"
-                         v-on:update:model-value="progressProcessSelectionChanged()" :showToggleAll="false" filter placeholder="Select Processes" optionLabel="name"
-                         display="chip" class="md:w-20rem" style="max-width: 40vw"/>
+            <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses"
+              :disabled="filterState.autoselectAllProgressProcesses"
+              v-on:update:model-value="progressProcessSelectionChanged()" :showToggleAll="false" filter
+              placeholder="Select Processes" optionLabel="name" display="chip" class="md:w-20rem"
+              style="max-width: 40vw" />
           </div>
           <div class="col-3">
-            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="unselectAllProgressProcesses()" label="Deselect all" />
-            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="selectAllProgressProcesses()" label="Select all" />
+            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="unselectAllProgressProcesses()"
+              label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="selectAllProgressProcesses()"
+              label="Select all" />
           </div>
           <div class="col-3">
-            <ToggleButton v-model="filterState.autoselectAllProgressProcesses" v-on:change="progressProcessAutoSelectionChanged()"
-                          onLabel="Autoupdate enabled" offLabel="Autoupdate disabled"
-                          :disabled="showAutoUpdateEnableOptionProgress()"
-                          onIcon="pi pi-check" offIcon="pi pi-times"/> <!-- need function to handle this -->
+            <ToggleButton v-model="filterState.autoselectAllProgressProcesses"
+              v-on:change="progressProcessAutoSelectionChanged()" onLabel="Autoupdate enabled"
+              offLabel="Autoupdate disabled" :disabled="showAutoUpdateEnableOptionProgress()" onIcon="pi pi-check"
+              offIcon="pi pi-times" /> <!-- need function to handle this -->
           </div>
         </div>
         <!-- also check if this can be made better-->
@@ -1166,14 +1264,14 @@ onMounted(() => {
             <ul class="list-group list-group-flush">
               <li class="list-group-item" v-for="(task, id) in info['tasks']">
                 <div class="row col-12">
-                  <div class="col-6"><Tag :value="`Task #${id} - Tag: ${task['tag']}`"></Tag></div>
+                  <div class="col-6">
+                    <Tag :value="`Task #${id} - Tag: ${task['tag']}`"></Tag>
+                  </div>
                   <div class="col-3 p-1">
-                    <ProgressBar
-                        class="mt-2" :showValue="false" :value="getProgressValueForTask(task['status'])" style="height: 3px"
-                        :pt="{
-                            value: { style: { background: generateColorString(task['status']) } }
-                          }"
-                    >
+                    <ProgressBar class="mt-2" :showValue="false" :value="getProgressValueForTask(task['status'])"
+                      style="height: 3px" :pt="{
+                        value: { style: { background: generateColorString(task['status']) } }
+                      }">
 
 
                     </ProgressBar>
@@ -1320,22 +1418,21 @@ onMounted(() => {
         <div class="row">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedMetricProcesses" :options="filterState.availableProcesses"
-                         v-on:change="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes" display="chip"
-                         class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
-                         :disabled="filterState.autoselectAllMetricProcesses"
-            >
+              v-on:change="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
+              display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
+              :disabled="filterState.autoselectAllMetricProcesses">
             </MultiSelect>
           </div>
           <div class="col-3">
-            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="unselectAllMetricProcesses()" label="Deselect all" />
-            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="selectAllMetricProcesses()" label="Select all" />
+            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="unselectAllMetricProcesses()"
+              label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="selectAllMetricProcesses()"
+              label="Select all" />
           </div>
           <div class="col-3">
             <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"
-                          onLabel="Autoupdate enabled" offLabel="Autoupdate disabled"
-                          :disabled="showAutoUpdateEnableOptionMetric()"
-                          onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricProcessAutoSelectionChanged()"
-            />
+              onLabel="Autoupdate enabled" offLabel="Autoupdate disabled" :disabled="showAutoUpdateEnableOptionMetric()"
+              onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricProcessAutoSelectionChanged()" />
           </div>
         </div>
 
@@ -1357,9 +1454,8 @@ onMounted(() => {
       <div class="alert alert-info">
         This token is not correct, please enter another token
       </div>
-    </div>
-
   </div>
-</template>
+
+</div></template>
 
 <style scoped></style>
