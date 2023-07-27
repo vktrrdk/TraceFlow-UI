@@ -24,9 +24,9 @@
 # Reihenfolge für nächstes Vorgehen - WICHTIG
 - [ ] Ordentliche Trennung zwischen dev und docker Version - in Arbeit
 - [ ] Ordentliche Konfiguration, sodass das compose überall funktioniert wie es soll - in Arbeit
-- [ ] Arbeit an Progress Information Part - 
-- [ ] Arbeit an Tag-Selection Part
-- [ ] Arbeit an Alerting Part
+- [ ] Arbeit an Progress Information Part - in Arbeit
+- [ ] Arbeit an Tag-Selection Part - direkt als nächstes!
+- [ ] Arbeit an Alerting Part - Anfang gemacht - direkt weiter!
 - [ ] Integration von CloWM
 - [ ] Schreiben
 - [ ] Welcher Webserver? Konfig final abschließen!
