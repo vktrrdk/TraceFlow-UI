@@ -23,12 +23,37 @@ import Message from 'primevue/message'; // could replace alerts
 // import ProgressSpinner from 'primevue/progressspinner'; // same
 import Knob from 'primevue/knob';
 import Panel from 'primevue/panel';
+import ConfirmDialog from "primevue/confirmdialog";
+import Toast from "primevue/toast";
+import { useConfirm } from "primevue/useconfirm";
+import { useToast } from "primevue/usetoast";
 
 Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
 
 const router = useRouter();
 const route = useRoute();
 
+const confirm = useConfirm();
+const toast = useToast();
+
+/** Dialog functions **/
+
+function confirmDeletion(): void {
+  confirm.require({
+    message: `Do you want to delete the token ${workflowState.token}? This will also delete all data connected to this token!`,
+    header: 'Delete confirmation',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      deleteToken();
+    }, 
+    reject: () => {
+      toast.add({severity: 'warn', summary: 'Aborted', detail: 'You have aborted the deletion of the token.', life: 5000});
+      }, 
+    });
+}
+
+
+/** end of dialog functions **/
 
 const props = defineProps<{
   token: string;
@@ -580,6 +605,10 @@ result:
 */
 
 
+function startBackToMainTimer(): void {
+  console.log("SHOULD GO BACK TO THE MAIN MENU");
+}
+
 function checkState(meta: any, tasks: any): void {
   adjustCurrentState(meta['event']);
   tasks = toRaw(tasks);
@@ -848,8 +877,21 @@ function getNumberOfCompletedSubprocesses(info: any): number {
   return completed;
 }
 
-function deleteToken(token: string) {
-  // needs implementation
+function deleteToken() {
+  axios.delete(`http://localhost:8000/token/remove/${workflowState.token}/`).then(
+      response => {
+        if (response.data["deleted"]) {
+          toast.add({severity: 'error', summary: 'Confirmed', detail: 'You have successfully deleted this token and all connected information.', life: 5000});
+          startBackToMainTimer();
+      } else {
+        toast.add({severity: 'warn', summary: 'Failed', detail: 'Te deletion of the token has failed. Please try again!'});
+      }
+      }).finally(
+        () => {
+          return false;
+        }
+      );
+      
 }
 
 
@@ -1443,7 +1485,7 @@ onMounted(() => {
       </div>
       <hr>
       <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
-        <div type="button" class="btn btn-outline-danger" @click="deleteToken(workflowState.token)">
+        <div type="button" class="btn btn-outline-danger" @click="confirmDeletion();">
           Delete token
         </div>
 
@@ -1456,6 +1498,9 @@ onMounted(() => {
       </div>
   </div>
 
-</div></template>
+</div>
+<Toast />
+<ConfirmDialog></ConfirmDialog>
+</template>
 
 <style scoped></style>

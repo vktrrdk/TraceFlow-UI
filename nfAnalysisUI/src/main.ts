@@ -12,6 +12,8 @@ import PrimeVue from 'primevue/config';
 import 'primevue/resources/themes/lara-light-teal/theme.css';
 import 'primevue/resources/primevue.min.css';
 import 'primeicons/primeicons.css';  
+import ConfirmationService from 'primevue/confirmationservice';
+import ToastService from 'primevue/toastservice';
 
 /* check out router and components in vue
 
@@ -26,7 +28,7 @@ const router = VueRouter.createRouter({
     history: VueRouter.
 }) */
 
-const app = createApp(App).use(PrimeVue).use(router).mount("#app");
+const app = createApp(App).use(PrimeVue).use(router).use(ConfirmationService).use(ToastService).mount("#app");
 
 
 
