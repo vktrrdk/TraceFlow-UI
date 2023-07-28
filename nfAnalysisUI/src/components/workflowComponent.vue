@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, toRaw }  from "vue";
+import { onMounted, onUnmounted, reactive, ref, toRaw }  from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
@@ -73,7 +73,7 @@ const workflowState = reactive<{
   progress: any;
   runningProcesses: any;
   failedProcesses: boolean,
-  pollInterval: number;
+  pollInterval: any;
   loading: boolean;
   token: string;
   token_info_requested: boolean;
@@ -89,7 +89,7 @@ const workflowState = reactive<{
   progress: {},
   runningProcesses: {},
   failedProcesses: false,
-  pollInterval: 10000,
+  pollInterval: null,
   loading: true,
   token: "",
   token_info_requested: false,
@@ -183,7 +183,7 @@ function getDataInitial(token = props.token): void {
           if (workflowState.currentState !== "WAITING") {
             createPlots();
           }
-          dataPollingLoop();
+          startPollingLoop();
         }
       },
     );
@@ -196,6 +196,15 @@ function getDataInitial(token = props.token): void {
 
 }
 
+function destroyPollTimer(): void{
+  clearInterval(workflowState.pollInterval);
+}
+
+function startPollingLoop(): void{
+  if (!workflowState.pollInterval) {
+    workflowState.pollInterval = setInterval(dataPollingLoop, 7500);
+  }
+}
 
 function dataPollingLoop(): void {
   axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
@@ -226,10 +235,7 @@ function dataPollingLoop(): void {
 
 
       }
-    }).finally((): void => {
-      setTimeout(dataPollingLoop, 10000);
-    })
-
+    });
 }
 
 /** end of init and polling */
@@ -606,7 +612,10 @@ result:
 
 
 function startBackToMainTimer(): void {
-  console.log("SHOULD GO BACK TO THE MAIN MENU");
+  destroyPollTimer();
+  setTimeout(() => {
+    router.push("/");
+  }, 5000);
 }
 
 function checkState(meta: any, tasks: any): void {
@@ -629,24 +638,30 @@ function updateProgress(): void {
   let running: number = 0;
   let completed: number = 0;
   let failed: number = 0;
-  let aborted: number = 0
+  let aborted: number = 0;
   for (let process in allProcesses) {
     let processTasks: any = allProcesses[process]["tasks"];
     for (let task in processTasks) {
      switch(processTasks[task].status) {
       case "SUBMITTED":
         submitted += 1;
+        break;
       case "RUNNING":
         running += 1;
+        break;
       case "FAILED":
+        console.log("PROCESS FAILED!")
+        console.log(processTasks[task]);
         failed += 1;
+        break;
       case "ABORTED":
-        aborted += 1 
+        aborted += 1;
+        break;
       case "COMPLETED":
         completed += 1;
-      default:
-        all += 1;
+        break;
      }
+     all += 1;
     }
   }
 
@@ -881,10 +896,10 @@ function deleteToken() {
   axios.delete(`http://localhost:8000/token/remove/${workflowState.token}/`).then(
       response => {
         if (response.data["deleted"]) {
-          toast.add({severity: 'error', summary: 'Confirmed', detail: 'You have successfully deleted this token and all connected information.', life: 5000});
+          toast.add({severity: 'error', summary: 'Confirmed', detail: 'You have successfully deleted this token and all connected information. You will be redirected to the main-page.', life: 5000});
           startBackToMainTimer();
       } else {
-        toast.add({severity: 'warn', summary: 'Failed', detail: 'Te deletion of the token has failed. Please try again!'});
+        toast.add({severity: 'warn', summary: 'Failed', detail: 'Te deletion of the token has failed. Please try again!', life: 5000});
       }
       }).finally(
         () => {
@@ -1157,6 +1172,10 @@ onMounted(() => {
   getDataInitial();
 });
 
+onUnmounted(() => {
+  destroyPollTimer();
+})
+
 </script>
 
 <template>
@@ -1208,7 +1227,7 @@ onMounted(() => {
       <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of
         the workflow!</Message>
     </div>
-    <div class="card-body">
+    <div class="card-body" v-if="workflowState.currentState !== 'WAITING'">
       <h5 class="card-title">Progress</h5>
       <hr>
       <div>
@@ -1484,12 +1503,6 @@ onMounted(() => {
 
       </div>
       <hr>
-      <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
-        <div type="button" class="btn btn-outline-danger" @click="confirmDeletion();">
-          Delete token
-        </div>
-
-      </div>
     </div>
 
     <div class="card-body" v-if="workflowState.error_on_request">
@@ -1497,9 +1510,14 @@ onMounted(() => {
         This token is not correct, please enter another token
       </div>
   </div>
+  <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
+    <div type="button" class="btn btn-outline-danger" @click="confirmDeletion();">
+      Delete token
+    </div>
 
+  </div>
 </div>
-<Toast />
+<Toast position="center"/>
 <ConfirmDialog></ConfirmDialog>
 </template>
 
