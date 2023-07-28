@@ -6,7 +6,7 @@ import "bootstrap/dist/js/bootstrap.min.js"
 import type { RunTrace } from "@/models/RunTrace";
 import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
-import { Chart, LinearScale, CategoryScale } from 'chart.js/auto'; // check vue-chartjs as wrapper
+import { Chart, LinearScale, CategoryScale, TimeScale } from 'chart.js/auto'; // check vue-chartjs as wrapper
 import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
@@ -27,6 +27,7 @@ import ConfirmDialog from "primevue/confirmdialog";
 import Toast from "primevue/toast";
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
+import Listbox from "primevue/listbox";
 
 Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
 
@@ -86,7 +87,14 @@ const workflowState = reactive<{
   //connection: WebSocket;
 }>({
   currentState: "WAITING",
-  progress: {},
+  progress: {
+    "all": null, 
+    "submitted": null,
+    "running": null,
+    "failed": null,
+    "completed": null,
+    "aborted": null
+  },
   runningProcesses: {},
   failedProcesses: false,
   pollInterval: null,
@@ -201,9 +209,12 @@ function destroyPollTimer(): void{
 }
 
 function startPollingLoop(): void{
-  if (!workflowState.pollInterval) {
+  if (!nonAutoUpdateStates.includes(workflowState.currentState)) {
+    if (!workflowState.pollInterval) {
     workflowState.pollInterval = setInterval(dataPollingLoop, 7500);
+    }
   }
+  
 }
 
 function dataPollingLoop(): void {
@@ -223,6 +234,7 @@ function dataPollingLoop(): void {
         workflowState.token_info_requested = true;
         workflowState.error_on_request = false;
         updateAvailableProcessNamesForFilter();
+        updateAvailableTags();
         updateIfAutoselectEnabled();
         progressProcessSelectionChanged();
         if (workflowState.currentState !== "WAITING") {
@@ -246,6 +258,7 @@ function dataPollingLoop(): void {
 
 function initiateFilterState(): void {
   updateAvailableProcessNamesForFilter();
+  updateAvailableTags();
   setSelectedProgressProcesses(filterState.availableProcesses);
   setSelectedMetricProcesses(filterState.availableProcesses);
 }
@@ -254,6 +267,46 @@ function updateAvailableProcessNamesForFilter(): void {
   filterState.availableProcesses = getProcessNamesOnly();
 }
 
+function updateAvailableTags(): void {
+  filterState.availableTags = getTags();
+}
+
+function getTags(): any[]{
+  let tags: any[] = [];
+  const task_states = toRaw(workflowState.state_by_task);
+  for (let task of task_states) {
+    if (task["tag"] !== null){
+      const tagString: string = task["tag"];
+      let createdTags: any[] = getTagElements(tagString);
+      for (let pair of createdTags) {
+        
+        let tempKey: string = Object.keys(pair)[0];
+        if (!tags.some(item => item[tempKey] === pair[tempKey])) {
+          tags.push(pair);
+        }
+      }
+    } 
+  }
+  console.log(tags);
+  return tags;
+}
+
+function getTagElements(tagString: string): any[] {
+  let keyValuePairs: any[] = [];
+  let stringParts: string[] = tagString.split(',');
+  for (let part of stringParts){
+    let pair: any = {}
+    let partParts: string[] = part.split(':');
+    if (partParts.length > 1) {
+      pair[partParts[0]] = partParts[1];
+    } else {
+      pair['_'] = partParts[0];
+    }
+    keyValuePairs.push(pair);
+  }
+  
+  return keyValuePairs;
+}
 
 function setSelectedMetricProcesses(processes: any[]): void {
   filterState.selectedMetricProcesses = processes;
@@ -704,7 +757,9 @@ function adjustCurrentState(event: string) {
     } else {
       workflowState.currentState = "COMPLETED";
     }
-
+  }
+  if (nonAutoUpdateStates.includes(workflowState.currentState)) {
+    destroyPollTimer();
   }
 }
 
@@ -953,6 +1008,7 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
   let data_pair: any = {};
   data_pair["labels"] = [];
   data_pair["data"] = [];
+  data_pair['maxBarThickness'] = 25;
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
     // check why not updating
@@ -979,6 +1035,7 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   data_pair["labels"] = [];
   data_pair["data"] = [];
   data_pair['type'] = wantedFormat;
+  data_pair['maxBarThickness'] = 25;
   let states: any = toRaw(workflowState.process_state);
   for (let process in states) {
     if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
@@ -1027,6 +1084,7 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
           single_dataset['data'].push(getDataInValidFormat(values, wantedFormat)[0]);
         } else {
           single_dataset['data'].push(values);
+          single_dataset['maxBarThickness'] = 25;
         }
       }
     }
@@ -1055,6 +1113,7 @@ function generateMemoryRelativeData(): [string[], any[]] {
         );
       }
       relative_dataset['data'].push(processValues);
+      relative_dataset['maxBarThickness'] = 25;
     }
   }
   datasets.push(relative_dataset);
@@ -1077,6 +1136,7 @@ function generateKeyRelativeData(dataKey: string, respectToKey: string, label: s
       );
     }
     relative_dataset['data'].push(processValues);
+    relative_dataset['maxBarThickness'] = 25;
   }
   datasets.push(relative_dataset);
   return [labels, datasets];
@@ -1123,8 +1183,8 @@ function generateCPUData(): [string[], any[]] {
     allocation_data.push([value * 100]);
     raw_usage_data.push(values_raw);
   }
-  datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data })
-  datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data });
+  datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 25 })
+  datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 25 });
 
   return [labels, datasets]
 }
@@ -1146,16 +1206,19 @@ function generateDurationData(): [string[], any[]] {
         label: `Summarized Duration in seconds`,
         //data: data["data"],
         data: data_sum["data"],
+        'maxBarThickness': 25,
       },
       {
         type: 'boxplot',
         label: 'Execution in real-time',
         data: data_execution,
+        'maxBarThickness': 25,
       },
       {
         type: 'boxplot',
         label: 'Requested time used in %',
         data: data_allocated[1],
+        'maxBarThickness': 25,
       }
     ];
   return [getSuffixes(data_sum["labels"]), datasets];
@@ -1198,7 +1261,7 @@ onUnmounted(() => {
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
     <div class="card-body"
-      v-if="workflowState.state_by_task?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
+      v-if="workflowState.process_state?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
       <h6 class="card-subtitle mb-2">
         There are no workflows connected to this token. Please use the following instructions to persist workflow
         metrics to this token.
@@ -1221,19 +1284,19 @@ onUnmounted(() => {
         progress here.
       </div>
     </div>
-    <div class="card-body">
+    <div class="card-body mb-4">
       <Message v-if="workflowState.currentState !== 'WAITING'" :closable="false" :severity="severityFromWorkflowState()">
         {{ messageFromWorkflowState() }}</Message>
       <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of
         the workflow!</Message>
     </div>
-    <div class="card-body" v-if="workflowState.currentState !== 'WAITING'">
+    <div class="card-body mb-4" v-if="workflowState.currentState !== 'WAITING'">
       <h5 class="card-title">Progress</h5>
       <hr>
       <div>
         <div class="mb-4">
           <div class="row justify-content-center">
-            <ProgressBar  class="mt-2" :showValue="false"  style="height: 3px; max-width: 70vw;"
+            <ProgressBar v-if="workflowState.progress['all'] > 0" class="mt-2" :showValue="false"  style="height: 3px; max-width: 70vw;"
             :value="(workflowState.progress['completed'] / workflowState.progress['all']) * 100">
             </ProgressBar>
           </div>
@@ -1244,30 +1307,33 @@ onUnmounted(() => {
         </div>
         <div class="row">
           <div class="col-3">
-            <Knob :min="0" :max="workflowState.progress['all']" v-model="workflowState.progress['submitted']" :size="120"
+            <Knob v-if="workflowState.progress['all'] > 0" 
+            :min="0" :max="workflowState.progress['all']" v-model="workflowState.progress['submitted']" :size="120"
               readonly :strokeWidth="5" />
               <span class="justify-content-center">Submitted</span>
           </div>
           <div class="col-3">
-            <Knob :min="0" :max="workflowState.progress['all']"  v-model="workflowState.progress['running']" :size="120"
+            <Knob v-if="workflowState.progress['all'] > 0"
+            :min="0" :max="workflowState.progress['all']"  v-model="workflowState.progress['running']" :size="120"
               readonly :strokeWidth="5" />
               <span class="justify-content-center">Running</span>
           </div>
           <div class="col-3">
-            <Knob :min="0" :max="workflowState.progress['all']"  valueColor="Green" v-model="workflowState.progress['completed']" :size="120"
+            <Knob v-if="workflowState.progress['all'] > 0"
+            :min="0" :max="workflowState.progress['all']"  valueColor="Green" v-model="workflowState.progress['completed']" :size="120"
               readonly :strokeWidth="5" />
               <span class="justify-content-center">Completed</span>
           </div>
           <div class="col-3">
-            <Knob :min="0" :max="workflowState.progress['all']" valueColor="Red" v-model="workflowState.progress['failed']" :size="120"
+            <Knob v-if="workflowState.progress['all'] > 0"
+             :min="0" :max="workflowState.progress['all']" valueColor="Red" v-model="workflowState.progress['failed']" :size="120"
               readonly :strokeWidth="5" />
               <span class="justify-content-center">Failed</span>
           </div>
         </div>
       </div>
     </div>
-    <div class="card-body"
-      v-if="workflowState.token_info_requested && workflowState.state_by_task?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
+    <div class="card-body mb-4" v-if="workflowState.runningProcesses.length > 0">
       <h5 class="card-title">Currently running</h5>
       <hr>
       <div v-for="(info, process) in workflowState.runningProcesses">
@@ -1275,9 +1341,9 @@ onUnmounted(() => {
          Object.keys(info["tasks"]).length + 'processes' : '1 process' }} with tags : <Tag v-for="(task, id) in info['tasks']" :value="task['tag']"></Tag>
       </div>
     </div>
-    <hr>
+
     <div class="card-body"
-      v-if="workflowState.token_info_requested && workflowState.state_by_task?.length > 0 && !workflowState.error_on_request && workflowState.process_state">
+      v-if="workflowState.token_info_requested && workflowState.state_by_task.length > 0 && !workflowState.error_on_request">
       <h5 class="card-title">By process</h5>
       <hr>
       <div>
