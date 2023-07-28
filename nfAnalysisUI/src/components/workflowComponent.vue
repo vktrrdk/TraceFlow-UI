@@ -147,6 +147,7 @@ const filterState = reactive<{
   autoselectAllMetricProcesses: boolean;
   selectedProgressProcesses: string[];
   autoselectAllProgressProcesses: boolean;
+  autoselectAllMetricTags: boolean;
   selectedTags: string[];
   processTaskMapping: any;
   tagTaskMapping: any;
@@ -158,6 +159,7 @@ const filterState = reactive<{
   autoselectAllMetricProcesses: true,
   selectedProgressProcesses: [],
   autoselectAllProgressProcesses: true,
+  autoselectAllMetricTags: true,
   selectedTags: [],
   processTaskMapping: {},
   tagTaskMapping: {},
@@ -279,7 +281,6 @@ function getTags(): any[]{
       const tagString: string = task["tag"];
       let createdTags: any[] = getTagElements(tagString);
       for (let pair of createdTags) {
-        
         let tempKey: string = Object.keys(pair)[0];
         if (!tags.some(item => item[tempKey] === pair[tempKey])) {
           tags.push(pair);
@@ -287,7 +288,6 @@ function getTags(): any[]{
       }
     } 
   }
-  console.log(tags);
   return tags;
 }
 
@@ -298,7 +298,7 @@ function getTagElements(tagString: string): any[] {
     let pair: any = {}
     let partParts: string[] = part.split(':');
     if (partParts.length > 1) {
-      pair[partParts[0]] = partParts[1];
+      pair[partParts[0].trim()] = partParts[1].trim();
     } else {
       pair['_'] = partParts[0];
     }
@@ -325,6 +325,14 @@ function selectAllMetricProcesses(): void {
 function unselectAllMetricProcesses(): void {
   setSelectedMetricProcesses([]);
   metricProcessSelectionChanged();
+}
+
+function unselectAllMetricTags(): void {
+
+}
+
+function selectAllMetricTags(): void {
+
 }
 
 function selectAllProgressProcesses(): void {
@@ -369,8 +377,13 @@ function metricProcessSelectionChanged(): void {
   if (filterState.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
     updatePlots();
   }
-
 }
+
+function metricTagSelectionChanged(): void {
+  console.log(filterState.selectedTags);
+}
+
+
 
 function metricProcessAutoSelectionChanged(): void {
   if (filterState.autoselectAllMetricProcesses && !nonAutoUpdateStates.includes(workflowState.currentState)) {
@@ -378,6 +391,10 @@ function metricProcessAutoSelectionChanged(): void {
   } else {
     // what to do here?
   }
+}
+
+function metricTagAutoSelectionChanged(): void {
+  // implement
 }
 
 function progressProcessAutoSelectionChanged(): void {
@@ -388,12 +405,16 @@ function progressProcessAutoSelectionChanged(): void {
   }
 }
 
-function showAutoUpdateEnableOptionMetric(): boolean {
+function hideAutoUpdateEnableOptionMetric(): boolean {
   return !(nonAutoUpdateStates.includes(workflowState.currentState) && filterState.autoselectAllMetricProcesses);
 }
 
-function showAutoUpdateEnableOptionProgress(): boolean {
+function hideAutoUpdateEnableOptionProgress(): boolean {
   return !(nonAutoUpdateStates.includes(workflowState.currentState) && filterState.autoselectAllProgressProcesses);
+}
+
+function hideAutoUpdateEnableOptionTags(): boolean {
+  return !(nonAutoUpdateStates.includes(workflowState.currentState) && filterState.autoselectAllMetricTags);
 }
 
 
@@ -1353,7 +1374,7 @@ onUnmounted(() => {
               :disabled="filterState.autoselectAllProgressProcesses"
               v-on:update:model-value="progressProcessSelectionChanged()" :showToggleAll="false" filter
               placeholder="Select Processes" optionLabel="name" display="chip" class="md:w-20rem"
-              style="max-width: 40vw" />
+              style="max-width: 40vw"/>
           </div>
           <div class="col-3">
             <Button :disabled="filterState.autoselectAllProgressProcesses" v-on:click="unselectAllProgressProcesses()"
@@ -1364,7 +1385,7 @@ onUnmounted(() => {
           <div class="col-3">
             <ToggleButton v-model="filterState.autoselectAllProgressProcesses"
               v-on:change="progressProcessAutoSelectionChanged()" onLabel="Autoupdate enabled"
-              offLabel="Autoupdate disabled" :disabled="showAutoUpdateEnableOptionProgress()" onIcon="pi pi-check"
+              offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionProgress()" onIcon="pi pi-check"
               offIcon="pi pi-times" /> <!-- need function to handle this -->
           </div>
         </div>
@@ -1541,8 +1562,8 @@ onUnmounted(() => {
       <div>
         <h4>Metric visualization</h4>
       </div>
-      <div class="card-body">
-        <div class="row">
+      <div class="card-body mb-5">
+        <div class="row mb-2">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedMetricProcesses" :options="filterState.availableProcesses"
               v-on:change="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
@@ -1558,8 +1579,34 @@ onUnmounted(() => {
           </div>
           <div class="col-3">
             <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"
-              onLabel="Autoupdate enabled" offLabel="Autoupdate disabled" :disabled="showAutoUpdateEnableOptionMetric()"
+              onLabel="Autoupdate enabled" offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionMetric()"
               onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricProcessAutoSelectionChanged()" />
+          </div>
+        </div>
+        <div class="row mb-2">
+          <div class="col-6">
+            <MultiSelect v-model="filterState.selectedTags" :options="filterState.availableTags"
+            v-on:change="metricTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag"
+            display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
+            :disabled="filterState.autoselectAllMetricTags">
+            <template #option="slotProps">
+              <div class="flex align-items-center">
+            
+                  <div>{{ Object.keys(slotProps.option)[0] }}: {{Object.values(slotProps.option)[0]}}</div>
+              </div>
+          </template>
+          </MultiSelect>
+          </div>
+          <div class="col-3">
+            <Button :disabled="filterState.autoselectAllMetricTags" v-on:click="unselectAllMetricTags()"
+              label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllMetricTags" v-on:click="selectAllMetricTags()"
+              label="Select all" />
+          </div>
+          <div class="col-3">
+            <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllMetricTags"
+              onLabel="Autoupdate enabled" offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionTags()"
+              onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricTagAutoSelectionChanged()" />
           </div>
         </div>
 
