@@ -1076,25 +1076,14 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
       } else {
         processDataMapping[process.process].push(process[key]);
       }
-     
-      let values: number[] = [];
-      // BREAK, finish this later on -> why do we have the reduce method below? is this the summary?
-      /** this needs to be replaced regarding to the structure of processDataMapping
-       * for (let task_id in tasks) {
-        values.push(tasks[task_id][key]);
-      }
-      if (adjustFormat) {
-        data_pair["data"].push(getDataInValidFormat(values, wantedFormat)[0]);
-      } else {
-        data_pair["data"].push(values);
-      }
-      values = [values.reduce((a, b) => a + b, 0)];
-      // what is reduce for?
-      data_pair["data"].push(values); */
     }
   }
   let temporaryValues: any[] =  Object.values(processDataMapping);
-  //data_pair["data"] = Object.values(processDataMapping);
+  if (adjustFormat) {
+    temporaryValues = temporaryValues.map((lst: any[]) => getDataInValidFormat(lst, wantedFormat)[0]);
+  }
+  
+  data_pair["data"] = temporaryValues;
   data_pair["labels"] = processNames;
   data_pair['type'] = wantedFormat;
   data_pair['maxBarThickness'] = 25;
@@ -1276,38 +1265,39 @@ function generateCPUData(): [string[], any[]] {
 }
 
 function generateDurationData(): [string[], any[]] {
-  let data_sum = generateSummarizedDataByKey('duration', 1000);
-  let data_exec = generateDataByKey('realtime', false, 's')['data'];
+  // TODO ADJUST THE COMMENTED STUFF
+  //let data_sum = generateSummarizedDataByKey('duration', 1000);
+  let data_exec = generateDataByKey('realtime', false, 's');
   let data_execution: any[] = [];
-  data_exec.forEach((element: any[]) => {
+  data_exec['data'].forEach((element: any[]) => {
     let mapped: any[] = element.map((value) => value / 1000);
     data_execution.push(mapped);
   });
-  let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
+  //let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
 
   let datasets: any[] =
     [
-      {
+      /*{
         type: 'bar',
         label: `Summarized Duration in seconds`,
         //data: data["data"],
         data: data_sum["data"],
         'maxBarThickness': 25,
-      },
+      }, */
       {
         type: 'boxplot',
         label: 'Execution in real-time',
         data: data_execution,
         'maxBarThickness': 25,
       },
-      {
+      /*{
         type: 'boxplot',
         label: 'Requested time used in %',
         data: data_allocated[1],
         'maxBarThickness': 25,
-      }
+      } */
     ];
-  return [getSuffixes(data_sum["labels"]), datasets];
+  return [getSuffixes(data_exec["labels"]), datasets];
 
 
 }

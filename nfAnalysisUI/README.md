@@ -28,6 +28,7 @@
 - [x] Arbeit an Tag-Selection Part
 - [ ] **Arbeit an Alerting Part - Anfang gemacht**
 - [ ] **Mehrere run-Ids unter einem Token** 
+- [ ] automatische Formatierung von Zeitdaten - Sekunden, Minuten, Stunden
 - [ ] genererisches Handling von Prozessen - ein gemeinsamer Filter für alle Metriken
 - [ ] API die Rechenarbeit machen lassen? -> gezieltere Anfragen, gezieltere Responses
 - [ ] Integration von CloWM
