@@ -267,6 +267,7 @@ function initiateFilterState(): void {
   updateAvailableTags();
   setSelectedProgressProcesses(filterState.availableProcesses);
   setSelectedMetricProcesses(filterState.availableProcesses);
+  setSelectedMetricTags(filterState.availableTags);
 }
 
 function updateAvailableProcessNamesForFilter(): void {
@@ -295,10 +296,7 @@ function getTags(): any[] {
 }
 
 function checkTagMatch(tag: any, processTags: any): boolean {
-  console.log(processTags);
-  console.log(tag);
   return processTags.some((item: any) => checkKeyValuePairing(item, tag));
-
 }
 
 function checkKeyValuePairing(item: any, tag: any): boolean {
@@ -310,6 +308,10 @@ function checkKeyValuePairing(item: any, tag: any): boolean {
 
 function setSelectedMetricProcesses(processes: any[]): void {
   filterState.selectedMetricProcesses = processes;
+}
+
+function setSelectedMetricTags(tags: any[]): void {
+  filterState.selectedTags = tags;
 }
 
 function setSelectedProgressProcesses(processes: any[]): void {
@@ -328,11 +330,13 @@ function unselectAllMetricProcesses(): void {
 }
 
 function unselectAllMetricTags(): void {
-
+  setSelectedMetricTags([]);
+  metricTagSelectionChanged();
 }
 
 function selectAllMetricTags(): void {
-
+  setSelectedMetricTags(filterState.availableTags);
+  metricTagSelectionChanged();
 }
 
 function selectAllProgressProcesses(): void {
@@ -380,7 +384,6 @@ function metricProcessSelectionChanged(): void {
 }
 
 function metricTagSelectionChanged(): void {
-  console.log(filterState.selectedTags);
   updatePlots();
 }
 
@@ -395,7 +398,9 @@ function metricProcessAutoSelectionChanged(): void {
 }
 
 function metricTagAutoSelectionChanged(): void {
-  // implement
+  if (filterState.autoselectAllMetricTags && !nonAutoUpdateStates.includes(workflowState.currentState)) {
+    selectAllMetricTags();
+  }
 }
 
 function progressProcessAutoSelectionChanged(): void {
@@ -640,7 +645,6 @@ function updateRamPlot() {
     ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '],
     filterState.selectedMetricProcesses,
   );
-  console.log(generatedDatasets);
   metricCharts.memoryChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.memoryChart.data.datasets = generatedDatasets[1];
   metricCharts.memoryChart.update('none');
@@ -666,7 +670,6 @@ function updateDurationPlot() {
 
 function updateRelativeRamPlot() {
   let generatedDatasets: [string[], any[]] = generateMemoryRelativeData();
-  console.log(generatedDatasets);
   metricCharts.relativeMemoryChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.relativeMemoryChart.data.datasets = generatedDatasets[1];
   metricCharts.relativeMemoryChart.update('none');
@@ -739,8 +742,6 @@ function updateProgress(): void {
           running += 1;
           break;
         case "FAILED":
-          console.log("PROCESS FAILED!")
-          console.log(processTasks[task]);
           failed += 1;
           break;
         case "ABORTED":
@@ -1613,9 +1614,13 @@ onUnmounted(() => {
               v-on:change="metricTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag"
               display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
               :disabled="filterState.autoselectAllMetricTags">
+              <template #chip="selectedTag">
+                 <div class="flex align-items-center">
+                  <div>{{ Object.keys(selectedTag.value)[0] }}: {{ Object.values(selectedTag.value)[0]}}</div>
+                </div>
+              </template>
               <template #option="slotProps">
                 <div class="flex align-items-center">
-
                   <div>{{ Object.keys(slotProps.option)[0] }}: {{ Object.values(slotProps.option)[0] }}</div>
                 </div>
               </template>
