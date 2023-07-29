@@ -90,6 +90,8 @@ export default class Process {
                 }
                 keyValuePairs.push(pair);
             }
+        } else {
+            return [{"": null}]
         }
         
         return keyValuePairs;

@@ -243,6 +243,7 @@ function dataPollingLoop(): void {
         updateAvailableTags();
         updateIfAutoselectEnabled();
         progressProcessSelectionChanged();
+        updateIfTagAutoSelectEnabled();
         if (workflowState.currentState !== "WAITING") {
           if (metricCharts.chartsGenerated) {
             updatePlots();
@@ -348,6 +349,12 @@ function selectAllProgressProcesses(): void {
 function unselectAllProgressProcesses(): void {
   setSelectedProgressProcesses([]);
   progressProcessSelectionChanged();
+}
+
+function updateIfTagAutoSelectEnabled(): void {
+  if (filterState.autoselectAllMetricTags) {
+    selectAllMetricTags();
+  }
 }
 
 function updateIfAutoselectEnabled(): void {
@@ -1074,12 +1081,11 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
 
 
 function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string, label: string[], processFilter: string[] = []): any {
-    // TODO: filter for tags and format adjust
-  
+
   let datasets: any[] = [];
   let tagFilter: boolean = false;
   let selectedTags: any[] = [];
-  if (filterState.selectedTags.length > 0) {
+  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
     tagFilter = true;
     selectedTags = toRaw(filterState.selectedTags);
   }
@@ -1094,11 +1100,11 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
     for (let process of states) {
       if (tagFilter) {
         if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
-          continue;    
+          continue;
         }
       }
-      if (processesToFilterBy.some(obj => obj['name'] === process['process'])) {
-        
+      if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
+
         if (!processesNames.includes(process.process)) {
           processesNames.push(process.process);
         }
@@ -1107,17 +1113,19 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
         } else {
           processDataMapping[process.process].push(process[key]);
         }
-  
-      }
-
-    
 
       }
-      single_dataset['data'] = Object.values(processDataMapping).map((lst: number[]) => getDataInValidFormat(lst, wantedFormat)[0]);
-      single_dataset['maxBarThickness'] = 25;
-      datasets.push(single_dataset);
-      key_index += 1;
     }
+    if (adjust) {
+      single_dataset['data'] = Object.values(processDataMapping).map((lst: number[]) => getDataInValidFormat(lst, wantedFormat)[0]);
+    } else {
+      Object.values(processDataMapping);
+    }
+
+    single_dataset['maxBarThickness'] = 25;
+    datasets.push(single_dataset);
+    key_index += 1;
+  }
   return [processesNames, datasets];
 }
 
@@ -1125,25 +1133,41 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
 
 function generateMemoryRelativeData(): [string[], any[]] {
   let datasets: any[] = [];
-  let labels: string[] = [];
-  let states: any = toRaw(workflowState.process_state);
-  let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
-  for (let process in states) {
-    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
-      labels.push(process);
-      let processValues: any[] = [];
-      let tasks: any = states[process]['tasks'];
-      for (let task_id in tasks) {
-        processValues.push(
-          (tasks[task_id]['rss'] / tasks[task_id]['memory']) * 100
-        );
-      }
-      relative_dataset['data'].push(processValues);
-      relative_dataset['maxBarThickness'] = 25;
-    }
+  let processNames: string[] = [];
+  let selectedTags: any = [];
+  let tagFilter: boolean = false;
+  const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses)
+  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length){
+    tagFilter = true;
+    selectedTags = toRaw(filterState.selectedTags);
   }
+  let states: any = toRaw(workflowState.processObjects);
+  let processDataMapping: any = {};
+  let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
+  for (let process of states) {
+    if (tagFilter) {
+        if (!selectedTags.some((tag: any) => checkTagMatch(tag, process.tag))) {
+          continue;
+        }
+    }
+    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
+      
+      if (!processNames.includes(process.process)){
+        processNames.push(process.process);
+      }
+      if (!(process.process in processDataMapping)) {
+        processDataMapping[process.process] = [(process.rss / process.memory) * 100];
+      } else {
+        processDataMapping[process.process].push((process.rss / process.memory) * 100);
+      }
+
+    }
+
+  }
+  relative_dataset['data'] = Object.values(processDataMapping);
+  relative_dataset['maxBarThickness'] = 25;
   datasets.push(relative_dataset);
-  return [labels, datasets];
+  return [processNames, datasets];
 
 }
 
@@ -1615,13 +1639,18 @@ onUnmounted(() => {
               display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
               :disabled="filterState.autoselectAllMetricTags">
               <template #chip="selectedTag">
-                 <div class="flex align-items-center">
-                  <div>{{ Object.keys(selectedTag.value)[0] }}: {{ Object.values(selectedTag.value)[0]}}</div>
+                <div class="flex align-items-center">
+                  <div v-if="Object.keys(selectedTag.value)[0] !== ''">{{ Object.keys(selectedTag.value)[0] }} : {{
+                    Object.values(selectedTag.value)[0] }}</div>
+                  <div v-if="Object.keys(selectedTag.value)[0] === ''">Empty tag</div>
                 </div>
               </template>
-              <template #option="slotProps">
+              <template #option="slotProps"> 
                 <div class="flex align-items-center">
-                  <div>{{ Object.keys(slotProps.option)[0] }}: {{ Object.values(slotProps.option)[0] }}</div>
+                  <div v-if="Object.keys(slotProps.option)[0]  !== ''">
+                    {{ Object.keys(slotProps.option)[0] }}: {{ Object.values(slotProps.option)[0] }}
+                  </div>
+                  <div v-if="Object.keys(slotProps.option)[0]  === ''">Empty tag</div>
                 </div>
               </template>
             </MultiSelect>
