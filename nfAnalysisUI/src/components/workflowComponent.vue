@@ -294,18 +294,19 @@ function getTags(): any[] {
   return tags;
 }
 
-// adjust to Process class
-function checkTagMatch(tag: any, process: any): boolean {
-  console.log(tag, process);
-  // return process.tasks.some(task => checkSingleTagTask(tag, task));
-  return true;
+function checkTagMatch(tag: any, processTags: any): boolean {
+  console.log(processTags);
+  console.log(tag);
+  return processTags.some((item: any) => checkKeyValuePairing(item, tag));
+
 }
 
-function checkSingleTagTask(): boolean {
-  // if Task()
-  return true;
+function checkKeyValuePairing(item: any, tag: any): boolean {
+  if (Object.keys(tag)[0] === Object.keys(item)[0]) {
+    return tag[Object.keys(tag)[0]] === item[Object.keys(item)[0]];
+  }
+  return false;
 }
-
 
 function setSelectedMetricProcesses(processes: any[]): void {
   filterState.selectedMetricProcesses = processes;
@@ -1090,25 +1091,13 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
     let processDataMapping: any = {};
     let single_dataset: any = { 'label': label[key_index] + wantedFormat, data: [] };
     for (let process of states) {
+      if (tagFilter) {
+        if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
+          continue;    
+        }
+      }
       if (processesToFilterBy.some(obj => obj['name'] === process['process'])) {
-        /*if (tagFilter) {
-          if (selectedTags.some(tag => checkTagMatch(tag, states[process]))) {
-            let values: any[] = [];
-            if (first_loop) {
-              labels.push(process)
-            }
-            let tasks: any = states[process]['tasks'];
-            for (let task_id in tasks) {
-              values.push(tasks[task_id][key]);
-            }
-            if (adjust) {
-              single_dataset['data'].push(getDataInValidFormat(values, wantedFormat)[0]);
-            } else {
-              single_dataset['data'].push(values);
-              single_dataset['maxBarThickness'] = 25;
-            }
-          }
-        } else { */
+        
         if (!processesNames.includes(process.process)) {
           processesNames.push(process.process);
         }
@@ -1120,13 +1109,11 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
   
       }
 
-      single_dataset['data'] = Object.values(processDataMapping).map((lst: number[]) => getDataInValidFormat(lst, wantedFormat)[0]);
-      single_dataset['maxBarThickness'] = 25;
     
-        //} 
-
 
       }
+      single_dataset['data'] = Object.values(processDataMapping).map((lst: number[]) => getDataInValidFormat(lst, wantedFormat)[0]);
+      single_dataset['maxBarThickness'] = 25;
       datasets.push(single_dataset);
       key_index += 1;
     }
