@@ -28,6 +28,7 @@ import Toast from "primevue/toast";
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
 import Listbox from "primevue/listbox";
+import Process from "../models/Process"
 
 Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
 
@@ -73,6 +74,7 @@ const workflowState = reactive<{
   currentState: string;
   progress: any;
   runningProcesses: any;
+  processObjects: Process[];
   failedProcesses: boolean,
   pollInterval: any;
   loading: boolean;
@@ -81,7 +83,6 @@ const workflowState = reactive<{
   error_on_request: boolean;
   process_state: any;
   filteredProgressProcesses: any;
-  state_by_task: any;
   selectedProcesses: string[];
   meta: any;
   //connection: WebSocket;
@@ -96,6 +97,7 @@ const workflowState = reactive<{
     "aborted": null
   },
   runningProcesses: {},
+  processObjects: [],
   failedProcesses: false,
   pollInterval: null,
   loading: true,
@@ -104,7 +106,6 @@ const workflowState = reactive<{
   error_on_request: false,
   process_state: {},
   filteredProgressProcesses: {},
-  state_by_task: {},
   selectedProcesses: [],
   meta: {},
   //connection: null,
@@ -150,7 +151,6 @@ const filterState = reactive<{
   autoselectAllMetricTags: boolean;
   selectedTags: string[];
   processTaskMapping: any;
-  tagTaskMapping: any;
 
 }>({
   availableProcesses: [],
@@ -162,7 +162,6 @@ const filterState = reactive<{
   autoselectAllMetricTags: true,
   selectedTags: [],
   processTaskMapping: {},
-  tagTaskMapping: {},
 
 });
 
@@ -174,12 +173,13 @@ function getDataInitial(token = props.token): void {
     axios.get(`http://localhost:8000/run/${token}/`).then(
       response => {
         if (response.data["error"]) {
-          workflowState.state_by_task = [];
+          workflowState.processObjects = [];
           workflowState.error_on_request = true;
         } else {
-          workflowState.state_by_task = response.data["result_by_task"];
+          workflowState.processObjects = createProcessObjects(response.data["result_by_task"]);
           workflowState.process_state = response.data["result_processes"];
           workflowState.runningProcesses = getRunningProcesses();
+          
           updateProgress();
           workflowState.meta = response.data["result_meta"];
           checkState(response.data["result_meta"], response.data["result_by_task"]);
@@ -188,8 +188,6 @@ function getDataInitial(token = props.token): void {
           workflowState.error_on_request = false;
           initiateFilterState();
           progressProcessSelectionChanged();
-          filterState.tagTaskMapping = mapAvailableTags();
-          filterState.tagTaskMapping = getTagNamesOnly(); // this could be tricky, tags could be list of single tags
           if (workflowState.currentState !== "WAITING") {
             createPlots();
           }
@@ -223,11 +221,9 @@ function dataPollingLoop(): void {
   axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
     response => {
       if (response.data["error"]) {
-        workflowState.state_by_task = [];
         workflowState.error_on_request = true;
 
       } else {
-        workflowState.state_by_task = response.data["result_by_task"];
         workflowState.process_state = response.data["result_processes"];
         workflowState.runningProcesses = getRunningProcesses();
         updateProgress();
@@ -275,12 +271,11 @@ function updateAvailableTags(): void {
 
 function getTags(): any[]{
   let tags: any[] = [];
-  const task_states = toRaw(workflowState.state_by_task);
+  const task_states: Process[] = toRaw(workflowState.processObjects);
   for (let task of task_states) {
-    if (task["tag"] !== null){
-      const tagString: string = task["tag"];
-      let createdTags: any[] = getTagElements(tagString);
-      for (let pair of createdTags) {
+    if (task.tag !== null){
+      let retrievedTags: any[] = task.tag;
+      for (let pair of retrievedTags) {
         let tempKey: string = Object.keys(pair)[0];
         if (!tags.some(item => item[tempKey] === pair[tempKey])) {
           tags.push(pair);
@@ -291,22 +286,6 @@ function getTags(): any[]{
   return tags;
 }
 
-function getTagElements(tagString: string): any[] {
-  let keyValuePairs: any[] = [];
-  let stringParts: string[] = tagString.split(',');
-  for (let part of stringParts){
-    let pair: any = {}
-    let partParts: string[] = part.split(':');
-    if (partParts.length > 1) {
-      pair[partParts[0].trim()] = partParts[1].trim();
-    } else {
-      pair['_'] = partParts[0];
-    }
-    keyValuePairs.push(pair);
-  }
-  
-  return keyValuePairs;
-}
 
 function setSelectedMetricProcesses(processes: any[]): void {
   filterState.selectedMetricProcesses = processes;
@@ -676,6 +655,7 @@ function updateRelativeRamPlot() {
 /** helper functions */
 
 
+
 /**
 * openai: chatgpt - prompt: in javascript, take a list of strings, which can be splitted using the character ':'.
 how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
@@ -684,6 +664,14 @@ needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the 
 result:
 */
 
+function createProcessObjects(data: any[]): Process[] {
+  let processes: Process[] = [];
+  for (let object of data){
+    let process = new Process(object);
+    processes.push(process);
+  }
+  return processes;
+}
 
 function startBackToMainTimer(): void {
   destroyPollTimer();
@@ -754,13 +742,13 @@ function updateProgress(): void {
 
 function adjustCurrentState(event: string) {
   if (event === "started") {
-    let tasks = toRaw(workflowState.state_by_task);
+    let processes: Process[] = toRaw(workflowState.processObjects);
     if (workflowState.currentState === "SUBMITTED" || workflowState.currentState === "WAITING") {
-      for (let task of tasks) {
-        if (task["status"] == "RUNNING") {
+      for (let process of processes) {
+        if (process.status == "RUNNING") {
           workflowState.currentState = "RUNNING";
           return
-        } else if (task["status"] == "COMPLETED") {
+        } else if (process.status == "COMPLETED") {
           workflowState.currentState = "RUNNING";
           return;
         }
@@ -875,30 +863,6 @@ function mapAvailableProcesses(): void {
   filterState.processTaskMapping = result;
 }
 
-function getTagNamesOnly(): string[] {
-  //TODO implement;
-  return [];
-}
-
-
-function mapAvailableTags(): any {
-  let result: any = {};
-  let state: any = toRaw(workflowState.process_state);
-  for (let process in state) {
-
-    let tasks: any = state[process]['tasks'];
-    for (let task in tasks) {
-      let tag: any = tasks[task]['tag'];
-      if (!(tag in result)) {
-        result[tag] = [task];
-      } else {
-        result[tag].push(task);
-      }
-    }
-  }
-  return result;
-
-}
 
 function transformStrings(input) {
   return input; // TODO Implement
@@ -1364,7 +1328,7 @@ onUnmounted(() => {
     </div>
 
     <div class="card-body"
-      v-if="workflowState.token_info_requested && workflowState.state_by_task.length > 0 && !workflowState.error_on_request">
+      v-if="workflowState.token_info_requested && workflowState.processObjects.length > 0 && !workflowState.error_on_request">
       <h5 class="card-title">By process</h5>
       <hr>
       <div>
@@ -1445,14 +1409,14 @@ onUnmounted(() => {
       <div class="card-body">
         <h5 class="card-title">Trace Information</h5>
 
-        <DataTable :value="workflowState.state_by_task" sortField="task_id" :sortOrder="1" v-model:filters="filters"
+        <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
           filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
           removableSort>
           <Column field="task_id" header="Task-ID" sortable></Column>
           <Column field="name" style="min-width: 20rem" header="Name" sortable :show-filter-menu="false"
             filter-field="name">
             <template #body="{ data }">
-              {{ data['name'] }}
+              {{ data.name }}
             </template>
             <template #filter="{ filterModel, filterCallback }">
               <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
@@ -1463,7 +1427,7 @@ onUnmounted(() => {
             :show-filter-menu="false" :filter-match-mode="'contains'">
             <!-- adjust it to be a dropdown! -->
             <template #body="{ data }">
-              <Tag :value="data['status']" />
+              <Tag :value="data.status" />
             </template>
             <template #filter="{ filterModel, filterCallback }">
               <MultiSelect v-model="filterModel.value" style="max-width: 12rem" display="chip" @change="filterCallback()"
@@ -1489,17 +1453,22 @@ onUnmounted(() => {
                 placeholder="Search by process" />
             </template>
           </Column>
-
+            
           <Column field="tag" header="Tag" style="min-width: 20rem" filter-field="tag" :show-filter-menu="false" sortable>
+           
             <template #filter="{ filterModel, filterCallback }">
+            <!-- define a own filter function here -->
               <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
                 placeholder="Search by name" />
+            </template>
+            <template #body="{ data }">
+              <Tag v-for="(tag, id) of data.tag" :value="Object.keys(tag)[0] + ': ' + Object.values(tag)[0]"></Tag>
             </template>
           </Column>
           <Column field="timestamp" header="Timestamp" sortable></Column>
           <Column field="duration" sortable header="Duration">
             <template #body="{ data }">
-              <span v-if="data['duration']">{{ (data['duration'] / 1000).toFixed(2) }} </span>
+              <span v-if="data.duration">{{ (data.duration / 1000).toFixed(2) }} </span>
               <span v-else>No data</span>
             </template>
 
@@ -1508,23 +1477,23 @@ onUnmounted(() => {
           <Column field="memory_percentage" header="Memory %" sortable></Column>
           <Column field="memory" header="Memory">
             <template #body="{ data }">
-              {{ reasonableDataFormat(data['memory']) }}
+              {{ reasonableDataFormat(data.memory) }}
             </template>
           </Column>
           <Column field="disk" header="Disk"></Column>
           <Column field="rchar" header="rchar" sortable>
             <template #body="{ data }">
-              {{ reasonableDataFormat(data['rchar']) }}
+              {{ reasonableDataFormat(data.char) }}
             </template>
           </Column>
           <Column field="wchar" header="wchar" sortable>
             <template #body="{ data }">
-              {{ reasonableDataFormat(data['wchar']) }}
+              {{ reasonableDataFormat(data.wchar) }}
             </template>
           </Column>
           <Column field="rss" header="rss" sortable>
             <template #body="{ data }">
-              {{ reasonableDataFormat(data['rss']) }}
+              {{ reasonableDataFormat(data.rss) }}
             </template>
           </Column>
           <Column field="peak_rss" header="Peak rss" sortable></Column>
@@ -1532,12 +1501,12 @@ onUnmounted(() => {
           <Column field="syscw" header="syscw" sortable></Column>
           <Column field="peak_vmem" header="Peak VMem" sortable>
             <template #body="{ data }">
-              {{ reasonableDataFormat(data['peak_vmem']) }}
+              {{ reasonableDataFormat(data.peak_vmem) }}
             </template>
           </Column>
           <Column field="vmem" header="VMem" sortable>
             <template #body="{ data }">
-              {{ reasonableDataFormat(data['vmem']) }}
+              {{ reasonableDataFormat(data.vmem) }}
             </template>
           </Column>
           <Column field="read_bytes" header="Read bytes" sortable></Column>
@@ -1547,12 +1516,12 @@ onUnmounted(() => {
           <Column field="inv_ctxt" header="Involuntary cs" sortable></Column>
           <Column field="time" header="Time" sortable>
             <template #body="{ data }">
-              {{ data['time'] / 1000 }} s
+              {{ data.time / 1000 }} s
             </template>
           </Column>
           <Column field="realtime" header="Realtime" sortable>
             <template #body="{ data }">
-              {{ (data['realtime'] / 1000) }} s
+              {{ (data.realtime / 1000) }} s
             </template>
           </Column>
         </DataTable>
