@@ -1049,20 +1049,38 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
   return data_pair;
 }
 
-
 function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: string): any {
   let data_pair: any = {};
-  data_pair["labels"] = [];
-  data_pair["data"] = [];
-  data_pair['type'] = wantedFormat;
-  data_pair['maxBarThickness'] = 25;
-  let states: any = toRaw(workflowState.process_state);
-  for (let process in states) {
-    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
-      data_pair["labels"].push(process);
-      let tasks: any = states[process]['tasks'];
+  let processDataMapping: any = {};
+  let processNames: string[] = []
+  let processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
+  let tagFilter: boolean = false;
+  let selectedTags: any[] = [];
+  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
+    tagFilter = true;
+    selectedTags = toRaw(filterState.selectedTags);
+  }
+  let states: any = toRaw(workflowState.processObjects);
+  for (let process of states) {
+    if (tagFilter) {
+      if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
+          continue;
+        }
+    }
+    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
+      if (!processNames.includes(process.process)) {
+        processNames.push(process.process);
+      }
+      if (!(process.process in processDataMapping)) {
+        processDataMapping[process.process] = [process[key]]
+      } else {
+        processDataMapping[process.process].push(process[key]);
+      }
+     
       let values: number[] = [];
-      for (let task_id in tasks) {
+      // BREAK, finish this later on -> why do we have the reduce method below? is this the summary?
+      /** this needs to be replaced regarding to the structure of processDataMapping
+       * for (let task_id in tasks) {
         values.push(tasks[task_id][key]);
       }
       if (adjustFormat) {
@@ -1071,14 +1089,17 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
         data_pair["data"].push(values);
       }
       values = [values.reduce((a, b) => a + b, 0)];
-      data_pair["data"].push(values);
+      // what is reduce for?
+      data_pair["data"].push(values); */
     }
   }
+  let temporaryValues: any[] =  Object.values(processDataMapping);
+  //data_pair["data"] = Object.values(processDataMapping);
+  data_pair["labels"] = processNames;
+  data_pair['type'] = wantedFormat;
+  data_pair['maxBarThickness'] = 25;
   return data_pair;
-
 }
-
-
 
 function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string, label: string[], processFilter: string[] = []): any {
 
@@ -1194,35 +1215,50 @@ function generateKeyRelativeData(dataKey: string, respectToKey: string, label: s
 
 function generateCPUData(): [string[], any[]] {
   let datasets: any[] = [];
-  let labels: string[] = [];
-  let states: any = toRaw(workflowState.process_state);
-  let values: any = {};
+  let processNames: string[] = [];
+  let selectedTags: any [] = [];
+  let tagFilter: boolean = false;
+  const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
+  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
+    tagFilter = true;
+    selectedTags = toRaw(filterState.selectedTags);
+  }
+  let states: any = toRaw(workflowState.processObjects);
 
-  for (let process in states) {
-    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
-      labels.push(process);
-      let tasks: any = states[process]['tasks'];
-      if (!(process in values)) {
-        values[process] = { 'cpus': [], 'realtime': [] };
+  let processDataMapping: any = {};
+
+  for (let process of states) {
+    if (tagFilter) {
+        if (!selectedTags.some((tag: any) => checkTagMatch(tag, process.tag))) {
+          continue;
+        }  
       }
-      for (let task_id in tasks) {
-        values[process]['cpus'].push(tasks[task_id]['cpus']);
-        values[process]['realtime'].push(tasks[task_id]['realtime']);
+    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
+      if (!processNames.includes(process.process)) {
+        processNames.push(process.process);
+      }
+      if (!(process.process in processDataMapping)){
+        processDataMapping[process.process] = {'cpus': [process.cpus], 'realtime': [process.realtime]}
+      } else {
+        let allocationValues = processDataMapping[process.process];
+        allocationValues['cpus'].push(process.cpus);
+        allocationValues['realtime'].push(process.realtime);
+        processDataMapping[process.process] = allocationValues;
       }
     }
   }
 
   let allocation_data = [];
   let raw_usage_data = [];
-  for (let process in values) {
+  for (let process in processDataMapping) {
     let value_numerator: number = 0;
     let value_denominator: number = 0;
     let values_raw: number[] = [];
     let idx: number = 0;
-    while (idx < values[process]['cpus'].length) {
-      value_numerator += values[process]['cpus'][idx] * (values[process]['realtime'][idx] / 1000)
-      value_denominator += (values[process]['realtime'][idx] / 1000);
-      values_raw.push(values[process]['cpus'][idx] * 100)
+    while (idx < processDataMapping[process]['cpus'].length) {
+      value_numerator += processDataMapping[process]['cpus'][idx] * (processDataMapping[process]['realtime'][idx] / 1000)
+      value_denominator += (processDataMapping[process]['realtime'][idx] / 1000);
+      values_raw.push(processDataMapping[process]['cpus'][idx] * 100)
       idx += 1;
     }
     let value: number = 0;
@@ -1236,7 +1272,7 @@ function generateCPUData(): [string[], any[]] {
   datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 25 })
   datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 25 });
 
-  return [labels, datasets]
+  return [processNames, datasets]
 }
 
 function generateDurationData(): [string[], any[]] {
