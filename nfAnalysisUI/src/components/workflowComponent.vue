@@ -29,6 +29,7 @@ import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
 import Listbox from "primevue/listbox";
 import Process from "../models/Process"
+import RadioButton from 'primevue/radiobutton';
 
 
 Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
@@ -84,7 +85,9 @@ const workflowState = reactive<{
   progress: any;
   runningProcesses: any;
   processObjects: Process[];
-  failedProcesses: boolean,
+  processesByRun: any;
+  selectedRun: string;
+  failedProcesses: boolean;
   pollInterval: any;
   loading: boolean;
   token: string;
@@ -106,6 +109,8 @@ const workflowState = reactive<{
   },
   runningProcesses: {},
   processObjects: [],
+  processesByRun: {},
+  selectedRun: '',
   failedProcesses: false,
   pollInterval: null,
   loading: true,
@@ -174,11 +179,6 @@ const filterState = reactive<{
 
 /** functions on init and polling */
 
-function printRunIds(stuff: any): void {
-  stuff = toRaw(stuff);
-  console.log(Object.keys(stuff));
-}
-
 function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
@@ -189,7 +189,8 @@ function getDataInitial(token = props.token): void {
           workflowState.error_on_request = true;
         } else {
           workflowState.processObjects = createProcessObjects(response.data["result_by_task"]);
-          printRunIds(response.data['result_by_run_name']);
+          workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
+          setFirstRunName();
           workflowState.runningProcesses = getRunningProcesses();
           updateProgress();
           workflowState.meta = response.data["result_meta"];
@@ -710,6 +711,26 @@ function createProcessObjects(data: any[]): Process[] {
     processes.push(process);
   }
   return processes;
+}
+
+function createProcessObjectsByRun(data: any): any {
+  data = toRaw(data);
+  let grouped: any = {};
+  for (let key in data) {
+    grouped[key] = [];
+    for (let process of data[key]) {
+      grouped[key].push(new Process(process));
+    }
+  }
+  return grouped;
+}
+
+function setFirstRunName(): void {
+  if (Object.keys(workflowState.processesByRun).length > 0) {
+    workflowState.selectedRun = Object.keys(workflowState.processesByRun)[0];
+  } else {
+    workflowState.selectedRun = '';
+  }
 }
 
 function startBackToMainTimer(): void {
@@ -1352,6 +1373,14 @@ onUnmounted(() => {
   </div>
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
+    <div class="card-body" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0">
+      <div class="row flex flex-wrap gap-3">
+        <div class="flex col-auto align-items-center" v-for="key in Object.keys(workflowState.processesByRun)">
+            <RadioButton v-model="workflowState.selectedRun" :input-id="key" :value="key" />
+            <label :for="key" class="ml-2">{{key}}</label>
+        </div>
+    </div>
+    </div>
     <div class="card-body"
       v-if="workflowState.processObjects?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
       <h6 class="card-subtitle mb-2">
