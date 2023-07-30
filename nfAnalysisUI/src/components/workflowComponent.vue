@@ -5,7 +5,7 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
 import type { RunTrace } from "@/models/RunTrace";
 import { useRouter, useRoute } from "vue-router";
-import axios from "axios";
+import axios, { all } from "axios";
 import { Chart, LinearScale, CategoryScale, TimeScale } from 'chart.js/auto'; // check vue-chartjs as wrapper
 import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
 import DataTable from 'primevue/datatable';
@@ -89,7 +89,6 @@ const workflowState = reactive<{
   token: string;
   token_info_requested: boolean;
   error_on_request: boolean;
-  process_state: any;
   filteredProgressProcesses: any;
   selectedProcesses: string[];
   meta: any;
@@ -112,7 +111,6 @@ const workflowState = reactive<{
   token: "",
   token_info_requested: false,
   error_on_request: false,
-  process_state: {},
   filteredProgressProcesses: {},
   selectedProcesses: [],
   meta: {},
@@ -185,9 +183,7 @@ function getDataInitial(token = props.token): void {
           workflowState.error_on_request = true;
         } else {
           workflowState.processObjects = createProcessObjects(response.data["result_by_task"]);
-          workflowState.process_state = response.data["result_processes"];
           workflowState.runningProcesses = getRunningProcesses();
-
           updateProgress();
           workflowState.meta = response.data["result_meta"];
           checkState(response.data["result_meta"], response.data["result_by_task"]);
@@ -232,7 +228,6 @@ function dataPollingLoop(): void {
         workflowState.error_on_request = true;
 
       } else {
-        workflowState.process_state = response.data["result_processes"];
         workflowState.runningProcesses = getRunningProcesses();
         updateProgress();
         workflowState.meta = response.data["result_meta"];
@@ -371,9 +366,9 @@ function updateFilteredProgressProcesses(all: boolean = false): void {
   if (all) {
     filterState.selectedProgressProcesses = toRaw(filterState.availableProcesses);
   }
-  for (let process in workflowState.process_state) {
-    if (filterState.selectedProgressProcesses.some(obj => obj['name'] === process)) {
-      filtered[process] = workflowState.process_state[process];
+  for (let process of workflowState.processObjects) {
+    if (filterState.selectedProgressProcesses.some(obj => obj['name'] === process.process)) {
+      filtered[process.process] = process;
     }
   }
   workflowState.filteredProgressProcesses = filtered;
@@ -731,35 +726,33 @@ function checkState(meta: any, tasks: any): void {
 
 
 function updateProgress(): void {
-  const allProcesses = toRaw(workflowState.process_state);
+  const allProcesses = toRaw(workflowState.processObjects);
   let all: number = 0;
   let submitted: number = 0
   let running: number = 0;
   let completed: number = 0;
   let failed: number = 0;
   let aborted: number = 0;
-  for (let process in allProcesses) {
-    let processTasks: any = allProcesses[process]["tasks"];
-    for (let task in processTasks) {
-      switch (processTasks[task].status) {
-        case "SUBMITTED":
-          submitted += 1;
-          break;
-        case "RUNNING":
-          running += 1;
-          break;
-        case "FAILED":
-          failed += 1;
-          break;
-        case "ABORTED":
-          aborted += 1;
-          break;
-        case "COMPLETED":
-          completed += 1;
-          break;
-      }
-      all += 1;
+  for (let process of allProcesses) {
+    switch (process.status) {
+      case "SUBMITTED":
+        submitted += 1;
+        break;
+      case "RUNNING":
+        running += 1;
+        break;
+      case "FAILED":
+        failed += 1;
+        break;
+      case "ABORTED":
+        aborted += 1;
+        break;
+      case "COMPLETED":
+        completed += 1;
+        break;
     }
+    all += 1;
+
   }
 
   workflowState.progress = {
@@ -807,26 +800,21 @@ function adjustCurrentState(event: string) {
   }
 }
 
+/** needs refactoring due to new structure! **/
 function getRunningProcesses(): any {
   let processes: any = {};
-  const allProcesses = toRaw(workflowState.process_state);
-  for (let process in allProcesses) {
-    let tasks: any = {};
-    let processTasks: any = allProcesses[process]["tasks"];
-    for (let task in processTasks) {
-      if (processTasks[task].status === "RUNNING")
-        tasks[task] = processTasks[task];
+  const allProcesses = toRaw(workflowState.processObjects);
+  for (let process of allProcesses) {
+    if (process.status === "RUNNING") {
+      if (!(process.process in processes)) {
+        processes[process.process] = [process]
+      } else {
+        processes[process.process].push(process);
+      }
     }
-    if (Object.keys(tasks).length > 0) {
-      processes[process] = {};
-      processes[process]["tasks"] = tasks;
-    }
-
-
   }
   return processes;
 }
-
 
 function severityFromWorkflowState(): string {
   const state: string = workflowState.currentState;
@@ -843,7 +831,6 @@ function severityFromWorkflowState(): string {
       return "success";
     default:
       return "info"
-
   }
 }
 
@@ -888,36 +875,36 @@ function getProcessNamesOnly(): any[] {
 
 function mapAvailableProcesses(): void {
   let result: any = {};
-  let state: any = toRaw(workflowState.process_state);
-  let keys: string[] = transformStrings(Object.keys(state));
-  for (let key of keys) {
-    let tasks: any = state[key]['tasks'];
-    result[key] = Object.keys(tasks);
+  let state: any = toRaw(workflowState.processObjects);
+  for (let process of state) {
+    if (!(process.process in result)) {
+      result[process.process] = [result.task_id]
+    } else {
+      result[process.process].push(result.task_id);
+    }
   }
 
   filterState.processTaskMapping = result;
 }
 
-
-function transformStrings(input) {
-  return input; // TODO Implement
-}
-
-function processNumbers(info: any): string {
-  const currently_submitted: number = getNumberOfTasksForProcess(info);
-  const completed = getNumberOfCompletedSubprocesses(info);
+function processNumbers(process: Process): string {
+  process = toRaw(process);
+  const currently_submitted: number = getNumberOfTasksForProcess(process.process);
+  const completed: number = getNumberOfCompletedSubprocesses(process.process);
   return `${completed} / ${currently_submitted}`;
 }
 
-function getNumberOfTasksForProcess(info: any): number {
-  const subprocesses: any = info["tasks"];
-  let currently_submitted: number = 0;
-  for (let elem in subprocesses) {
-    currently_submitted += 1;
-  }
-  return currently_submitted
+function getNumberOfTasksForProcess(processName: string): number {
+  const allProcesses = toRaw(workflowState.processObjects);
+  const processesByName: Process[] = allProcesses.filter((process: Process) => process.process === processName);
+  return processesByName.length;
 }
 
+function getNumberOfCompletedSubprocesses(processName: string): number {
+  const allProcesses = toRaw(workflowState.processObjects);
+  const completedProcessesByName: Process[] = allProcesses.filter((process: Process) => process.process === processName && process.status === "COMPLETED");
+  return completedProcessesByName.length;
+}
 
 function generateColorString(status: string): string {
   switch (status) {
@@ -955,17 +942,6 @@ function getProgressValueForTask(status: string): number {
 
 }
 
-
-function getNumberOfCompletedSubprocesses(info: any): number {
-  const subprocesses: any = info["tasks"];
-  let completed: number = 0;
-  for (let sb in subprocesses) {
-    if (subprocesses[sb]["status"] === "COMPLETED") {
-      completed += 1;
-    }
-  }
-  return completed;
-}
 
 function deleteToken() {
   axios.delete(`http://localhost:8000/token/remove/${workflowState.token}/`).then(
@@ -1026,33 +1002,48 @@ function getDataInValidFormat(byte_numbers: number[], wantedType: string): [numb
 
 function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
   let data_pair: any = {};
-  data_pair["labels"] = [];
-  data_pair["data"] = [];
-  data_pair['maxBarThickness'] = 25;
-  let states: any = toRaw(workflowState.process_state);
-  for (let process in states) {
-    // check why not updating
-    if (filterState.selectedMetricProcesses.some(obj => obj['name'] === process)) {
-      data_pair["labels"].push(process);
-      let tasks: any = states[process]['tasks'];
-      let values: number[] = [];
-      for (let task_id in tasks) {
-        values.push(tasks[task_id][key]);
+  let processDataMapping: any = {};
+  let tagFilter: boolean = false;
+  let selectedTags: any = [];
+  let processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
+  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
+    tagFilter = true;
+    selectedTags = toRaw(filterState.selectedTags);
+  }
+  let states: any = toRaw(workflowState.processObjects);
+  for (let process of states) {
+    if (tagFilter) {
+      if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
+        continue;
       }
-      if (factorizer !== 1) {
-        values = values.map((elem) => elem / factorizer);
+    }
+    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
+      if (!(process.process in processDataMapping)) {
+        processDataMapping[process.process] = [process[key]];
+      } else {
+        processDataMapping[process.process].push(process[key]);
       }
-      data_pair["data"].push(values.reduce((a, b) => a + b, 0));
+
     }
   }
 
+  for (let processMap in processDataMapping) {
+    if (factorizer !== 1) {
+      processDataMapping[processMap] = processDataMapping[processMap].map((elem: number) => elem / factorizer);
+    }
+    processDataMapping[processMap] = processDataMapping[processMap].reduce((a: number, b: number) => a + b, 0);
+
+  }
+
+  data_pair["data"] = Object.values(processDataMapping);
+  data_pair["labels"] = Object.keys(processDataMapping);
+  data_pair['maxBarThickness'] = 25;
   return data_pair;
 }
 
 function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: string): any {
   let data_pair: any = {};
   let processDataMapping: any = {};
-  let processNames: string[] = []
   let processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
   let tagFilter: boolean = false;
   let selectedTags: any[] = [];
@@ -1064,13 +1055,10 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   for (let process of states) {
     if (tagFilter) {
       if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
-          continue;
-        }
+        continue;
+      }
     }
     if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-      if (!processNames.includes(process.process)) {
-        processNames.push(process.process);
-      }
       if (!(process.process in processDataMapping)) {
         processDataMapping[process.process] = [process[key]]
       } else {
@@ -1078,20 +1066,20 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
       }
     }
   }
-  let temporaryValues: any[] =  Object.values(processDataMapping);
+  let temporaryValues: any[] = Object.values(processDataMapping);
   if (adjustFormat) {
     temporaryValues = temporaryValues.map((lst: any[]) => getDataInValidFormat(lst, wantedFormat)[0]);
   }
-  
+
   data_pair["data"] = temporaryValues;
-  data_pair["labels"] = processNames;
+  data_pair["labels"] = Object.keys(processDataMapping);
   data_pair['type'] = wantedFormat;
   data_pair['maxBarThickness'] = 25;
   return data_pair;
 }
 
 function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string, label: string[], processFilter: string[] = []): any {
-
+  let processNames: string[] = [];
   let datasets: any[] = [];
   let tagFilter: boolean = false;
   let selectedTags: any[] = [];
@@ -1102,8 +1090,6 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
   let states: any = toRaw(workflowState.processObjects);
   let key_index = 0;
   let processesToFilterBy: any[] = toRaw(processFilter);
-  let processesNames: string[] = [];
-
   for (let key of keys) {
     let processDataMapping: any = {};
     let single_dataset: any = { 'label': label[key_index] + wantedFormat, data: [] };
@@ -1114,10 +1100,6 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
         }
       }
       if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-
-        if (!processesNames.includes(process.process)) {
-          processesNames.push(process.process);
-        }
         if (!(process.process in processDataMapping)) {
           processDataMapping[process.process] = [process[key]];
         } else {
@@ -1126,28 +1108,28 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
 
       }
     }
+    processNames = Object.keys(processDataMapping);
     if (adjust) {
       single_dataset['data'] = Object.values(processDataMapping).map((lst: number[]) => getDataInValidFormat(lst, wantedFormat)[0]);
     } else {
-      Object.values(processDataMapping);
+      single_dataset['data'] = Object.values(processDataMapping);
     }
 
     single_dataset['maxBarThickness'] = 25;
     datasets.push(single_dataset);
     key_index += 1;
   }
-  return [processesNames, datasets];
+  return [processNames, datasets];
 }
 
 /** this could be more general? **/
 
 function generateMemoryRelativeData(): [string[], any[]] {
   let datasets: any[] = [];
-  let processNames: string[] = [];
   let selectedTags: any = [];
   let tagFilter: boolean = false;
   const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses)
-  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length){
+  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
     tagFilter = true;
     selectedTags = toRaw(filterState.selectedTags);
   }
@@ -1156,56 +1138,62 @@ function generateMemoryRelativeData(): [string[], any[]] {
   let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
   for (let process of states) {
     if (tagFilter) {
-        if (!selectedTags.some((tag: any) => checkTagMatch(tag, process.tag))) {
-          continue;
-        }
+      if (!selectedTags.some((tag: any) => checkTagMatch(tag, process.tag))) {
+        continue;
+      }
     }
     if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-      
-      if (!processNames.includes(process.process)){
-        processNames.push(process.process);
-      }
       if (!(process.process in processDataMapping)) {
         processDataMapping[process.process] = [(process.rss / process.memory) * 100];
       } else {
         processDataMapping[process.process].push((process.rss / process.memory) * 100);
       }
-
     }
-
   }
   relative_dataset['data'] = Object.values(processDataMapping);
   relative_dataset['maxBarThickness'] = 25;
   datasets.push(relative_dataset);
-  return [processNames, datasets];
+  return [Object.keys(processDataMapping), datasets];
 
 }
 
+
 function generateKeyRelativeData(dataKey: string, respectToKey: string, label: string, factor: number = 100): [string[], any[]] {
   let datasets: any[] = [];
-  let labels: string[] = [];
-  let states: any = toRaw(workflowState.process_state);
-  let relative_dataset: any = { 'label': label, 'data': [] }
-  for (let process in states) {
-    labels.push(process);
-    let processValues: any[] = [];
-    let tasks: any = states[process]['tasks'];
-    for (let task_id in tasks) {
-      processValues.push(
-        (tasks[task_id][dataKey] / tasks[task_id][respectToKey]) * factor
-      );
-    }
-    relative_dataset['data'].push(processValues);
-    relative_dataset['maxBarThickness'] = 25;
+  let states: any = toRaw(workflowState.processObjects);
+  let processDataMapping: any = {}
+  let tagFilter: boolean = false;
+  let selectedTags: any[] = [];
+  let processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
+  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
+    tagFilter = true;
+    selectedTags = toRaw(filterState.selectedTags);
   }
+  let relative_dataset: any = { 'label': label, 'data': [] }
+  for (let process of states) {
+    if (tagFilter) {
+      if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
+        continue;
+      }
+      if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
+        if (!(process.process in processDataMapping)) {
+          processDataMapping[process.process] = [(process[dataKey] / process[respectToKey]) * factor];
+        } else {
+          processDataMapping[process.process].push((process[dataKey] / process[respectToKey]) * factor)
+        }
+      }
+    }
+
+  }
+  relative_dataset['maxBarThickness'] = 25;
+  relative_dataset['data'] = Object.values(processDataMapping);
   datasets.push(relative_dataset);
-  return [labels, datasets];
+  return [Object.keys(processDataMapping), datasets];
 }
 
 function generateCPUData(): [string[], any[]] {
   let datasets: any[] = [];
-  let processNames: string[] = [];
-  let selectedTags: any [] = [];
+  let selectedTags: any[] = [];
   let tagFilter: boolean = false;
   const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
   if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
@@ -1218,16 +1206,13 @@ function generateCPUData(): [string[], any[]] {
 
   for (let process of states) {
     if (tagFilter) {
-        if (!selectedTags.some((tag: any) => checkTagMatch(tag, process.tag))) {
-          continue;
-        }  
+      if (!selectedTags.some((tag: any) => checkTagMatch(tag, process.tag))) {
+        continue;
       }
+    }
     if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-      if (!processNames.includes(process.process)) {
-        processNames.push(process.process);
-      }
-      if (!(process.process in processDataMapping)){
-        processDataMapping[process.process] = {'cpus': [process.cpus], 'realtime': [process.realtime]}
+      if (!(process.process in processDataMapping)) {
+        processDataMapping[process.process] = { 'cpus': [process.cpus], 'realtime': [process.realtime] }
       } else {
         let allocationValues = processDataMapping[process.process];
         allocationValues['cpus'].push(process.cpus);
@@ -1261,41 +1246,39 @@ function generateCPUData(): [string[], any[]] {
   datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 25 })
   datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 25 });
 
-  return [processNames, datasets]
+  return [Object.keys(processDataMapping), datasets]
 }
 
 function generateDurationData(): [string[], any[]] {
-  // TODO ADJUST THE COMMENTED STUFF
-  //let data_sum = generateSummarizedDataByKey('duration', 1000);
+  let data_sum = generateSummarizedDataByKey('duration', 1000);
   let data_exec = generateDataByKey('realtime', false, 's');
   let data_execution: any[] = [];
   data_exec['data'].forEach((element: any[]) => {
     let mapped: any[] = element.map((value) => value / 1000);
     data_execution.push(mapped);
   });
-  //let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
+  let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
 
   let datasets: any[] =
     [
-      /*{
+      {
         type: 'bar',
         label: `Summarized Duration in seconds`,
-        //data: data["data"],
         data: data_sum["data"],
         'maxBarThickness': 25,
-      }, */
+      },
       {
         type: 'boxplot',
         label: 'Execution in real-time',
         data: data_execution,
         'maxBarThickness': 25,
       },
-      /*{
+      {
         type: 'boxplot',
         label: 'Requested time used in %',
         data: data_allocated[1],
         'maxBarThickness': 25,
-      } */
+      }
     ];
   return [getSuffixes(data_exec["labels"]), datasets];
 
@@ -1354,7 +1337,7 @@ onUnmounted(() => {
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
     <div class="card-body"
-      v-if="workflowState.process_state?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
+      v-if="workflowState.processObjects?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
       <h6 class="card-subtitle mb-2">
         There are no workflows connected to this token. Please use the following instructions to persist workflow
         metrics to this token.
@@ -1671,12 +1654,12 @@ onUnmounted(() => {
                   <div v-if="Object.keys(selectedTag.value)[0] === ''">Empty tag</div>
                 </div>
               </template>
-              <template #option="slotProps"> 
+              <template #option="slotProps">
                 <div class="flex align-items-center">
-                  <div v-if="Object.keys(slotProps.option)[0]  !== ''">
+                  <div v-if="Object.keys(slotProps.option)[0] !== ''">
                     {{ Object.keys(slotProps.option)[0] }}: {{ Object.values(slotProps.option)[0] }}
                   </div>
-                  <div v-if="Object.keys(slotProps.option)[0]  === ''">Empty tag</div>
+                  <div v-if="Object.keys(slotProps.option)[0] === ''">Empty tag</div>
                 </div>
               </template>
             </MultiSelect>

@@ -28,8 +28,11 @@
 - [x] Arbeit an Tag-Selection Part
 - [ ] **Arbeit an Alerting Part - Anfang gemacht**
 - [ ] **Mehrere run-Ids unter einem Token** 
+- [x] Ersetze ProcessNames durch die Keys des Mappings
+- [ ] zeige zeitliche Verläufe von Prozessen (Horizontal) (options: { indexAxis: 'y'},)
+- [ ] Betrachte weitere relevante Metriken
 - [ ] automatische Formatierung von Zeitdaten - Sekunden, Minuten, Stunden
-- [ ] genererisches Handling von Prozessen - ein gemeinsamer Filter für alle Metriken
+- [ ] genererisches Handling von Prozessen - ein gemeinsamer Filter für alle Metriken (beim Update der Plots -> aggregation der Daten einheitlich)
 - [ ] API die Rechenarbeit machen lassen? -> gezieltere Anfragen, gezieltere Responses
 - [ ] Integration von CloWM
 - [ ] Welcher Webserver? Konfig final abschließen!
