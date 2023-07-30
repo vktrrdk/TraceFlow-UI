@@ -62,7 +62,7 @@ function confirmDeletion(): void {
 
 
 
-/** end of filterService **/
+
 
 
 const props = defineProps<{
@@ -77,6 +77,7 @@ const filters = ref({
   'process': { value: null, matchMode: FilterMatchMode.CONTAINS },
   'tag': { value: null, matchMode: 'tagTableFilter', },
 });
+/** end of filterService **/
 
 const workflowState = reactive<{
   currentState: string;
@@ -1292,21 +1293,30 @@ function generateDurationData(): [string[], any[]] {
 
 onMounted(() => {
   FilterService.register('tagTableFilter', (value, filter): boolean => {
-    // TODO: further implementation - also consider entries like key:value, or [k1: v1, k2:v2] and so on
-    if (filter === undefined || filter === null || filter.trim() === '') {
+    filter = toRaw(filter);
+    value = toRaw(value);
+    
+    if (filter === null) {
       return true;
+    }
+    
+    let valueTags: any[] = [];
+
+    for (let val of value) {
+      valueTags.push(val);
     }
 
-    if (value === undefined || value === null) {
-      return true;
+    let filterTags: any[] = [];
+    
+    for (let fil of filter) {
+      filterTags.push(toRaw(fil));
     }
-    for (let singleValue in value) {
-      let pair: any = value[singleValue];
-      if (Object.keys(pair)[0].includes(filter) || Object.values(pair)[0].includes(filter)) {
-        return true;
-      }
-    }
-    return false;
+
+    const commonObjects = filterTags.filter((filObj: any) => valueTags.some((valueObj: any) => {
+      return Object.keys(filObj)[0] === Object.keys(valueObj)[0] && Object.values(filObj)[0] === Object.values(valueObj)[0]; 
+    }))
+
+    return commonObjects.length > 0;
   });
   getDataInitial();
 });
@@ -1544,14 +1554,29 @@ onUnmounted(() => {
           </Column>
 
           <Column field="tag" header="Tag" style="min-width: 20rem" :show-filter-menu="false" sortable>
-
             <template #filter="{ filterModel, filterCallback }">
-              <!-- define a own filter function here -->
-              <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
-                placeholder="Search by name" />
+              <MultiSelect v-model="filterModel.value" :options="filterState.availableTags"
+              :showToggleAll=false filter placeholder="Select Tag" @change="filterCallback()"
+              display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name">
+              <template #chip="selectedTag">
+                <div class="flex align-items-center">
+                  <div v-if="Object.keys(selectedTag.value)[0] !== ''">{{ Object.keys(selectedTag.value)[0] }} : {{
+                    Object.values(selectedTag.value)[0] }}</div>
+                  <div v-if="Object.keys(selectedTag.value)[0] === ''">Empty tag</div>
+                </div>
+              </template>
+              <template #option="slotProps">
+                <div class="flex align-items-center">
+                  <div v-if="Object.keys(slotProps.option)[0] !== ''">
+                    {{ Object.keys(slotProps.option)[0] }}: {{ Object.values(slotProps.option)[0] }}
+                  </div>
+                  <div v-if="Object.keys(slotProps.option)[0] === ''">Empty tag</div>
+                </div>
+              </template>
+            </MultiSelect>
             </template>
             <template #body="{ data }">
-              <Tag v-for="(tag, id) of data.tag" :value="Object.keys(tag)[0] + ': ' + Object.values(tag)[0]"></Tag>
+              <Tag v-for="(tag, id) of data.tag" :value="Object.keys(tag)[0] === '' ? 'Empty tag' : Object.keys(tag)[0] + ': ' + Object.values(tag)[0]"></Tag>
             </template>
           </Column>
           <Column field="timestamp" header="Timestamp" sortable></Column>
