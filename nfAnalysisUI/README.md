@@ -26,8 +26,8 @@
 - [x] Ordentliche Konfiguration, sodass das compose überall funktioniert wie es soll - erstmal okay
 - [x] Arbeit an Progress Information Part - erstmal okay
 - [x] Arbeit an Tag-Selection Part
+- [ ] **Mehrere run-Ids unter einem Token** --> betrachte auch run-names, da sich die ids mitunter nicht verännders
 - [ ] **Arbeit an Alerting Part - Anfang gemacht**
-- [ ] **Mehrere run-Ids unter einem Token** 
 - [x] Ersetze ProcessNames durch die Keys des Mappings
 - [ ] zeige zeitliche Verläufe von Prozessen (Horizontal) (options: { indexAxis: 'y'},)
 - [ ] Betrachte weitere relevante Metriken

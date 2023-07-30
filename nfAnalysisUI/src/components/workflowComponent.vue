@@ -174,6 +174,11 @@ const filterState = reactive<{
 
 /** functions on init and polling */
 
+function printRunIds(stuff: any): void {
+  stuff = toRaw(stuff);
+  console.log(Object.keys(stuff));
+}
+
 function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
@@ -184,6 +189,7 @@ function getDataInitial(token = props.token): void {
           workflowState.error_on_request = true;
         } else {
           workflowState.processObjects = createProcessObjects(response.data["result_by_task"]);
+          printRunIds(response.data['result_by_run_name']);
           workflowState.runningProcesses = getRunningProcesses();
           updateProgress();
           workflowState.meta = response.data["result_meta"];
