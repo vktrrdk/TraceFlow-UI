@@ -706,15 +706,6 @@ function updateRelativeRamPlot() {
 /** helper functions */
 
 
-
-/**
-* openai: chatgpt - prompt: in javascript, take a list of strings, which can be splitted using the character ':'.
-how to write a function, which returns the suffixes of those strings, where the prefix of the word is removed, which is the same for all strings in the list
-___
-needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the bowtie part or do we want to keep the whole bowtie stuff? check this again
-result:
-*/
-
 function currentlySelectedWorkflowHasPlottableData(): boolean {
   if (workflowState.selectedRun !== '') {
     return workflowState.currentState[workflowState.selectedRun] && workflowState.currentState[workflowState.selectedRun] !== "WAITING";

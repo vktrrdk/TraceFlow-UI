@@ -1,6 +1,6 @@
 # TODO
 
- - [ ] **remove empty columns from list** - or show possibility to disable certain columns
+ - [ ] **remove empty columns from list** - or show possibility to disable certain columns  
  - [ ] how do we get information about current non-submitted processes/tasks?
  - [ ] more generic handling of traces --> also use meta
  - [ ] check router history - how to add "back-button" ?
@@ -19,12 +19,21 @@
 - [x] Arbeit an Tag-Selection Part
 - [x] Ersetze ProcessNames durch die Keys des Mappings
 - [ ] **Mehrere run-Ids unter einem Token** --> betrachte auch run-names
-  - [ ] Wenn Workflows gestartet werden, ist die Abfrage der States (allProcesses noch fehlerhaft)
-  - [ ] Polling anpassen!
-  - [ ] Progress-Anzeige anscheinend noch Buggy
+  - [x] Wenn Workflows gestartet werden, ist die Abfrage der States (allProcesses noch fehlerhaft)
+  - [x] Polling anpassen!
+  - [x] Progress-Anzeige anscheinend noch Buggy
+  - [ ] Plot if-cases und Aktualisierung prüfen
 - [ ] **Arbeit an Alerting Part - Anfang gemacht**
 - [ ] sortiere Run-Auswahl nach Start-Datum
-- [ ] regard retry as state - show number of attempts if available
+- [ ] **Test-Workflows** 
+  - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
+- [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 
+- [ ] native_id - kann für Steal-Time usw. genutzt
+  - [ ] Über pyslurm hostnamen des prozesses abfragen
+    - [ ] BatchHost für native-id (welche die JobId für Slurm ist) holen
+      - [ ] hole Info z.b. über SSH über Informationen wie Steal-Time usw.
+      - [ ] Endpunkt in der API, wo die informationen gesendet werden können - also eigenständiger Service
+- [ ] regard retry as state - show number of attempts if available, same holds for ignore
 - [ ] zeige zeitliche Verläufe von Prozessen (Horizontal) (options: { indexAxis: 'y'},)
 - [ ] Betrachte weitere relevante Metriken
 - [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
