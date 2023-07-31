@@ -205,9 +205,6 @@ function getDataInitial(token = props.token): void {
           progressProcessSelectionChanged();
           // refactoring
           if (currentlySelectedWorkflowHasPlottableData()) {
-
-          }
-          if (workflowState.currentState !== "WAITING") {
             createPlots();
           }
           startPollingLoop();
@@ -243,25 +240,27 @@ function dataPollingLoop(): void {
         workflowState.error_on_request = true;
 
       } else {
-        workflowState.runningProcesses = getRunningProcesses();
-        updateProgress();
         workflowState.meta = response.data["result_meta"];
+        workflowState.runningProcesses = getRunningProcesses();
+        workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
+        updateRunStartMapping();
+        workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+        workflowState.runningProcesses = getRunningProcesses();
         updateCurrentState();
-        workflowState.token_info_requested = true;
+        updateProgress();
         workflowState.error_on_request = false;
         updateAvailableProcessNamesForFilter();
         updateAvailableTags();
         updateIfAutoselectEnabled();
         progressProcessSelectionChanged();
         updateIfTagAutoSelectEnabled();
-        if (workflowState.currentState !== "WAITING") {
+        if (currentlySelectedWorkflowHasPlottableData()) {  
           if (metricCharts.chartsGenerated) {
             updatePlots();
           } else {
             createPlots();
           }
         }
-
 
       }
     });
@@ -292,17 +291,20 @@ function updateAvailableTags(): void {
 function getTags(): any[] {
   let tags: any[] = [];
   const task_states: Process[] = toRaw(workflowState.processObjects);
-  for (let task of task_states) {
-    if (task.tag !== null) {
-      let retrievedTags: any[] = task.tag;
-      for (let pair of retrievedTags) {
-        let tempKey: string = Object.keys(pair)[0];
-        if (!tags.some(item => item[tempKey] === pair[tempKey])) {
-          tags.push(pair);
+  if (task_states) {
+    for (let task of task_states) {
+      if (task.tag !== null) {
+        let retrievedTags: any[] = task.tag;
+        for (let pair of retrievedTags) {
+          let tempKey: string = Object.keys(pair)[0];
+          if (!tags.some(item => item[tempKey] === pair[tempKey])) {
+            tags.push(pair);
+          }
         }
       }
     }
   }
+  
   return tags;
 }
 
@@ -381,11 +383,14 @@ function updateFilteredProgressProcesses(all: boolean = false): void {
   if (all) {
     filterState.selectedProgressProcesses = toRaw(filterState.availableProcesses);
   }
-  for (let process of workflowState.processObjects) {
-    if (filterState.selectedProgressProcesses.some(obj => obj['name'] === process.process)) {
-      filtered[process.process] = process;
+  if (workflowState.processObjects) {
+    for (let process of workflowState.processObjects) {
+      if (filterState.selectedProgressProcesses.some(obj => obj['name'] === process.process)) {
+        filtered[process.process] = process;
+      }
     }
   }
+  
   workflowState.filteredProgressProcesses = filtered;
 }
 
@@ -407,7 +412,7 @@ function metricTagSelectionChanged(): void {
 
 
 function metricProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricProcesses && !nonAutoUpdateStates.includes(workflowState.currentState)) {
+  if (filterState.autoselectAllMetricProcesses && !nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun])) {
     selectAllMetricProcesses();
   } else {
     // what to do here?
@@ -415,13 +420,13 @@ function metricProcessAutoSelectionChanged(): void {
 }
 
 function metricTagAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricTags && !nonAutoUpdateStates.includes(workflowState.currentState)) {
+  if (filterState.autoselectAllMetricTags && !nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun])) {
     selectAllMetricTags();
   }
 }
 
 function progressProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllProgressProcesses && !nonAutoUpdateStates.includes(workflowState.currentState)) {
+  if (filterState.autoselectAllProgressProcesses && !nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun])) {
     updateFilteredProgressProcesses(true);
   } else {
     // what to do here?
@@ -429,15 +434,15 @@ function progressProcessAutoSelectionChanged(): void {
 }
 
 function hideAutoUpdateEnableOptionMetric(): boolean {
-  return !(nonAutoUpdateStates.includes(workflowState.currentState) && filterState.autoselectAllMetricProcesses);
+  return !(nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun]) && filterState.autoselectAllMetricProcesses);
 }
 
 function hideAutoUpdateEnableOptionProgress(): boolean {
-  return !(nonAutoUpdateStates.includes(workflowState.currentState) && filterState.autoselectAllProgressProcesses);
+  return !(nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun]) && filterState.autoselectAllProgressProcesses);
 }
 
 function hideAutoUpdateEnableOptionTags(): boolean {
-  return !(nonAutoUpdateStates.includes(workflowState.currentState) && filterState.autoselectAllMetricTags);
+  return !(nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun]) && filterState.autoselectAllMetricTags);
 }
 
 
@@ -464,11 +469,15 @@ function generateDiv(elementId: string, title: string): HTMLCanvasElement {
   divWithCanvas.style.width = '80vw';
   const canvas = document.createElement('canvas');
   canvas.id = elementId;
+  canvas.classList.add("p-4")
   divWithCanvas.appendChild(titleElement);
   divWithCanvas.appendChild(canvas);
   const targetDiv = document.getElementById('canvas_area');
-  targetDiv.appendChild(divWithCanvas);
+  if (targetDiv !== null) {
+    targetDiv.appendChild(divWithCanvas);
+  }
   return canvas;
+  
 }
 
 async function createRelativeRamPlot() {
@@ -499,7 +508,6 @@ async function createRelativeRamPlot() {
   Object.seal(relativeRamChart);
   metricCharts.relativeMemoryChart = relativeRamChart;
 
-  updateRelativeRamPlot();
 }
 
 async function createIOPlot() {
@@ -562,7 +570,6 @@ async function createDurationPlot() {
   Object.seal(durationChart);
   metricCharts.durationChart = durationChart;
 
-  updateDurationPlot();
 }
 
 async function createRamPlot() {
@@ -594,7 +601,6 @@ async function createRamPlot() {
   Object.seal(memoryChart);
   metricCharts.memoryChart = memoryChart;
 
-  updateRamPlot();
 }
 
 async function createCPUPlot() {
@@ -625,7 +631,6 @@ async function createCPUPlot() {
   Object.seal(cpuChart);
   metricCharts.cpuChart = cpuChart;
 
-  updateCPUPlot();
 }
 
 /** End of Plot creation */
@@ -633,11 +638,14 @@ async function createCPUPlot() {
 /** Plot updating **/
 
 function updatePlots() {
-  updateRamPlot();
-  updateRelativeRamPlot();
-  updateCPUPlot();
-  updateIOPlot();
-  updateDurationPlot();
+  if (currentlySelectedWorkflowHasPlottableData()) {
+    updateRamPlot();
+    updateRelativeRamPlot();
+    updateCPUPlot();
+    updateIOPlot();
+    updateDurationPlot();
+  }
+ 
 }
 
 function updateIOPlot() {
@@ -708,8 +716,11 @@ result:
 */
 
 function currentlySelectedWorkflowHasPlottableData(): boolean {
-  // TODO: implement
-  return true;
+  if (workflowState.selectedRun !== '') {
+    return workflowState.currentState[workflowState.selectedRun] && workflowState.currentState[workflowState.selectedRun] !== "WAITING";
+  }
+  return false;
+  
 }
 
 /* even if unused, keep */
@@ -736,8 +747,11 @@ function adjustSelectedRun(): void {
   updateFilteredProgressProcesses();
   updateCurrentState();
   updateProgress();
-  updatePlots();
+  if (currentlySelectedWorkflowHasPlottableData()) {
+    updatePlots();
+  }
 }
+  
 
 
 function createProcessObjectsByRun(data: any): any {
@@ -763,15 +777,18 @@ function setFirstRunName(): void {
 function updateRunStartMapping(): void {
   let result: any = {};
   const metaObjects: any = toRaw(workflowState.meta);
-  for (let meta of metaObjects) {
-    if (!(meta["run_name"] in result)) {
-      result[meta["run_name"]] = null;
-      if (meta["event"] === "started") {
-        result[meta["run_name"]] = new Date(meta["timestamp"]);
+  if (Object.keys(metaObjects).length > 0) {
+    for (let meta of metaObjects) {
+      if (!(meta["run_name"] in result)) {
+        result[meta["run_name"]] = null;
+        if (meta["event"] === "started") {
+          result[meta["run_name"]] = new Date(meta["timestamp"]);
+        }
       }
     }
   }
   workflowState.runStartMapping = result;
+  
 
 }
 
@@ -796,12 +813,12 @@ function updateCurrentState(): void {
   }); 
   adjustCurrentStateForRun(name, meta);
   }
-  console.log(workflowState.currentState);
-  
-  for (let process of processes) {
-    if (process.status === "FAILED") {
-      workflowState.failedProcesses = true;
-      return;
+  if (processes) {
+    for (let process of processes) {
+      if (process.status === "FAILED") {
+        workflowState.failedProcesses = true;
+        return;
+      }
     }
   }
   workflowState.failedProcesses = false;
@@ -816,28 +833,29 @@ function updateProgress(): void {
   let completed: number = 0;
   let failed: number = 0;
   let aborted: number = 0;
-  for (let process of allProcesses) {
-    switch (process.status) {
-      case "SUBMITTED":
-        submitted += 1;
-        break;
-      case "RUNNING":
-        running += 1;
-        break;
-      case "FAILED":
-        failed += 1;
-        break;
-      case "ABORTED":
-        aborted += 1;
-        break;
-      case "COMPLETED":
-        completed += 1;
-        break;
+  if (allProcesses) {
+    for (let process of allProcesses) {
+      switch (process.status) {
+        case "SUBMITTED":
+          submitted += 1;
+          break;
+        case "RUNNING":
+          running += 1;
+          break;
+        case "FAILED":
+          failed += 1;
+          break;
+        case "ABORTED":
+          aborted += 1;
+          break;
+        case "COMPLETED":
+          completed += 1;
+          break;
+      }
+      all += 1;
     }
-    all += 1;
-
   }
-
+  
   workflowState.progress = {
     "all": all,
     "submitted": submitted,
@@ -846,7 +864,6 @@ function updateProgress(): void {
     "completed": completed,
     "aborted": aborted
   }
-
 
 }
 
@@ -888,15 +905,18 @@ function adjustCurrentStateForRun(nameKey: string, meta: any) {
 function getRunningProcesses(): any {
   let processes: any = {};
   const allProcesses = toRaw(workflowState.processObjects);
-  for (let process of allProcesses) {
-    if (process.status === "RUNNING") {
-      if (!(process.process in processes)) {
-        processes[process.process] = [process]
-      } else {
-        processes[process.process].push(process);
+  if (allProcesses) {
+    for (let process of allProcesses) {
+      if (process.status === "RUNNING") {
+        if (!(process.process in processes)) {
+          processes[process.process] = [process]
+        } else {
+          processes[process.process].push(process);
+        }
       }
     }
   }
+  
   return processes;
 }
 
@@ -922,22 +942,21 @@ function messageFromWorkflowState(): string {
   const state: string = workflowState.currentState[workflowState.selectedRun];
   switch (state) {
     case "SUBMITTED":
-      return "Your selected workflow run was submitted, but no process has started yet";
+      return `The workflow run ${workflowState.selectedRun} was submitted, but no process has started yet`;
     case "RUNNING":
-      return "Your selected workflow run is currently running";
+      return `The workflow run  ${workflowState.selectedRun} is currently running`;
     case "FAILED":
-      return "Your selected workflow run has failed!";
+      return `Your workflow run ${workflowState.selectedRun} has failed!`;
     case "ABORTED":
-      return "Your selected worfklow run has been aborted!";
+      return `Your worfklow run ${workflowState.selectedRun} has been aborted!`;
     case "COMPLETED":
-      return "Your selected workflow run has been successfully completed!";
+      return `Your workflow run ${workflowState.selectedRun} has been successfully completed!`;
     default:
-      return "There is no workflow information yet, seems like it has not started.";
-
+      return "There is no information to show yet. You may need to start a workflow or select a workflow run."
   }
 }
 
-function getSuffixes(strings) {
+function getSuffixes(strings: string[]) {
   return strings.map(str => {
     const parts = str.split(':');
     return parts[parts.length - 1];
@@ -960,14 +979,16 @@ function getProcessNamesOnly(): any[] {
 function mapAvailableProcesses(): void {
   let result: any = {};
   let state: any = toRaw(workflowState.processObjects);
-  for (let process of state) {
-    if (!(process.process in result)) {
-      result[process.process] = [result.task_id]
-    } else {
-      result[process.process].push(result.task_id);
+  if (state) {
+    for (let process of state) {
+      if (!(process.process in result)) {
+        result[process.process] = [result.task_id]
+      } else {
+        result[process.process].push(result.task_id);
+      }
     }
   }
-
+  
   filterState.processTaskMapping = result;
 }
 
@@ -1121,7 +1142,7 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
 
   data_pair["data"] = Object.values(processDataMapping);
   data_pair["labels"] = Object.keys(processDataMapping);
-  data_pair['maxBarThickness'] = 25;
+  data_pair['maxBarThickness'] = 30;
   return data_pair;
 }
 
@@ -1158,7 +1179,7 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   data_pair["data"] = temporaryValues;
   data_pair["labels"] = Object.keys(processDataMapping);
   data_pair['type'] = wantedFormat;
-  data_pair['maxBarThickness'] = 25;
+  data_pair['maxBarThickness'] = 30;
   return data_pair;
 }
 
@@ -1199,7 +1220,7 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
       single_dataset['data'] = Object.values(processDataMapping);
     }
 
-    single_dataset['maxBarThickness'] = 25;
+    single_dataset['maxBarThickness'] = 30;
     datasets.push(single_dataset);
     key_index += 1;
   }
@@ -1235,7 +1256,7 @@ function generateMemoryRelativeData(): [string[], any[]] {
     }
   }
   relative_dataset['data'] = Object.values(processDataMapping);
-  relative_dataset['maxBarThickness'] = 25;
+  relative_dataset['maxBarThickness'] = 30;
   datasets.push(relative_dataset);
   return [Object.keys(processDataMapping), datasets];
 
@@ -1269,7 +1290,7 @@ function generateKeyRelativeData(dataKey: string, respectToKey: string, label: s
     }
 
   }
-  relative_dataset['maxBarThickness'] = 25;
+  relative_dataset['maxBarThickness'] = 30;
   relative_dataset['data'] = Object.values(processDataMapping);
   datasets.push(relative_dataset);
   return [Object.keys(processDataMapping), datasets];
@@ -1327,8 +1348,8 @@ function generateCPUData(): [string[], any[]] {
     allocation_data.push([value * 100]);
     raw_usage_data.push(values_raw);
   }
-  datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 25 })
-  datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 25 });
+  datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 30 })
+  datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 30 });
 
   return [Object.keys(processDataMapping), datasets]
 }
@@ -1349,19 +1370,19 @@ function generateDurationData(): [string[], any[]] {
         type: 'bar',
         label: `Summarized Duration in seconds`,
         data: data_sum["data"],
-        'maxBarThickness': 25,
+        'maxBarThickness': 30,
       },
       {
         type: 'boxplot',
         label: 'Execution in real-time',
         data: data_execution,
-        'maxBarThickness': 25,
+        'maxBarThickness': 30,
       },
       {
         type: 'boxplot',
         label: 'Requested time used in %',
         data: data_allocated[1],
-        'maxBarThickness': 25,
+        'maxBarThickness': 30,
       }
     ];
   return [getSuffixes(data_exec["labels"]), datasets];
@@ -1442,8 +1463,9 @@ onUnmounted(() => {
     </div>
     </div>
     <div class="card-body m-4"
-      v-if="workflowState.processObjects?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
-      <h6 class="card-subtitle mb-2">
+      v-if="workflowState.selectedRun === ''">
+      <div v-if="!(Object.keys(workflowState.runStartMapping).length > 0)">
+        <h6 class="card-subtitle mb-2">
         There are no workflows connected to this token. Please use the following instructions to persist workflow
         metrics to this token.
       </h6>
@@ -1465,13 +1487,20 @@ onUnmounted(() => {
         progress here.
       </div>
     </div>
+    <div v-else>
+      <Message :closable="false">
+        Please select a workflow run above
+      </Message>
+    </div>
+     
+    </div>
     <div class="card-body mb-4">
-      <Message v-if="workflowState.currentState !== 'WAITING'" :closable="false" :severity="severityFromWorkflowState()">
+      <Message v-if="currentlySelectedWorkflowHasPlottableData()" :closable="false" :severity="severityFromWorkflowState()">
         {{ messageFromWorkflowState() }}</Message>
       <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of
         the workflow!</Message>
     </div>
-    <div class="card-body mb-4" v-if="workflowState.currentState !== 'WAITING'">
+    <div class="card-body mb-4" v-if="currentlySelectedWorkflowHasPlottableData()">
       <h5 class="card-title">Progress</h5>
       <hr>
       <div>
@@ -1522,7 +1551,7 @@ onUnmounted(() => {
     </div>
 
     <div class="card-body"
-      v-if="workflowState.token_info_requested && workflowState.processObjects.length > 0 && !workflowState.error_on_request">
+      v-if="workflowState.token_info_requested && workflowState.processObjects?.length > 0 && !workflowState.error_on_request">
       <h5 class="card-title">By process</h5>
       <hr>
       <div>
@@ -1600,8 +1629,8 @@ onUnmounted(() => {
 
 
       <hr>
-      <div class="card-body">
-        <h5 class="card-title">Trace Information</h5>
+      <div class="card-body mt-5">
+        <h5 class="card-title mb-3">Trace Information for {{workflowState.selectedRun}} </h5>
 
         <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
           filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
@@ -1736,7 +1765,7 @@ onUnmounted(() => {
         </DataTable>
       </div>
     </div>
-    <div class="p-4 row-gap-3" v-if="workflowState.currentState !== 'WAITING'">
+    <div class="m-2 row-gap-3" v-if="currentlySelectedWorkflowHasPlottableData()">
       <div>
         <h4>Metric visualization</h4>
       </div>
