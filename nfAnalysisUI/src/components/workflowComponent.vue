@@ -71,7 +71,9 @@ const props = defineProps<{
 }>();
 
 const STATUSES = ['SUBMITTED', 'RUNNING', 'COMPLETED', 'FAILED', 'ABORTED'];
-const nonAutoUpdateStates = ["ABORTED", "COMPLETED", "FAILED"];
+const NON_AUTO_UPDATE_STATES = ["ABORTED", "COMPLETED", "FAILED"];
+const FAST_INTERVAL: number = 5000;
+const SLOW_INTERVAL: number = 20000;
 const filters = ref({
   'status': { value: null, matchMode: FilterMatchMode.IN },
   'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -89,7 +91,8 @@ const workflowState = reactive<{
   runStartMapping: any;
   selectedRun: string;
   failedProcesses: boolean;
-  pollInterval: any;
+  pollIntervalId: any;
+  pollIntervalValue: number;
   loading: boolean;
   token: string;
   token_info_requested: boolean;
@@ -114,7 +117,8 @@ const workflowState = reactive<{
   runStartMapping: {},
   selectedRun: '',
   failedProcesses: false,
-  pollInterval: null,
+  pollIntervalId: null,
+  pollIntervalValue: 0,
   loading: true,
   token: "",
   token_info_requested: false,
@@ -195,15 +199,15 @@ function getDataInitial(token = props.token): void {
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
-          workflowState.runningProcesses = getRunningProcesses();
+          workflowState.runningProcesses = updateRunningProcesses();
           updateCurrentState();
           updateProgress();
+
           workflowState.token_info_requested = true;
           workflowState.token = token;
           workflowState.error_on_request = false;
           updateFilterState();
           progressProcessSelectionChanged();
-          // refactoring
           if (currentlySelectedWorkflowHasPlottableData()) {
             createPlots();
           }
@@ -211,26 +215,22 @@ function getDataInitial(token = props.token): void {
         }
       },
     );
-    /*
-    workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`);
-    workflowState.connection. TODO: add websocket stuff
-      */
-
+    // workflowState.connection = new WebSocket(`wss://localhost:8000/run/${token}`); possible websocket connection
   }
 
 }
 
 function destroyPollTimer(): void {
-  clearInterval(workflowState.pollInterval);
+  clearInterval(workflowState.pollIntervalId);
+  
 }
 
 function startPollingLoop(): void {
-  if (!nonAutoUpdateStates.includes(workflowState.currentState)) {
-    if (!workflowState.pollInterval) {
-      workflowState.pollInterval = setInterval(dataPollingLoop, 7500);
-    }
+  if (currentlyNonFinishedWorkflows()) {
+    updateToFasterPolling();
+  } else {
+    updateToSlowerPolling();
   }
-
 }
 
 function dataPollingLoop(): void {
@@ -241,11 +241,10 @@ function dataPollingLoop(): void {
 
       } else {
         workflowState.meta = response.data["result_meta"];
-        workflowState.runningProcesses = getRunningProcesses();
         workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
         updateRunStartMapping();
         workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
-        workflowState.runningProcesses = getRunningProcesses();
+        workflowState.runningProcesses = updateRunningProcesses();
         updateCurrentState();
         updateProgress();
         workflowState.error_on_request = false;
@@ -262,6 +261,7 @@ function dataPollingLoop(): void {
           }
         }
 
+        checkForPollingTimerAdjustment();
       }
     });
 }
@@ -412,7 +412,7 @@ function metricTagSelectionChanged(): void {
 
 
 function metricProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricProcesses && !nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun])) {
+  if (filterState.autoselectAllMetricProcesses && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
     selectAllMetricProcesses();
   } else {
     // what to do here?
@@ -420,13 +420,13 @@ function metricProcessAutoSelectionChanged(): void {
 }
 
 function metricTagAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricTags && !nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun])) {
+  if (filterState.autoselectAllMetricTags && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
     selectAllMetricTags();
   }
 }
 
 function progressProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllProgressProcesses && !nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun])) {
+  if (filterState.autoselectAllProgressProcesses && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
     updateFilteredProgressProcesses(true);
   } else {
     // what to do here?
@@ -434,15 +434,15 @@ function progressProcessAutoSelectionChanged(): void {
 }
 
 function hideAutoUpdateEnableOptionMetric(): boolean {
-  return !(nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun]) && filterState.autoselectAllMetricProcesses);
+  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllMetricProcesses;
 }
 
 function hideAutoUpdateEnableOptionProgress(): boolean {
-  return !(nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun]) && filterState.autoselectAllProgressProcesses);
+  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllProgressProcesses;
 }
 
 function hideAutoUpdateEnableOptionTags(): boolean {
-  return !(nonAutoUpdateStates.includes(workflowState.currentState[workflowState.selectedRun]) && filterState.autoselectAllMetricTags);
+  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllMetricTags;
 }
 
 
@@ -508,6 +508,8 @@ async function createRelativeRamPlot() {
   Object.seal(relativeRamChart);
   metricCharts.relativeMemoryChart = relativeRamChart;
 
+  updateRelativeRamPlot();
+
 }
 
 async function createIOPlot() {
@@ -570,6 +572,7 @@ async function createDurationPlot() {
   Object.seal(durationChart);
   metricCharts.durationChart = durationChart;
 
+  updateDurationPlot();
 }
 
 async function createRamPlot() {
@@ -601,6 +604,8 @@ async function createRamPlot() {
   Object.seal(memoryChart);
   metricCharts.memoryChart = memoryChart;
 
+  updateRamPlot();
+
 }
 
 async function createCPUPlot() {
@@ -630,6 +635,8 @@ async function createCPUPlot() {
   );
   Object.seal(cpuChart);
   metricCharts.cpuChart = cpuChart;
+
+  updateCPUPlot();
 
 }
 
@@ -739,7 +746,12 @@ function adjustSelectedRun(): void {
   updateCurrentState();
   updateProgress();
   if (currentlySelectedWorkflowHasPlottableData()) {
-    updatePlots();
+    if (metricCharts.chartsGenerated) {
+      updatePlots();
+    } else {
+      createPlots();
+    }
+    
   }
 }
   
@@ -770,17 +782,18 @@ function updateRunStartMapping(): void {
   const metaObjects: any = toRaw(workflowState.meta);
   if (Object.keys(metaObjects).length > 0) {
     for (let meta of metaObjects) {
-      if (!(meta["run_name"] in result)) {
-        result[meta["run_name"]] = null;
-        if (meta["event"] === "started") {
-          result[meta["run_name"]] = new Date(meta["timestamp"]);
+      if (meta["event"] === "started") {
+        result[meta["run_name"]] = new Date(meta["timestamp"]);
+        if ([undefined, "WAITING"].includes(workflowState.currentState[meta["run_name"]])) {
+          workflowState.currentState[meta["run_name"]] = "SUBMITTED";
+          updateToFasterPolling();
         }
       }
     }
   }
   workflowState.runStartMapping = result;
-  
 
+  
 }
 
 function startBackToMainTimer(): void {
@@ -860,9 +873,11 @@ function updateProgress(): void {
 
 
 function adjustCurrentStateForRun(nameKey: string, meta: any) {
+
   if (meta['event'] === "started") {
     let processes: Process[] = toRaw(workflowState.processObjects);
-    if (workflowState.currentState[nameKey] === "SUBMITTED" || workflowState.currentState[nameKey] === "WAITING") {
+    if (processes) {
+      if (["SUBMITTED", "WAITING", undefined].includes(workflowState.currentState[nameKey])) {
       for (let process of processes) {
         if (process.status == "RUNNING") {
           workflowState.currentState[nameKey] = "RUNNING";
@@ -874,6 +889,7 @@ function adjustCurrentStateForRun(nameKey: string, meta: any) {
       }
       workflowState.currentState = "SUBMITTED";
     }
+  } 
   } else if (meta['event'] === "completed") {
     if (meta["error_message"] !== null) {
 
@@ -885,15 +901,51 @@ function adjustCurrentStateForRun(nameKey: string, meta: any) {
     } else {
       workflowState.currentState[nameKey] = "COMPLETED";
     }
-  }
-  // todo: refactor - needs to consider all
-  if (nonAutoUpdateStates.includes(workflowState.currentState[nameKey])) {
-    destroyPollTimer();
+  } else {
+      workflowState.currentState[nameKey] = "SUBMITTED";
+    }
+    
+  checkForPollingTimerAdjustment();
+}
+
+function checkForPollingTimerAdjustment(): void {
+  if (currentlyNonFinishedWorkflows()) {
+    updateToFasterPolling();
+  } else {
+    updateToSlowerPolling();
   }
 }
 
-/** needs refactoring due to new structure! **/
-function getRunningProcesses(): any {
+function currentlyNonFinishedWorkflows(): boolean {
+  return !(Object.values(workflowState.currentState).every((state: any) => NON_AUTO_UPDATE_STATES.includes(state)));
+}
+
+function updateToFasterPolling(): void {
+  if (workflowState.pollIntervalId) {
+    if (workflowState.pollIntervalValue === FAST_INTERVAL){
+      return;
+    }
+    clearInterval(workflowState.pollIntervalId)
+    workflowState.pollIntervalValue = 0;
+  }
+  workflowState.pollIntervalId = setInterval(dataPollingLoop, FAST_INTERVAL);
+  workflowState.pollIntervalValue = FAST_INTERVAL;
+}
+
+function updateToSlowerPolling(): void {
+  if (workflowState.pollIntervalId) {
+    if (workflowState.pollIntervalValue === SLOW_INTERVAL){
+      return;
+    }
+    clearInterval(workflowState.pollIntervalId)
+    workflowState.pollIntervalValue = 0;
+  }
+  workflowState.pollIntervalId = setInterval(dataPollingLoop, SLOW_INTERVAL);
+  workflowState.pollIntervalValue = SLOW_INTERVAL;
+}
+
+function updateRunningProcesses(): any {
+  
   let processes: any = {};
   const allProcesses = toRaw(workflowState.processObjects);
   if (allProcesses) {
@@ -1442,7 +1494,7 @@ onUnmounted(() => {
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
    
-    <div class="card-body m-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0">
+  <div class="card-body m-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0">
       <h6 class=card-title>Runs</h6>
       <div class="row flex flex-wrap m-2"  v-for="key in Object.keys(workflowState.processesByRun)">
         <div class="flex col-auto align-items-center">
@@ -1451,8 +1503,8 @@ onUnmounted(() => {
               {{key}} - {{ workflowState.runStartMapping[key] ? ' started at ' + formattedDate(workflowState.runStartMapping[key]) : 'no start-date available'}}
             </label>
         </div>
-    </div>
-    </div>
+      </div>
+  </div>
     <div class="card-body m-4"
       v-if="workflowState.selectedRun === ''">
       <div v-if="!(Object.keys(workflowState.runStartMapping).length > 0)">
@@ -1531,13 +1583,18 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-    <div class="card-body mb-4" v-if="workflowState.runningProcesses.length > 0">
+    
+    <div class="card-body mb-4" v-if="Object.keys(workflowState.runningProcesses).length > 0 ">
       <h5 class="card-title">Currently running</h5>
       <hr>
-      <div v-for="(info, process) in workflowState.runningProcesses">
-        <strong>{{ process }}</strong> - {{ Object.keys(info["tasks"]).length > 1 ?
-          Object.keys(info["tasks"]).length + 'processes' : '1 process' }} with tags : <Tag
-          v-for="(task, id) in info['tasks']" :value="task['tag']"></Tag>
+      <!-- refactor - needs filter -->
+      <div v-for="(info, process) in workflowState.runningProcesses" class="row">
+        <div class="col-auto"><strong>{{ process }}</strong> - {{ info.length > 1 ?
+          info.length + ' processes' : '1 process' }} with tags : </div>
+          <div class="mx-1 col-auto" v-for="proc of info">
+            <Tag 
+            v-for="tag of proc.tag" :value="Object.keys(tag)[0] === '' ? 'Empty Tag' : Object.keys(tag)[0] + ': ' + Object.values(tag)[0]"></Tag>
+          </div>
       </div>
     </div>
 

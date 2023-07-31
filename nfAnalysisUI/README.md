@@ -18,16 +18,20 @@
 - [x] Arbeit an Progress Information Part - erstmal okay
 - [x] Arbeit an Tag-Selection Part
 - [x] Ersetze ProcessNames durch die Keys des Mappings
-- [ ] **Mehrere run-Ids unter einem Token** --> betrachte auch run-names
+- [x] **Mehrere run-Ids unter einem Token** --> betrachte auch run-names
   - [x] Wenn Workflows gestartet werden, ist die Abfrage der States (allProcesses noch fehlerhaft)
   - [x] Polling anpassen!
   - [x] Progress-Anzeige anscheinend noch Buggy
-  - [ ] Plot if-cases und Aktualisierung prüfen
+  - [x] Plot if-cases und Aktualisierung prüfen
+  - [x] Tag und Process-Selection abhängig vom gewählten Run  
 - [ ] **Arbeit an Alerting Part - Anfang gemacht**
-- [ ] sortiere Run-Auswahl nach Start-Datum
+- [x] sortiere Run-Auswahl nach Start-Datum - ist durch struktur des responses schon so
+- [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
+- [ ] filter für currently-running 
 - [ ] **Test-Workflows** 
   - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
 - [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 
+- [ ] **Vergleiche zwei Runs miteinander** 
 - [ ] native_id - kann für Steal-Time usw. genutzt
   - [ ] Über pyslurm hostnamen des prozesses abfragen
     - [ ] BatchHost für native-id (welche die JobId für Slurm ist) holen
@@ -36,9 +40,8 @@
 - [ ] regard retry as state - show number of attempts if available, same holds for ignore
 - [ ] zeige zeitliche Verläufe von Prozessen (Horizontal) (options: { indexAxis: 'y'},)
 - [ ] Betrachte weitere relevante Metriken
-- [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
 - [ ] automatische Formatierung von Zeitdaten - Sekunden, Minuten, Stunden
 - [ ] genererisches Handling von Prozessen - ein gemeinsamer Filter für alle Metriken (beim Update der Plots -> aggregation der Daten einheitlich)
 - [ ] API die Rechenarbeit machen lassen? -> gezieltere Anfragen, gezieltere Responses
 - [ ] Integration von CloWM
-- [ ] Welcher Webserver? Konfig final abschließen!
+- [ ] Welcher Webserver? Config final abschließen!
