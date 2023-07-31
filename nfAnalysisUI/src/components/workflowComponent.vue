@@ -1761,7 +1761,7 @@ onUnmounted(() => {
           </Column>
           <Column field="cpu_percentage" header="CPU %" sortable></Column>
           <Column field="memory_percentage" header="Memory %" sortable></Column>
-          <Column field="memory" header="Memory">
+          <Column field="memory" header="Requested Memory">
             <template #body="{ data }">
               {{ reasonableDataFormat(data.memory) }}
             </template>
