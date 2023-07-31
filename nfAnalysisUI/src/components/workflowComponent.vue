@@ -86,6 +86,7 @@ const workflowState = reactive<{
   runningProcesses: any;
   processObjects: Process[];
   processesByRun: any;
+  runStartMapping: any;
   selectedRun: string;
   failedProcesses: boolean;
   pollInterval: any;
@@ -110,6 +111,7 @@ const workflowState = reactive<{
   runningProcesses: {},
   processObjects: [],
   processesByRun: {},
+  runStartMapping: {},
   selectedRun: '',
   failedProcesses: false,
   pollInterval: null,
@@ -188,13 +190,14 @@ function getDataInitial(token = props.token): void {
           workflowState.processObjects = [];
           workflowState.error_on_request = true;
         } else {
-          workflowState.processObjects = createProcessObjects(response.data["result_by_task"]);
           workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
+          workflowState.meta = response.data["result_meta"];
+          updateRunStartMapping();
           setFirstRunName();
+          workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
           workflowState.runningProcesses = getRunningProcesses();
           updateProgress();
-          workflowState.meta = response.data["result_meta"];
-          checkState(response.data["result_meta"], response.data["result_by_task"]);
+          checkState();
           workflowState.token_info_requested = true;
           workflowState.token = token;
           workflowState.error_on_request = false;
@@ -239,7 +242,7 @@ function dataPollingLoop(): void {
         workflowState.runningProcesses = getRunningProcesses();
         updateProgress();
         workflowState.meta = response.data["result_meta"];
-        checkState(response.data["result_meta"], response.data["result_by_task"]);
+        checkState();
         workflowState.token_info_requested = true;
         workflowState.error_on_request = false;
         updateAvailableProcessNamesForFilter();
@@ -700,10 +703,7 @@ needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the 
 result:
 */
 
-function customFilter(): boolean {
-  return true;
-}
-
+/* even if unused, keep */
 function createProcessObjects(data: any[]): Process[] {
   let processes: Process[] = [];
   for (let object of data) {
@@ -711,6 +711,12 @@ function createProcessObjects(data: any[]): Process[] {
     processes.push(process);
   }
   return processes;
+}
+
+function adjustSelectedRun(): void {
+  workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+  checkState();
+  updatePlots();
 }
 
 function createProcessObjectsByRun(data: any): any {
@@ -733,6 +739,22 @@ function setFirstRunName(): void {
   }
 }
 
+function updateRunStartMapping(): void {
+  let result: any = {};
+  const metaObjects: any = toRaw(workflowState.meta);
+  for (let meta of metaObjects) {
+    if (!(meta["run_name"] in result)) {
+      result[meta["run_name"]] = null;
+      if (meta["event"] === "started") {
+        result[meta["run_name"]] = new Date(meta["timestamp"]);
+      }
+    }
+  }
+  workflowState.runStartMapping = result;
+  console.log(result);
+
+}
+
 function startBackToMainTimer(): void {
   destroyPollTimer();
   setTimeout(() => {
@@ -740,11 +762,21 @@ function startBackToMainTimer(): void {
   }, 5000);
 }
 
-function checkState(meta: any, tasks: any): void {
-  adjustCurrentState(meta['event']);
-  tasks = toRaw(tasks);
-  for (let task of tasks) {
-    if (task["status"] == "FAILED") {
+function checkState(): void {
+  let meta: any[] = toRaw(workflowState.meta);
+  let processes = toRaw(workflowState.processObjects);
+  meta = meta.filter((metaOb: any) => metaOb["run_name"] === workflowState.selectedRun);
+  meta = meta.reduce((latestMeta: any, currMeta: any) => {
+    if (new Date(latestMeta["timestamp"]) > new Date(currMeta["timestamp"])) {
+      return latestMeta;
+    } else {
+      return currMeta;
+    }
+  });
+  console.log(meta);
+  adjustCurrentState(meta);
+  for (let process of processes) {
+    if (process.status === "FAILED") {
       workflowState.failedProcesses = true;
       return;
     }
@@ -796,8 +828,8 @@ function updateProgress(): void {
 }
 
 
-function adjustCurrentState(event: string) {
-  if (event === "started") {
+function adjustCurrentState(meta: any) {
+  if (meta['event'] === "started") {
     let processes: Process[] = toRaw(workflowState.processObjects);
     if (workflowState.currentState === "SUBMITTED" || workflowState.currentState === "WAITING") {
       for (let process of processes) {
@@ -811,10 +843,10 @@ function adjustCurrentState(event: string) {
       }
       workflowState.currentState = "SUBMITTED";
     }
-  } else if (event === "completed") {
-    if (workflowState.meta["error_message"] !== null) {
+  } else if (meta['event'] === "completed") {
+    if (meta["error_message"] !== null) {
 
-      if (workflowState.meta["error_message"] === "SIGINT") {
+      if (meta["error_message"] === "SIGINT") {
         workflowState.currentState = "ABORTED";
       } else {
         workflowState.currentState = "FAILED";
@@ -1373,11 +1405,13 @@ onUnmounted(() => {
   </div>
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
+   
     <div class="card-body" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0">
+      <h6 class=card-title>Runs</h6>
       <div class="row flex flex-wrap gap-3">
         <div class="flex col-auto align-items-center" v-for="key in Object.keys(workflowState.processesByRun)">
-            <RadioButton v-model="workflowState.selectedRun" :input-id="key" :value="key" />
-            <label :for="key" class="ml-2">{{key}}</label>
+            <RadioButton v-model="workflowState.selectedRun"  v-on:update:model-value="adjustSelectedRun()"  :input-id="key" :value="key" />
+            <label :for="key" class="ms-2">{{key}}</label>
         </div>
     </div>
     </div>
