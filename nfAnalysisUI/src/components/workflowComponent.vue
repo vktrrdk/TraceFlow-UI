@@ -81,7 +81,7 @@ const filters = ref({
 /** end of filterService **/
 
 const workflowState = reactive<{
-  currentState: string;
+  currentState: any;
   progress: any;
   runningProcesses: any;
   processObjects: Process[];
@@ -99,7 +99,7 @@ const workflowState = reactive<{
   meta: any;
   //connection: WebSocket;
 }>({
-  currentState: "WAITING",
+  currentState: {},
   progress: {
     "all": null,
     "submitted": null,
@@ -190,19 +190,23 @@ function getDataInitial(token = props.token): void {
           workflowState.processObjects = [];
           workflowState.error_on_request = true;
         } else {
-          workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
           workflowState.meta = response.data["result_meta"];
+          workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
           workflowState.runningProcesses = getRunningProcesses();
+          updateCurrentState();
           updateProgress();
-          checkState();
           workflowState.token_info_requested = true;
           workflowState.token = token;
           workflowState.error_on_request = false;
-          initiateFilterState();
+          updateFilterState();
           progressProcessSelectionChanged();
+          // refactoring
+          if (currentlySelectedWorkflowHasPlottableData()) {
+
+          }
           if (workflowState.currentState !== "WAITING") {
             createPlots();
           }
@@ -242,7 +246,7 @@ function dataPollingLoop(): void {
         workflowState.runningProcesses = getRunningProcesses();
         updateProgress();
         workflowState.meta = response.data["result_meta"];
-        checkState();
+        updateCurrentState();
         workflowState.token_info_requested = true;
         workflowState.error_on_request = false;
         updateAvailableProcessNamesForFilter();
@@ -269,7 +273,7 @@ function dataPollingLoop(): void {
  * filter state functions
  */
 
-function initiateFilterState(): void {
+function updateFilterState(): void {
   updateAvailableProcessNamesForFilter();
   updateAvailableTags();
   setSelectedProgressProcesses(filterState.availableProcesses);
@@ -703,6 +707,11 @@ needs to be adjusted - returns 'owtie:Aling' and so on, instead of removing the 
 result:
 */
 
+function currentlySelectedWorkflowHasPlottableData(): boolean {
+  // TODO: implement
+  return true;
+}
+
 /* even if unused, keep */
 function createProcessObjects(data: any[]): Process[] {
   let processes: Process[] = [];
@@ -713,11 +722,23 @@ function createProcessObjects(data: any[]): Process[] {
   return processes;
 }
 
+/*
+Openai: prompt: how to use the date class in vuejs to format date in html, also considering the time
+*/
+function formattedDate(date: Date): string {
+  const options: any = {year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'};
+  return new Intl.DateTimeFormat('de-DE', options).format(date);
+}
+
 function adjustSelectedRun(): void {
   workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
-  checkState();
+  updateFilterState()
+  updateFilteredProgressProcesses();
+  updateCurrentState();
+  updateProgress();
   updatePlots();
 }
+
 
 function createProcessObjectsByRun(data: any): any {
   data = toRaw(data);
@@ -751,7 +772,6 @@ function updateRunStartMapping(): void {
     }
   }
   workflowState.runStartMapping = result;
-  console.log(result);
 
 }
 
@@ -762,19 +782,22 @@ function startBackToMainTimer(): void {
   }, 5000);
 }
 
-function checkState(): void {
-  let meta: any[] = toRaw(workflowState.meta);
+function updateCurrentState(): void {
+  let full_meta: any[] = toRaw(workflowState.meta);
   let processes = toRaw(workflowState.processObjects);
-  meta = meta.filter((metaOb: any) => metaOb["run_name"] === workflowState.selectedRun);
-  meta = meta.reduce((latestMeta: any, currMeta: any) => {
+  for (let name in workflowState.runStartMapping) {
+    let meta: any[] = full_meta.filter((metaOb: any) => metaOb["run_name"] === name);
+    meta = meta.reduce((latestMeta: any, currMeta: any) => {
     if (new Date(latestMeta["timestamp"]) > new Date(currMeta["timestamp"])) {
       return latestMeta;
     } else {
       return currMeta;
     }
-  });
-  console.log(meta);
-  adjustCurrentState(meta);
+  }); 
+  adjustCurrentStateForRun(name, meta);
+  }
+  console.log(workflowState.currentState);
+  
   for (let process of processes) {
     if (process.status === "FAILED") {
       workflowState.failedProcesses = true;
@@ -828,16 +851,16 @@ function updateProgress(): void {
 }
 
 
-function adjustCurrentState(meta: any) {
+function adjustCurrentStateForRun(nameKey: string, meta: any) {
   if (meta['event'] === "started") {
     let processes: Process[] = toRaw(workflowState.processObjects);
-    if (workflowState.currentState === "SUBMITTED" || workflowState.currentState === "WAITING") {
+    if (workflowState.currentState[nameKey] === "SUBMITTED" || workflowState.currentState[nameKey] === "WAITING") {
       for (let process of processes) {
         if (process.status == "RUNNING") {
-          workflowState.currentState = "RUNNING";
+          workflowState.currentState[nameKey] = "RUNNING";
           return
         } else if (process.status == "COMPLETED") {
-          workflowState.currentState = "RUNNING";
+          workflowState.currentState[nameKey] = "RUNNING";
           return;
         }
       }
@@ -847,15 +870,16 @@ function adjustCurrentState(meta: any) {
     if (meta["error_message"] !== null) {
 
       if (meta["error_message"] === "SIGINT") {
-        workflowState.currentState = "ABORTED";
+        workflowState.currentState[nameKey] = "ABORTED";
       } else {
-        workflowState.currentState = "FAILED";
+        workflowState.currentState[nameKey] = "FAILED";
       }
     } else {
-      workflowState.currentState = "COMPLETED";
+      workflowState.currentState[nameKey] = "COMPLETED";
     }
   }
-  if (nonAutoUpdateStates.includes(workflowState.currentState)) {
+  // todo: refactor - needs to consider all
+  if (nonAutoUpdateStates.includes(workflowState.currentState[nameKey])) {
     destroyPollTimer();
   }
 }
@@ -877,7 +901,7 @@ function getRunningProcesses(): any {
 }
 
 function severityFromWorkflowState(): string {
-  const state: string = workflowState.currentState;
+  const state: string = workflowState.currentState[workflowState.selectedRun];
   switch (state) {
     case "SUBMITTED":
       return "info"
@@ -895,18 +919,18 @@ function severityFromWorkflowState(): string {
 }
 
 function messageFromWorkflowState(): string {
-  const state: string = workflowState.currentState;
+  const state: string = workflowState.currentState[workflowState.selectedRun];
   switch (state) {
     case "SUBMITTED":
-      return "Your workflow was submitted, but no process has started yet";
+      return "Your selected workflow run was submitted, but no process has started yet";
     case "RUNNING":
-      return "Your workflow is currently running";
+      return "Your selected workflow run is currently running";
     case "FAILED":
-      return "Your workflow has failed!";
+      return "Your selected workflow run has failed!";
     case "ABORTED":
-      return "Your worfklow has been aborted!";
+      return "Your selected worfklow run has been aborted!";
     case "COMPLETED":
-      return "Your workflow has been successfully completed!";
+      return "Your selected workflow run has been successfully completed!";
     default:
       return "There is no workflow information yet, seems like it has not started.";
 
@@ -1406,16 +1430,18 @@ onUnmounted(() => {
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
    
-    <div class="card-body" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0">
+    <div class="card-body m-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0">
       <h6 class=card-title>Runs</h6>
-      <div class="row flex flex-wrap gap-3">
-        <div class="flex col-auto align-items-center" v-for="key in Object.keys(workflowState.processesByRun)">
+      <div class="row flex flex-wrap m-2"  v-for="key in Object.keys(workflowState.processesByRun)">
+        <div class="flex col-auto align-items-center">
             <RadioButton v-model="workflowState.selectedRun"  v-on:update:model-value="adjustSelectedRun()"  :input-id="key" :value="key" />
-            <label :for="key" class="ms-2">{{key}}</label>
+            <label :for="key" class="ms-2">
+              {{key}} - {{ workflowState.runStartMapping[key] ? ' started at ' + formattedDate(workflowState.runStartMapping[key]) : 'no start-date available'}}
+            </label>
         </div>
     </div>
     </div>
-    <div class="card-body"
+    <div class="card-body m-4"
       v-if="workflowState.processObjects?.length === 0 && !workflowState.error_on_request && workflowState.currentState === 'WAITING'">
       <h6 class="card-subtitle mb-2">
         There are no workflows connected to this token. Please use the following instructions to persist workflow

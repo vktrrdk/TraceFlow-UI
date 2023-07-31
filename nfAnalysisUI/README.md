@@ -18,8 +18,12 @@
 - [x] Arbeit an Progress Information Part - erstmal okay
 - [x] Arbeit an Tag-Selection Part
 - [x] Ersetze ProcessNames durch die Keys des Mappings
-- [ ] **Mehrere run-Ids unter einem Token** --> betrachte auch run-names, da sich die ids mitunter nicht verännders
+- [ ] **Mehrere run-Ids unter einem Token** --> betrachte auch run-names
+  - [ ] Wenn Workflows gestartet werden, ist die Abfrage der States (allProcesses noch fehlerhaft)
+  - [ ] Polling anpassen!
+  - [ ] Progress-Anzeige anscheinend noch Buggy
 - [ ] **Arbeit an Alerting Part - Anfang gemacht**
+- [ ] sortiere Run-Auswahl nach Start-Datum
 - [ ] regard retry as state - show number of attempts if available
 - [ ] zeige zeitliche Verläufe von Prozessen (Horizontal) (options: { indexAxis: 'y'},)
 - [ ] Betrachte weitere relevante Metriken
