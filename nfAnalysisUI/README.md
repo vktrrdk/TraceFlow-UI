@@ -24,10 +24,11 @@
   - [x] Progress-Anzeige anscheinend noch Buggy
   - [x] Plot if-cases und Aktualisierung prüfen
   - [x] Tag und Process-Selection abhängig vom gewählten Run  
-- [ ] **Arbeit an Alerting Part - Anfang gemacht**
-- [x] sortiere Run-Auswahl nach Start-Datum - ist durch struktur des responses schon so
+- [x] sortiere Run-Auswahl nach Start-Datum 
+- [ ] **Arbeit an Alerting Part**
 - [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
-- [ ] filter für currently-running 
+- [ ] filter für currently-running
+- [ ] axis labelings (% and so on)
 - [ ] **Test-Workflows** 
   - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
 - [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 

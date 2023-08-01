@@ -1351,6 +1351,8 @@ function generateCPUData(): [string[], any[]] {
   let states: any = toRaw(workflowState.processObjects);
 
   let processDataMapping: any = {};
+  let allocation_data: any[] = [];
+  let raw_usage_data: any[] = [];
 
   for (let process of states) {
     if (tagFilter) {
@@ -1360,39 +1362,48 @@ function generateCPUData(): [string[], any[]] {
     }
     if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
       if (!(process.process in processDataMapping)) {
-        processDataMapping[process.process] = { 'cpus': [process.cpus], 'realtime': [process.realtime] }
+        if (process.cpus) {
+          processDataMapping[process.process] = {"cpu": [process.cpus]}
+        } else {
+          processDataMapping[process.process] = {"cpu": [null]}
+        }
+        if (process.cpu_percentage) {
+          processDataMapping[process.process]["percentage"] = [process.cpu_percentage];
+        } else {
+          processDataMapping[process.process]["percentage"] = [null];
+        }
       } else {
-        let allocationValues = processDataMapping[process.process];
-        allocationValues['cpus'].push(process.cpus);
-        allocationValues['realtime'].push(process.realtime);
-        processDataMapping[process.process] = allocationValues;
+        if (process.cpus) {
+          processDataMapping[process.process]["cpu"].push(process.cpus);
+        } else {
+          processDataMapping[process.process]["cpu"].push(null);
+        }
+        if (process.cpu_percentage) {
+          processDataMapping[process.process]["percentage"].push(process.cpu_percentage);
+        } else {
+          processDataMapping[process.process]["percentage"].push(null);
+        }
       }
     }
   }
 
-  let allocation_data = [];
-  let raw_usage_data = [];
   for (let process in processDataMapping) {
-    let value_numerator: number = 0;
-    let value_denominator: number = 0;
-    let values_raw: number[] = [];
-    let idx: number = 0;
-    while (idx < processDataMapping[process]['cpus'].length) {
-      value_numerator += processDataMapping[process]['cpus'][idx] * (processDataMapping[process]['realtime'][idx] / 1000)
-      value_denominator += (processDataMapping[process]['realtime'][idx] / 1000);
-      values_raw.push(processDataMapping[process]['cpus'][idx] * 100)
-      idx += 1;
+    let single_raw_data: number[] = []
+    let single_allocation_data: number[] = [];
+    for (let i = 0; i < processDataMapping[process]["cpu"].length; i++) {
+      single_raw_data.push(processDataMapping[process]["percentage"][i]);
+      single_allocation_data.push(processDataMapping[process]["percentage"] / processDataMapping[process]["cpu"]);
     }
-    let value: number = 0;
-    if (value_denominator > 0) {
-      value = value_numerator / value_denominator;
-    }
-
-    allocation_data.push([value * 100]);
-    raw_usage_data.push(values_raw);
+    raw_usage_data.push(single_raw_data);
+    allocation_data.push(single_allocation_data);
   }
+
+  
   datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 30 })
   datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 30 });
+
+  console.log(datasets);
+  console.log(Object.keys(processDataMapping));
 
   return [Object.keys(processDataMapping), datasets]
 }
