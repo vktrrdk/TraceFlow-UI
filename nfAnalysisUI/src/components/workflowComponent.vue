@@ -80,6 +80,24 @@ const filters = ref({
   'process': { value: null, matchMode: FilterMatchMode.CONTAINS },
   'tag': { value: null, matchMode: 'tagTableFilter', },
 });
+
+const rowClass = (data: any) => {
+   
+    return [{ 'analysis-alert-row': processIsDeclaredProblematic(data)}];
+};
+
+function isProblematic(data: any): boolean {
+  data = toRaw(data);
+  return processIsDeclaredProblematic(data);
+ }
+
+function processIsDeclaredProblematic(data: any): boolean {
+  const keysToCheck: string[] = ["process", "task_id", "run_name"];
+    return workflowState.analysis.some((analysisObj: any) => {
+      return keysToCheck.every(key => analysisObj[key] === data[key]);
+    } )
+}
+
 /** end of filterService **/
 
 const workflowState = reactive<{
@@ -87,6 +105,7 @@ const workflowState = reactive<{
   progress: any;
   runningProcesses: any;
   processObjects: Process[];
+  analysis: any;
   processesByRun: any;
   runStartMapping: any;
   selectedRun: string;
@@ -113,6 +132,7 @@ const workflowState = reactive<{
   },
   runningProcesses: {},
   processObjects: [],
+  analysis: {},
   processesByRun: {},
   runStartMapping: {},
   selectedRun: '',
@@ -200,6 +220,7 @@ function getDataInitial(token = props.token): void {
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
           workflowState.runningProcesses = updateRunningProcesses();
+          workflowState.analysis = response.data["result_analysis"];
           updateCurrentState();
           updateProgress();
 
@@ -245,6 +266,7 @@ function dataPollingLoop(): void {
         updateRunStartMapping();
         workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
         workflowState.runningProcesses = updateRunningProcesses();
+        workflowState.analysis = response.data["result_analysis"];
         updateCurrentState();
         updateProgress();
         workflowState.error_on_request = false;
@@ -1402,9 +1424,6 @@ function generateCPUData(): [string[], any[]] {
   datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 30 })
   datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 30 });
 
-  console.log(datasets);
-  console.log(Object.keys(processDataMapping));
-
   return [Object.keys(processDataMapping), datasets]
 }
 
@@ -1476,6 +1495,7 @@ onMounted(() => {
 
     return commonObjects.length > 0;
   });
+  
   getDataInitial();
 });
 
@@ -1650,7 +1670,6 @@ onUnmounted(() => {
                   {{ processNumbers(info) }} processes complete
                 </div>
                 <!-- we want progress here https://primevue.org/datatable/#rowgroup_expandable -->
-
               </div>
             </template>
 
@@ -1693,8 +1712,14 @@ onUnmounted(() => {
 
         <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
           filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
+          :rowClass="rowClass"
           removableSort>
           <Column field="task_id" header="Task-ID" sortable></Column>
+          <Column header="Problematic" sortable field="problematic" :sort-field="isProblematic">
+            <template #body="{ data }" >
+              <Tag v-if="isProblematic(data)" value="Problematic" severity="danger" ></Tag>
+            </template>
+          </Column>
           <Column field="name" style="min-width: 20rem" header="Name" sortable :show-filter-menu="false"
             filter-field="name">
             <template #body="{ data }">

@@ -15,6 +15,11 @@ a,
   transition: 0.4s;
 }
 
+tr.analysis-alert-row td:first-child {
+  background-color: var(--red-200);
+  color: white;
+}
+
 @media (hover: hover) {
   a:hover {
     background-color: hsla(160, 100%, 37%, 0.2);
@@ -31,3 +36,5 @@ a,
     padding: 2rem;
   }
 }
+
+
