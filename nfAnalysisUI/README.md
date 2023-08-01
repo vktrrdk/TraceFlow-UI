@@ -39,6 +39,7 @@
       - [ ] hole Info z.b. über SSH über Informationen wie Steal-Time usw.
       - [ ] Endpunkt in der API, wo die informationen gesendet werden können - also eigenständiger Service
 - [ ] regard retry as state - show number of attempts if available, same holds for ignore
+- [ ] Berechnungen cachen, timestamp der threshold für caching darstellt? damit analyse beim polling nicht die ganze Zeit abgefragt wird?
 - [ ] zeige zeitliche Verläufe von Prozessen (Horizontal) (options: { indexAxis: 'y'},)
 - [ ] Betrachte weitere relevante Metriken
 - [ ] automatische Formatierung von Zeitdaten - Sekunden, Minuten, Stunden

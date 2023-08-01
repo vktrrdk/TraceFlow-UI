@@ -93,7 +93,7 @@ function isProblematic(data: any): boolean {
 
 function processIsDeclaredProblematic(data: any): boolean {
   const keysToCheck: string[] = ["process", "task_id", "run_name"];
-    return workflowState.analysis.some((analysisObj: any) => {
+    return workflowState.processAnalysis.some((analysisObj: any) => {
       return keysToCheck.every(key => analysisObj[key] === data[key]);
     } )
 }
@@ -105,7 +105,8 @@ const workflowState = reactive<{
   progress: any;
   runningProcesses: any;
   processObjects: Process[];
-  analysis: any;
+  processAnalysis: any;
+  tagAnalysis: any;
   processesByRun: any;
   runStartMapping: any;
   selectedRun: string;
@@ -132,7 +133,8 @@ const workflowState = reactive<{
   },
   runningProcesses: {},
   processObjects: [],
-  analysis: {},
+  processAnalysis: {},
+  tagAnalysis: {},
   processesByRun: {},
   runStartMapping: {},
   selectedRun: '',
@@ -220,7 +222,8 @@ function getDataInitial(token = props.token): void {
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
           workflowState.runningProcesses = updateRunningProcesses();
-          workflowState.analysis = response.data["result_analysis"];
+          workflowState.processAnalysis = response.data["result_analysis"]["process_wise"];
+          workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
           updateCurrentState();
           updateProgress();
 
@@ -266,7 +269,8 @@ function dataPollingLoop(): void {
         updateRunStartMapping();
         workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
         workflowState.runningProcesses = updateRunningProcesses();
-        workflowState.analysis = response.data["result_analysis"];
+        workflowState.processAnalysis = response.data["result_analysis"]["process_wise"]
+        workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
         updateCurrentState();
         updateProgress();
         workflowState.error_on_request = false;
@@ -1910,7 +1914,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- check if we could push this to the datatable and have checkboxes instead?!-->
+
       </div>
       <div class="card-body" id="canvas_area">
 
