@@ -2,8 +2,7 @@
 import { onMounted, onUnmounted, reactive, ref, toRaw } from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
-import "bootstrap/dist/js/bootstrap.min.js"
-import type { RunTrace } from "@/models/RunTrace";
+import "bootstrap/dist/js/bootstrap.min.js";
 import { useRouter, useRoute } from "vue-router";
 import axios, { all } from "axios";
 import { Chart, LinearScale, CategoryScale, TimeScale } from 'chart.js/auto'; // check vue-chartjs as wrapper
@@ -27,9 +26,11 @@ import ConfirmDialog from "primevue/confirmdialog";
 import Toast from "primevue/toast";
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
-import Listbox from "primevue/listbox";
 import Process from "../models/Process"
 import RadioButton from 'primevue/radiobutton';
+import TabView from 'primevue/tabview';
+import TabPanel from 'primevue/tabpanel'
+
 
 
 Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
@@ -64,8 +65,6 @@ function confirmDeletion(): void {
 
 
 
-
-
 const props = defineProps<{
   token: string;
 }>();
@@ -82,7 +81,6 @@ const filters = ref({
 });
 
 const rowClass = (data: any) => {
-   
     return [{ 'analysis-alert-row': processIsDeclaredProblematic(data)}];
 };
 
@@ -92,10 +90,13 @@ function isProblematic(data: any): boolean {
  }
 
 function processIsDeclaredProblematic(data: any): boolean {
-  const keysToCheck: string[] = ["process", "task_id", "run_name"];
-    return workflowState.processAnalysis.some((analysisObj: any) => {
+  if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
+    const keysToCheck: string[] = ["process", "task_id", "run_name"];
+    return workflowState.processAnalysis[workflowState.selectedRun].some((analysisObj: any) => {
       return keysToCheck.every(key => analysisObj[key] === data[key]);
     } )
+  }
+  return false;
 }
 
 /** end of filterService **/
@@ -739,12 +740,71 @@ function updateRelativeRamPlot() {
 /** helper functions */
 
 
+function problemToMessage(problem: any): string {
+  const problemKey: string = Object.keys(problem)[0];
+  let problemValue: any = Object.values(problem)[0];
+  switch (problemKey) {
+    case 'ram_relative': {
+      
+      if (problemValue < 0.6) {
+        return `The process is consuming only ${(problemValue * 100).toFixed(2)}% of the requested RAM.`;
+      } else {
+        return `The process is consuming significantly more RAM than requested: It uses ${(problemValue * 100).toFixed(2)}% of the requested RAM.`;
+      }
+    }
+    case 'cpu_allocation': {
+      if (problemValue < 60) {
+        return `The process is consuming only ${problemValue.toFixed(2)}% of the allocated CPUs.`;
+      } else {
+        return `The process is consuming significantly high values of CPU. It uses ${problemValue.toFixed(2)}% of the allocated CPUs.`;
+      }
+    }
+    case 'duration_ratio_compared_to_other_processes': {
+      return `This process is relatively slow compared to other types of processes. It uses ${(problemValue * 100).toFixed(2)}% of the average time`;
+    }
+    case 'duration_ratio_to_requested': {
+      return `The runtime of the process is too long in relation to the requested runtime. It is ${(problemValue * 100).toFixed(2)} % of the requested time.`
+    }
+    case 'duration_ratio_compared_to_all': {
+      return `This process is relatively slow compared to all processes executed in this workflow run. It uses ${(problemValue * 100).toFixed(2)}% of the average time`;
+    }
+    case 'duration_ratio_compared_to_same': {
+      return `This process is relatively slow compared to processes with the same type. It uses ${(problemValue * 100).toFixed(2)}% of the average time for processes of the same type.`;
+    }
+    case 'tag_duration_comparison_ratio': {
+      return `Processes which run with this tag, need ${(problemValue * 100).toFixed(2)}% of the time, processes with other tags need.`;
+    }
+    case 'tag_duration_to_full_ratio': {
+      return `Processes which run with this tag, use the majority of time. They are responsible for ${(problemValue * 100).toFixed(2)}% of the runtime.`;
+    }
+    case 'tag_cpu_allocation_ratio': {
+      return `Processes which run with this tag, allocate comparably much CPU. They take ${(problemValue * 100).toFixed(2)}% of the average CPU allocation of the CPU.`;
+    }
+    case 'tag_cpu_percentage_ratio': {
+      return `Processes which run with this tag, use comparably high values of CPU. ${(problemValue * 100).toFixed(2)}% of the average CPU usage values are used.`;
+    }
+    case 'tag_memory_ratio': {
+      return `Processes which run with this tag, use comparably high values of RAM. It is ${(problemValue * 100).toFixed(2)}% of the average RAM usage.`;
+    }
+  }
+  return 'There seems to be an error displaying this alert.';
+}
+
 function currentlySelectedWorkflowHasPlottableData(): boolean {
   if (workflowState.selectedRun !== '') {
     return workflowState.currentState[workflowState.selectedRun] && workflowState.currentState[workflowState.selectedRun] !== "WAITING";
   }
   return false;
   
+}
+
+function tagToString(tag: any){
+ 
+  if (Object.keys(tag)[0] !== ''){
+    return `${Object.keys(tag)[0].toString()}: ${Object.values(tag)[0].toString()}`
+  } else {
+    return 'Empty tag';
+  }
 }
 
 /* even if unused, keep */
@@ -1526,6 +1586,7 @@ onUnmounted(() => {
       </div>
     </div>
   </div>
+
   <div v-if="workflowState.token && workflowState.token_info_requested">
     <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
    
@@ -1577,6 +1638,10 @@ onUnmounted(() => {
         {{ messageFromWorkflowState() }}</Message>
       <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of
         the workflow!</Message>
+      <Message v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0 || workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0" severity="warn">
+        In the analysis of the metrics, it was found that improvements can possibly be made in the development of the workflow. 
+        You are able to check this in the analysis section of this page.
+      </Message>
     </div>
     <div class="card-body mb-4" v-if="currentlySelectedWorkflowHasPlottableData()">
       <h5 class="card-title">Progress</h5>
@@ -1853,9 +1918,11 @@ onUnmounted(() => {
         </DataTable>
       </div>
     </div>
-    <div class="m-2 row-gap-3" v-if="currentlySelectedWorkflowHasPlottableData()">
+    </div>
+    
+    <div class="my-2 row-gap-3" v-if="currentlySelectedWorkflowHasPlottableData()">
       <div>
-        <h4>Metric visualization</h4>
+        <h5>Metric Visualizaton</h5>
       </div>
       <div class="card-body mb-5">
         <div class="row mb-2">
@@ -1922,18 +1989,54 @@ onUnmounted(() => {
       <hr>
     </div>
 
-    <div class="card-body" v-if="workflowState.error_on_request">
+    <div class="my-4" v-if="currentlySelectedWorkflowHasPlottableData()">
+      <div class="card-header">
+          <h4>Analysis</h4>
+      </div>
+      <div class="card-body my-4"
+        v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0"
+      >
+        <h6>Processes</h6>
+        <TabView>
+          <TabPanel v-for="process in workflowState.processAnalysis[workflowState.selectedRun]" :key="process.process" :header="getSuffix(process.process) + ' - Task ' + process.task_id ">
+             <div v-for="problem in process.problems">
+              <Message :closable="false" severity="info">{{problemToMessage(problem)}}</Message>
+             </div>
+          </TabPanel>
+      </TabView>
+      </div>
+
+      <div class="card-body my-4"
+        v-if="workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0"
+      >
+        <h6>Tags</h6>
+        <TabView>
+          <TabPanel v-for="tag in workflowState.tagAnalysis[workflowState.selectedRun]" :key="tag.tag" :header="tagToString(tag.tag)">
+            <div v-for="problem in tag.problems">
+              <Message :closable="false" severity="info">{{problemToMessage(problem)}}</Message>
+             </div>
+          </TabPanel>
+      </TabView>
+      </div>
+      <div class="card-body my-2" 
+      v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length === 0 && workflowState.tagAnalysis[workflowState.selectedRun]?.length === 0">
+        <Message severity="success"></Message>
+      </div>
+     
+    </div>
+    <hr>  
+    <div class="card-body my-4" v-if="workflowState.error_on_request">
       <div class="alert alert-info">
         This token is not correct, please enter another token
       </div>
     </div>
-    <div class="card-body" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
+    <div class="card-body my-4" v-if="workflowState.token_info_requested && !workflowState.error_on_request">
       <div type="button" class="btn btn-outline-danger" @click="confirmDeletion();">
         Delete token
       </div>
 
     </div>
-  </div>
+  
   <Toast position="center" />
   <ConfirmDialog></ConfirmDialog>
 </template>
