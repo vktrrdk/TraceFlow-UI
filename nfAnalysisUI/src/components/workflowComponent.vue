@@ -71,8 +71,8 @@ const props = defineProps<{
 
 const STATUSES = ['SUBMITTED', 'RUNNING', 'COMPLETED', 'FAILED', 'ABORTED'];
 const NON_AUTO_UPDATE_STATES = ["ABORTED", "COMPLETED", "FAILED"];
-const FAST_INTERVAL: number = 5000;
-const SLOW_INTERVAL: number = 20000;
+const FAST_INTERVAL: number = 10000;
+const SLOW_INTERVAL: number = 30000;
 const filters = ref({
   'status': { value: null, matchMode: FilterMatchMode.IN },
   'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -1638,7 +1638,7 @@ onUnmounted(() => {
         {{ messageFromWorkflowState() }}</Message>
       <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of
         the workflow!</Message>
-      <Message v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0 || workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0" severity="warn">
+      <Message :closable="false" v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0 || workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0" severity="warn">
         In the analysis of the metrics, it was found that improvements can possibly be made in the development of the workflow. 
         You are able to check this in the analysis section of this page.
       </Message>
