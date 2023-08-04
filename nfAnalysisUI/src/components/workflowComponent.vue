@@ -30,6 +30,8 @@ import Process from "../models/Process"
 import RadioButton from 'primevue/radiobutton';
 import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel'
+import ScrollTop from 'primevue/scrolltop';
+import Sidebar from 'primevue/sidebar';
 
 
 
@@ -61,8 +63,6 @@ function confirmDeletion(): void {
 /** end of dialog functions **/
 
 /** filter Service **/
-
-
 
 
 const props = defineProps<{
@@ -100,6 +100,12 @@ function processIsDeclaredProblematic(data: any): boolean {
 }
 
 /** end of filterService **/
+
+const uiState = reactive <{
+  sidebarVisible: boolean;
+}>({
+  sidebarVisible: false,
+})
 
 const workflowState = reactive<{
   currentState: any;
@@ -1570,6 +1576,14 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <Menubar :model="">
+    <template #start>
+        <img alt="logo" src="/images/logo.svg" height="40" class="mr-2" />
+    </template>
+    <template #end>
+        <InputText placeholder="Search" type="text" />
+    </template>
+</Menubar>
   <div class="card" v-if="!workflowState.token || workflowState.error_on_request">
     <h5 class="card-header">Enter token</h5>
     <div class="card-body">
@@ -2036,9 +2050,15 @@ onUnmounted(() => {
       </div>
 
     </div>
-  
+    <Sidebar v-model:visible="uiState.sidebarVisible">
+      <h2>Sidebar</h2>
+      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+  </Sidebar>
+  <Button icon="pi pi-arrow-right" @click="uiState.sidebarVisible = true" />
+  <ScrollTop />
   <Toast position="center" />
   <ConfirmDialog></ConfirmDialog>
+  
 </template>
 
 <style scoped></style>
