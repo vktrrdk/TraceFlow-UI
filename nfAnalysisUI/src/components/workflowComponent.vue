@@ -33,7 +33,6 @@ import TabPanel from 'primevue/tabpanel'
 import ScrollTop from 'primevue/scrolltop';
 import Sidebar from 'primevue/sidebar';
 import Menubar from 'primevue/menubar';
-import ScrollPanel from "primevue/scrollpanel";
 
 
 
@@ -90,6 +89,16 @@ function isProblematic(data: any): boolean {
   data = toRaw(data);
   return processIsDeclaredProblematic(data);
  }
+
+function allocationSort(a) {
+  
+  if (a["cpu_percentage"] && a["cpus"] && a["cpus"] > 0) {
+    return a["cpu_percentage"] / a["cpus"];  
+  } 
+  return 0;
+ 
+  
+}
 
 function processIsDeclaredProblematic(data: any): boolean {
   if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
@@ -1644,8 +1653,8 @@ onUnmounted(() => {
   <div v-if="workflowState.token && workflowState.token_info_requested" >
   
 
-  <div class="card-body m-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0">
-      <h6 class=card-title>Runs</h6>
+  <div class="card-body mt-4 py-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0" id="run_selection_div">
+      <h3 class="card-title">Select runs</h3>
       <div class="row flex flex-wrap m-2"  v-for="key in Object.keys(workflowState.processesByRun)">
         <div class="flex col-auto align-items-center">
             <RadioButton v-model="workflowState.selectedRun"  v-on:update:model-value="adjustSelectedRun()"  :input-id="key" :value="key" />
@@ -1697,11 +1706,11 @@ onUnmounted(() => {
         You are able to check this in the analysis section of this page.
       </Message>
     </div>
-    <div class="card-body mb-4" v-if="currentlySelectedWorkflowHasPlottableData()">
-      <h5 class="card-title">Progress</h5>
+    <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="progess_summary_div">
+      <h3 class="card-title">Progress</h3>
       <hr>
       <div>
-        <div class="mb-4">
+        <div class="mb-4 p-4">
           <div class="row justify-content-center">
             <ProgressBar v-if="workflowState.progress['all'] > 0" class="mt-2" :showValue="false"
               style="height: 3px; max-width: 70vw;"
@@ -1713,23 +1722,23 @@ onUnmounted(() => {
           </div>
 
         </div>
-        <div class="row">
-          <div class="col-3">
+        <div class="row p-2">
+          <div class="col-3 p-2">
             <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
               v-model="workflowState.progress['submitted']" :size="120" readonly :strokeWidth="5" />
             <span class="justify-content-center">Submitted</span>
           </div>
-          <div class="col-3">
+          <div class="col-3 p-2">
             <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
               v-model="workflowState.progress['running']" :size="120" readonly :strokeWidth="5" />
             <span class="justify-content-center">Running</span>
           </div>
-          <div class="col-3">
+          <div class="col-3 p-2">
             <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
               valueColor="Green" v-model="workflowState.progress['completed']" :size="120" readonly :strokeWidth="5" />
             <span class="justify-content-center">Completed</span>
           </div>
-          <div class="col-3">
+          <div class="col-3 p-2">
             <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']" valueColor="Red"
               v-model="workflowState.progress['failed']" :size="120" readonly :strokeWidth="5" />
             <span class="justify-content-center">Failed</span>
@@ -1752,12 +1761,12 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="card-body"
+    <div class="card-body my-2 py-2"
       v-if="workflowState.token_info_requested && workflowState.processObjects?.length > 0 && !workflowState.error_on_request">
       <h5 class="card-title">By process</h5>
       <hr>
       <div>
-        <div class="row">
+        <div class="row my-4 py-2">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses"
               :disabled="filterState.autoselectAllProgressProcesses"
@@ -1779,11 +1788,12 @@ onUnmounted(() => {
           </div>
         </div>
         <!-- also check if this can be made better-->
-        <div v-for="(info, process) in workflowState.filteredProgressProcesses">
+        <div v-for="(info, process) in workflowState.filteredProgressProcesses" class="p-1">
           <Panel :header="process.toString()" toggleable collapsed :pt="{
             header: { style: { 'max-height': '40px' } },
             root: { class: 'mt-1 mb-1' }
           }">
+          <!-- filter missing, templating missing-->
             <template #header>
               <div class="row col-12">
                 <div class="col-8">
@@ -1830,9 +1840,9 @@ onUnmounted(() => {
 
 
       <hr>
-      <div class="card-body mt-5">
-        <h5 class="card-title mb-3">Process Information for {{workflowState.selectedRun}} </h5>
-
+      <div class="card-body my-4" id="process_information_div">
+        <h3 class="card-title">Process Information for {{workflowState.selectedRun}} </h3>
+        <div class=m-4></div>
         <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
           filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
           :rowClass="rowClass"
@@ -1918,8 +1928,21 @@ onUnmounted(() => {
             </template>
 
           </Column>
-          <Column field="cpu_percentage" header="CPU %" sortable></Column>
+          <Column field="cpus" header="Requested CPUs" sortable></Column>
+          <Column field="cpu_percentage" header="CPU %" style="min-width: 150px;" sortable>
+            <template #body="{ data }">
+              {{ data["cpu_percentage"].toFixed(2) }} %
+            </template>  
+          </Column>
+          <Column header="CPU allocation" sortable field="allocation" :sort-field="allocationSort">
+            <template #body="{ data }" >
+              <span v-if="data['cpu_percentage'] && data['cpus']">
+                {{ (data['cpu_percentage'] / data['cpus']).toFixed(2) }} %
+              </span>
+            </template>
+          </Column>
           <Column field="memory_percentage" header="Memory %" sortable></Column>
+          <Column></Column>
           <Column field="memory" header="Requested Memory">
             <template #body="{ data }">
               {{ reasonableDataFormat(data.memory) }}
@@ -1974,12 +1997,12 @@ onUnmounted(() => {
     </div>
     </div>
     
-    <div class="my-2 row-gap-3" v-if="currentlySelectedWorkflowHasPlottableData()">
+    <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="metric_visualization_div">
       <div>
-        <h5>Metric Visualizaton</h5>
+        <h3 class="my-2">Metric Visualizaton</h3>
       </div>
-      <div class="card-body mb-5">
-        <div class="row mb-2">
+      <div class="card-body my-2">
+        <div class="row my-2">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedMetricProcesses" :options="filterState.availableProcesses"
               v-on:change="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
@@ -1999,7 +2022,7 @@ onUnmounted(() => {
               onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricProcessAutoSelectionChanged()" />
           </div>
         </div>
-        <div class="row mb-2">
+        <div class="row my-2">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedTags" :options="filterState.availableTags"
               v-on:change="metricTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag"
@@ -2037,17 +2060,17 @@ onUnmounted(() => {
 
 
       </div>
-      <div class="card-body" id="canvas_area">
+      <div class="card-body my-4 py-2" id="canvas_area">
 
       </div>
       <hr>
     </div>
 
-    <div class="my-4" v-if="currentlySelectedWorkflowHasPlottableData()">
+    <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="analysis_div">
       <div class="card-header">
-          <h4>Analysis</h4>
+          <h3>Analysis</h3>
       </div>
-      <div class="card-body my-4"
+      <div class="my-4"
         v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0"
       >
         <h6>Processes</h6>

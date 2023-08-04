@@ -1,12 +1,3 @@
-# TODO
-
- - [ ] **remove empty columns from list** - or show possibility to disable certain columns  
- - [ ] how do we get information about current non-submitted processes/tasks?
- - [ ] more generic handling of traces --> also use meta
- - [ ] check router history - how to add "back-button" ?
- - [ ] adjust layout
- - [ ] adjust naming function
-
 # Current work
 - [x] fix bugs regarding filters (multiselect) 
 - [x] refactor: **autoselect enabled - multiple parts need update**: process progress list and metrics not updated regardless of polling
@@ -50,12 +41,13 @@
 - [ ] API die Rechenarbeit machen lassen? -> gezieltere Anfragen, gezieltere Responses
 - [ ] Integration von CloWM
 - [ ] Welcher Webserver? Config final abschließen!
-
+- [ ] remove empty columns from list - or show possibility to disable certain columns  
+- [ ] more generic handling of traces --> also use meta
+- [x] Welche Prozesse laufen im Workflow am längsten?  pro run --> kriegen wir
 
 Notes:
 
-Welche Prozesse laufen im Workflow am längsten?
-Average der Duration z.b nur über einen run vergleichen
+
 Vergleiche Runs miteinander! wie viel mehr oder weniger cpu z.b 
 Gruppieren nach Task!
 Probleme in Relation bringen - ein Ranking ist notwendig um die größten Probleme als erstes darzustellen
