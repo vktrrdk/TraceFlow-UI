@@ -20,6 +20,17 @@ tr.analysis-alert-row td:first-child {
   color: white;
 }
 
+.nav-lg-item {
+  padding: 20px 10px !important;
+  color: var(--bluegray-500) !important;
+}
+
+.nav-lg-item.active-lg-item {
+  color: var(--teal-700) !important;
+  font-weight: bolder;
+  
+}
+
 @media (hover: hover) {
   a:hover {
     background-color: hsla(160, 100%, 37%, 0.2);

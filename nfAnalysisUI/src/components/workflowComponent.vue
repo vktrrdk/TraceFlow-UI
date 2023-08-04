@@ -32,6 +32,8 @@ import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel'
 import ScrollTop from 'primevue/scrolltop';
 import Sidebar from 'primevue/sidebar';
+import Menubar from 'primevue/menubar';
+import ScrollPanel from "primevue/scrollpanel";
 
 
 
@@ -101,11 +103,28 @@ function processIsDeclaredProblematic(data: any): boolean {
 
 /** end of filterService **/
 
+
 const uiState = reactive <{
   sidebarVisible: boolean;
+  menuItems: any[];
 }>({
   sidebarVisible: false,
-})
+  menuItems: [
+    {
+      label: 'Open Sidebar',
+      icon: 'pi pi-arrow-right',
+      command: changeSidebarState,
+    },
+    {
+      label: 'Quit',
+      icon: 'pi pi-fw pi-power-off',
+      command: goBackToMain,
+    },
+  ]
+  
+});
+
+
 
 const workflowState = reactive<{
   currentState: any;
@@ -888,10 +907,19 @@ function updateRunStartMapping(): void {
   
 }
 
+function changeSidebarState(value: boolean = true): void {
+  uiState.sidebarVisible = value;
+}
+
+function goBackToMain(): void {
+  router.push("/");
+}
+
 function startBackToMainTimer(): void {
   destroyPollTimer();
   setTimeout(() => {
-    router.push("/");
+    goBackToMain();
+    
   }, 5000);
 }
 
@@ -1536,6 +1564,11 @@ function generateDurationData(): [string[], any[]] {
 
 /** end of data retrieval functions */
 
+
+function printStuff(): void {
+  console.log("TEST");
+}
+
 /* on mounted */
 
 onMounted(() => {
@@ -1576,14 +1609,21 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Menubar :model="">
-    <template #start>
-        <img alt="logo" src="/images/logo.svg" height="40" class="mr-2" />
-    </template>
-    <template #end>
-        <InputText placeholder="Search" type="text" />
-    </template>
-</Menubar>
+    <div class="card relative z-2 fixed-top bg-white" >
+      <Menubar :model="uiState.menuItems">
+            <template #start>
+                <img alt="logo" src="https://primefaces.org/cdn/primevue/images/logo.svg" height="40" class="mx-4" />
+               
+            </template>
+            <template #end>
+              <div class="mx-5">
+              <h5>Workflow information for token {{ workflowState.token }}</h5>
+            </div>
+            </template>
+          </Menubar>
+    </div>
+
+
   <div class="card" v-if="!workflowState.token || workflowState.error_on_request">
     <h5 class="card-header">Enter token</h5>
     <div class="card-body">
@@ -1601,9 +1641,9 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <div v-if="workflowState.token && workflowState.token_info_requested">
-    <h5 class="card-header">Workflow information for token {{ workflowState.token }}</h5>
-   
+  <div v-if="workflowState.token && workflowState.token_info_requested" >
+  
+
   <div class="card-body m-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0">
       <h6 class=card-title>Runs</h6>
       <div class="row flex flex-wrap m-2"  v-for="key in Object.keys(workflowState.processesByRun)">
@@ -1791,7 +1831,7 @@ onUnmounted(() => {
 
       <hr>
       <div class="card-body mt-5">
-        <h5 class="card-title mb-3">Trace Information for {{workflowState.selectedRun}} </h5>
+        <h5 class="card-title mb-3">Process Information for {{workflowState.selectedRun}} </h5>
 
         <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
           filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
@@ -2050,11 +2090,33 @@ onUnmounted(() => {
       </div>
 
     </div>
-    <Sidebar v-model:visible="uiState.sidebarVisible">
-      <h2>Sidebar</h2>
-      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+    <Sidebar v-model:visible="uiState.sidebarVisible"
+      :pt="{
+        closeButton : { class: 'd-none'}
+      }"
+      
+    >
+      <template #header>
+        <div class="row justify-content-end">
+        <div class="col-auto">
+          <h5 class="mt-2">Navigate</h5>
+        </div>
+        <div class="col-auto">
+          <Button size="small" icon="pi pi-arrow-left" label="Close" @click="changeSidebarState(false)"></Button>
+        </div>
+      </div>
+      </template>
+      <ul class="list-group list-group-flush">
+  <li class="list-group-item list-group-item-action nav-lg-item" id="run-selection-nav-item">Run Selection</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="progress-nav-item"  @click="printStuff()">Progress</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="datatable-nav-item">Process Information</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="metric-nav-item">Metric Visualizaton</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="analysis-nav-item">Analysis</li>
+</ul>
+     
+      
   </Sidebar>
-  <Button icon="pi pi-arrow-right" @click="uiState.sidebarVisible = true" />
+
   <ScrollTop />
   <Toast position="center" />
   <ConfirmDialog></ConfirmDialog>
