@@ -33,6 +33,8 @@ import TabPanel from 'primevue/tabpanel'
 import ScrollTop from 'primevue/scrolltop';
 import Sidebar from 'primevue/sidebar';
 import Menubar from 'primevue/menubar';
+import InputSwitch from "primevue/inputswitch";
+import InputNumber from "primevue/inputnumber"
 
 
 
@@ -134,6 +136,13 @@ const uiState = reactive <{
 });
 
 
+const requestState = reactive<{
+  request_params: any
+  request_activated: any,
+}>({
+  request_params: {},
+  request_activated: {},
+});
 
 const workflowState = reactive<{
   currentState: any;
@@ -248,7 +257,7 @@ function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
     axios.post(`http://localhost:8000/run/info/${token}/`,
-        getAnalysisParams()
+        setAnalysisParams(),
     ).then(
       response => {
         if (response.data["error"]) {
@@ -284,10 +293,12 @@ function getDataInitial(token = props.token): void {
 
 }
 
-function getAnalysisParams(): any {
+function setAnalysisParams(): any {
   let params: any = {};
-  params = {"testkey": 10, "testsecondkey": "string"};
-  params["another"] = "wild"
+  if (requestState.request_activated["top_percent_ratio"]) {
+    params["top_percent_ratio"] = requestState.request_params["top_percent_ratio"];
+    params["limit_processes_per_domain_by_number"] = requestState.request_params["limit_processes_per_domain_by_number"];
+  }
 
   return params;
 }
@@ -307,7 +318,8 @@ function startPollingLoop(): void {
 
 function dataPollingLoop(): void {
   axios.post(`http://localhost:8000/run/info/${workflowState.token}/`,
-      getAnalysisParams()).then(
+    setAnalysisParams(),
+    ).then(
     response => {
       if (response.data["error"]) {
         workflowState.error_on_request = true;
@@ -2109,6 +2121,24 @@ onUnmounted(() => {
       <div class="card-header">
           <h3>Analysis</h3>
       </div>
+      <div class="my-4">
+        <h5>Settings</h5>
+        <p>Below you can adjust the settings for the analyis, e.g. by changing the thresholds to consider.</p>
+        <div class="my-2">
+          <div class=row>
+            <div class="col-4 p-2">
+            Top percentage ratio and maximal number of processes <InputSwitch v-model="requestState.request_activated['top_percent_ratio']"></InputSwitch>
+            </div>
+            <div class="col-4 p-2">
+              <InputNumber suffix="%" v-model="requestState.request_params['top_percent_ratio']" :min="0" :max="100"/>
+            </div>
+            <div class="col-4 p-2">
+              <InputNumber suffix=" processes" v-model="requestState.request_params['limit_processes_per_domain_by_number']" :min="1" :max="15"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="my-4"
         v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0"
       >
