@@ -91,13 +91,13 @@ function isProblematic(data: any): boolean {
  }
 
 function allocationSort(a) {
-  
+
   if (a["cpu_percentage"] && a["cpus"] && a["cpus"] > 0) {
-    return a["cpu_percentage"] / a["cpus"];  
-  } 
+    return a["cpu_percentage"] / a["cpus"];
+  }
   return 0;
- 
-  
+
+
 }
 
 function processIsDeclaredProblematic(data: any): boolean {
@@ -130,7 +130,7 @@ const uiState = reactive <{
       command: goBackToMain,
     },
   ]
-  
+
 });
 
 
@@ -247,7 +247,9 @@ const filterState = reactive<{
 function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
-    axios.get(`http://localhost:8000/run/${token}/`).then(
+    axios.post(`http://localhost:8000/run/info/${token}/`,
+        getAnalysisParams()
+    ).then(
       response => {
         if (response.data["error"]) {
           workflowState.processObjects = [];
@@ -282,9 +284,17 @@ function getDataInitial(token = props.token): void {
 
 }
 
+function getAnalysisParams(): any {
+  let params: any = {};
+  params = {"testkey": 10, "testsecondkey": "string"};
+  params["another"] = "wild"
+
+  return params;
+}
+
 function destroyPollTimer(): void {
   clearInterval(workflowState.pollIntervalId);
-  
+
 }
 
 function startPollingLoop(): void {
@@ -296,7 +306,8 @@ function startPollingLoop(): void {
 }
 
 function dataPollingLoop(): void {
-  axios.get(`http://localhost:8000/run/${workflowState.token}/`).then(
+  axios.post(`http://localhost:8000/run/info/${workflowState.token}/`,
+      getAnalysisParams()).then(
     response => {
       if (response.data["error"]) {
         workflowState.error_on_request = true;
@@ -318,14 +329,13 @@ function dataPollingLoop(): void {
         updateIfAutoselectEnabled();
         progressProcessSelectionChanged();
         updateIfTagAutoSelectEnabled();
-        if (currentlySelectedWorkflowHasPlottableData()) {  
+        if (currentlySelectedWorkflowHasPlottableData()) {
           if (metricCharts.chartsGenerated) {
             updatePlots();
           } else {
             createPlots();
           }
         }
-
         checkForPollingTimerAdjustment();
       }
     });
@@ -369,7 +379,7 @@ function getTags(): any[] {
       }
     }
   }
-  
+
   return tags;
 }
 
@@ -455,7 +465,7 @@ function updateFilteredProgressProcesses(all: boolean = false): void {
       }
     }
   }
-  
+
   workflowState.filteredProgressProcesses = filtered;
 }
 
@@ -542,7 +552,7 @@ function generateDiv(elementId: string, title: string): HTMLCanvasElement {
     targetDiv.appendChild(divWithCanvas);
   }
   return canvas;
-  
+
 }
 
 async function createRelativeRamPlot() {
@@ -717,7 +727,7 @@ function updatePlots() {
     updateIOPlot();
     updateDurationPlot();
   }
- 
+
 }
 
 function updateIOPlot() {
@@ -783,7 +793,7 @@ function problemToMessage(problem: any): string {
   let problemValue: any = Object.values(problem)[0];
   switch (problemKey) {
     case 'ram_relative': {
-      
+
       if (problemValue < 0.6) {
         return `The process is consuming only ${(problemValue * 100).toFixed(2)}% of the requested RAM.`;
       } else {
@@ -833,11 +843,11 @@ function currentlySelectedWorkflowHasPlottableData(): boolean {
     return workflowState.currentState[workflowState.selectedRun] && workflowState.currentState[workflowState.selectedRun] !== "WAITING";
   }
   return false;
-  
+
 }
 
 function tagToString(tag: any){
- 
+
   if (Object.keys(tag)[0] !== ''){
     return `${Object.keys(tag)[0].toString()}: ${Object.values(tag)[0].toString()}`
   } else {
@@ -875,10 +885,10 @@ function adjustSelectedRun(): void {
     } else {
       createPlots();
     }
-    
+
   }
 }
-  
+
 
 
 function createProcessObjectsByRun(data: any): any {
@@ -917,7 +927,7 @@ function updateRunStartMapping(): void {
   }
   workflowState.runStartMapping = result;
 
-  
+
 }
 
 function changeSidebarState(value: boolean = true): void {
@@ -932,7 +942,7 @@ function startBackToMainTimer(): void {
   destroyPollTimer();
   setTimeout(() => {
     goBackToMain();
-    
+
   }, 5000);
 }
 
@@ -947,7 +957,7 @@ function updateCurrentState(): void {
     } else {
       return currMeta;
     }
-  }); 
+  });
   adjustCurrentStateForRun(name, meta);
   }
   if (processes) {
@@ -992,7 +1002,7 @@ function updateProgress(): void {
       all += 1;
     }
   }
-  
+
   workflowState.progress = {
     "all": all,
     "submitted": submitted,
@@ -1022,7 +1032,7 @@ function adjustCurrentStateForRun(nameKey: string, meta: any) {
       }
       workflowState.currentState = "SUBMITTED";
     }
-  } 
+  }
   } else if (meta['event'] === "completed") {
     if (meta["error_message"] !== null) {
 
@@ -1037,7 +1047,7 @@ function adjustCurrentStateForRun(nameKey: string, meta: any) {
   } else {
       workflowState.currentState[nameKey] = "SUBMITTED";
     }
-    
+
   checkForPollingTimerAdjustment();
 }
 
@@ -1078,7 +1088,7 @@ function updateToSlowerPolling(): void {
 }
 
 function updateRunningProcesses(): any {
-  
+
   let processes: any = {};
   const allProcesses = toRaw(workflowState.processObjects);
   if (allProcesses) {
@@ -1092,7 +1102,7 @@ function updateRunningProcesses(): any {
       }
     }
   }
-  
+
   return processes;
 }
 
@@ -1185,7 +1195,7 @@ function mapAvailableProcesses(): void {
       }
     }
   }
-  
+
   filterState.processTaskMapping = result;
 }
 
@@ -1552,7 +1562,7 @@ function generateCPUData(): [string[], any[]] {
     allocation_data.push(single_allocation_data);
   }
 
-  
+
   datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 30 })
   datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 30 });
 
@@ -1609,11 +1619,11 @@ onMounted(() => {
   FilterService.register('tagTableFilter', (value, filter): boolean => {
     filter = toRaw(filter);
     value = toRaw(value);
-    
+
     if (filter === null) {
       return true;
     }
-    
+
     let valueTags: any[] = [];
 
     for (let val of value) {
@@ -1621,18 +1631,18 @@ onMounted(() => {
     }
 
     let filterTags: any[] = [];
-    
+
     for (let fil of filter) {
       filterTags.push(toRaw(fil));
     }
 
     const commonObjects = filterTags.filter((filObj: any) => valueTags.some((valueObj: any) => {
-      return Object.keys(filObj)[0] === Object.keys(valueObj)[0] && Object.values(filObj)[0] === Object.values(valueObj)[0]; 
+      return Object.keys(filObj)[0] === Object.keys(valueObj)[0] && Object.values(filObj)[0] === Object.values(valueObj)[0];
     }))
 
     return commonObjects.length > 0;
   });
-  
+
   getDataInitial();
 });
 
@@ -1647,7 +1657,7 @@ onUnmounted(() => {
       <Menubar :model="uiState.menuItems">
             <template #start>
                 <img alt="logo" src="https://primefaces.org/cdn/primevue/images/logo.svg" height="40" class="mx-4" />
-               
+
             </template>
             <template #end>
               <div class="mx-5">
@@ -1676,7 +1686,7 @@ onUnmounted(() => {
   </div>
 
   <div v-if="workflowState.token && workflowState.token_info_requested" >
-  
+
 
   <div class="card-body mt-4 py-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0" id="run_selection_div">
       <h3 class="card-title">Select runs</h3>
@@ -1719,7 +1729,7 @@ onUnmounted(() => {
         Please select a workflow run above
       </Message>
     </div>
-     
+
     </div>
     <div class="card-body mb-4">
       <Message v-if="currentlySelectedWorkflowHasPlottableData()" :closable="false" :severity="severityFromWorkflowState()">
@@ -1727,7 +1737,7 @@ onUnmounted(() => {
       <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of
         the workflow!</Message>
       <Message :closable="false" v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0 || workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0" severity="warn">
-        In the analysis of the metrics, it was found that improvements can possibly be made in the development of the workflow. 
+        In the analysis of the metrics, it was found that improvements can possibly be made in the development of the workflow.
         You are able to check this in the analysis section of this page.
       </Message>
     </div>
@@ -1771,7 +1781,7 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-    
+
     <div class="card-body mb-4" v-if="Object.keys(workflowState.runningProcesses).length > 0 ">
       <h5 class="card-title">Currently running</h5>
       <hr>
@@ -1780,7 +1790,7 @@ onUnmounted(() => {
         <div class="col-auto"><strong>{{ process }}</strong> - {{ info.length > 1 ?
           info.length + ' processes' : '1 process' }} with tags : </div>
           <div class="mx-1 col-auto" v-for="proc of info">
-            <Tag 
+            <Tag
             v-for="tag of proc.tag" :value="Object.keys(tag)[0] === '' ? 'Empty Tag' : Object.keys(tag)[0] + ': ' + Object.values(tag)[0]"></Tag>
           </div>
       </div>
@@ -1956,8 +1966,12 @@ onUnmounted(() => {
           <Column field="cpus" header="Requested CPUs" sortable></Column>
           <Column field="cpu_percentage" header="CPU %" style="min-width: 150px;" sortable>
             <template #body="{ data }">
-              {{ data["cpu_percentage"].toFixed(2) }} %
-            </template>  
+              <span v-if="data['cpu_percentage']">
+              {{ data["cpu_percentage"].toFixed(2) }} %</span>
+              <span v-else>No data</span>
+
+            </template>
+
           </Column>
           <Column header="CPU allocation" sortable field="allocation" :sort-field="allocationSort">
             <template #body="{ data }" >
@@ -2021,7 +2035,7 @@ onUnmounted(() => {
       </div>
     </div>
     </div>
-    
+
     <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="metric_visualization_div">
       <div>
         <h3 class="my-2">Metric Visualizaton</h3>
@@ -2107,7 +2121,7 @@ onUnmounted(() => {
           </TabPanel>
       </TabView>
       </div>
-      
+
 
       <div class="card-body my-4"
         v-if="workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0"
@@ -2128,7 +2142,7 @@ onUnmounted(() => {
           <p>
             Below is a list of processes which need the most time.
           </p>
-          <DataTable :value="workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun]" 
+          <DataTable :value="workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun].length">
           <Column field="task_id" header="Task-ID" ></Column>
           <Column field="process" header="Process">
@@ -2138,7 +2152,11 @@ onUnmounted(() => {
           </Column>
           <Column field="duration" header="Duration" sortable>
             <template #body="{data}">
-              {{ getDynamicDurationType(data['duration']) }} 
+              <span v-if="data['duration']">
+                {{ getDynamicDurationType(data['duration']) }}
+              </span>
+              <span v-else>No data</span>
+
             </template>
           </Column>
           </DataTable>
@@ -2147,7 +2165,7 @@ onUnmounted(() => {
           <p>
             Below is a list of processes which need the most time summarized over all
           </p>
-          <DataTable :value="workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun]" 
+          <DataTable :value="workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun].length">
           <Column field="process" header="Process">
             <template #body="{data}">
@@ -2156,7 +2174,7 @@ onUnmounted(() => {
           </Column>
           <Column field="duration" header="Duration summarized" sortable>
             <template #body="{data}">
-              {{ getDynamicDurationType(data['duration']) }} 
+              {{ getDynamicDurationType(data['duration']) }}
             </template>
           </Column>
           </DataTable>
@@ -2166,7 +2184,7 @@ onUnmounted(() => {
           <p>
             Below is a list of processes which need the most time in average for all process instances
           </p>
-          <DataTable :value="workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun]" 
+          <DataTable :value="workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun].length">
           <Column field="process" header="Process">
             <template #body="{data}">
@@ -2175,7 +2193,7 @@ onUnmounted(() => {
           </Column>
           <Column field="duration" header="Duration in average" sortable>
             <template #body="{data}">
-              {{ getDynamicDurationType(data['duration']) }} 
+              {{ getDynamicDurationType(data['duration']) }}
             </template>
           </Column>
           </DataTable>
@@ -2192,7 +2210,7 @@ onUnmounted(() => {
           <p>
             Below is a list of processes which have the lowest CPU allocation
           </p>
-          <DataTable :value="workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun]" 
+          <DataTable :value="workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun].length">
           <Column field="task_id" header="Task-ID" ></Column>
           <Column field="process" header="Process">
@@ -2202,7 +2220,7 @@ onUnmounted(() => {
           </Column>
           <Column field="allocation" header="CPU allocation" sortable>
             <template #body="{data}">
-              {{ data["allocation"].toFixed(2) }} % 
+              {{ data["allocation"].toFixed(2) }} %
             </template>
           </Column>
           </DataTable>
@@ -2211,7 +2229,7 @@ onUnmounted(() => {
           <p>
             Below is a list of processes which have the highest CPU allocation
           </p>
-          <DataTable :value="workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun]" 
+          <DataTable :value="workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun].length">
           <Column field="task_id" header="Task-ID" ></Column>
           <Column field="process" header="Process">
@@ -2221,7 +2239,7 @@ onUnmounted(() => {
           </Column>
           <Column field="allocation" header="CPU allocation" sortable>
             <template #body="{data}">
-              {{ data["allocation"].toFixed(2) }} % 
+              {{ data["allocation"].toFixed(2) }} %
             </template>
           </Column>
           </DataTable>
@@ -2237,7 +2255,7 @@ onUnmounted(() => {
           <p>
             Below is a list of processes which have the lowest Memory allocation average
           </p>
-          <DataTable :value="workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun]" 
+          <DataTable :value="workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun].length">
           <Column field="process" header="Process">
             <template #body="{data}">
@@ -2246,7 +2264,7 @@ onUnmounted(() => {
           </Column>
           <Column field="memory_allocation" header="Memory Allocation average" sortable>
             <template #body="{data}">
-              {{ (data["memory_allocation"] * 100).toFixed(2) }} % 
+              {{ (data["memory_allocation"] * 100).toFixed(2) }} %
             </template>
           </Column>
           </DataTable>
@@ -2255,7 +2273,7 @@ onUnmounted(() => {
           <p>
             Below is a list of processes which have the highest Memory allocation average
           </p>
-          <DataTable :value="workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun]" 
+          <DataTable :value="workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun].length">
           <Column field="process" header="Process">
             <template #body="{data}">
@@ -2264,7 +2282,7 @@ onUnmounted(() => {
           </Column>
           <Column field="memory_allocation" header="Memory Allocation average" sortable>
             <template #body="{data}">
-              {{ (data["memory_allocation"] * 100).toFixed(2) }} % 
+              {{ (data["memory_allocation"] * 100).toFixed(2) }} %
             </template>
           </Column>
           </DataTable>
@@ -2273,16 +2291,16 @@ onUnmounted(() => {
           <p>
             Below is a list of processes which have the worst memory usage
             </p>
-          <DataTable :value="workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun]" 
+          <DataTable :value="workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun].length">
           <Column field="process" header="Process">
             <template #body="{data}">
               {{ getSuffix(data['process']) }}
             </template>
           </Column>
-          <Column field="memory_relation" header="Memory Allocation average" sortable>
+          <Column field="memory_relation" header="Memory relation average (physical RAM to VRAM)" sortable>
             <template #body="{data}">
-              {{ (data["memory_relation"] * 100).toFixed(2) }} % 
+              {{ (data["memory_relation"] * 100).toFixed(2) }} %
             </template>
           </Column>
           </DataTable>
@@ -2292,10 +2310,10 @@ onUnmounted(() => {
         </div>
       </div>
 
-      
-     
+
+
     </div>
-    <hr>  
+    <hr>
     <div class="card-body my-4" v-if="workflowState.error_on_request">
       <div class="alert alert-info">
         This token is not correct, please enter another token
@@ -2311,7 +2329,7 @@ onUnmounted(() => {
       :pt="{
         closeButton : { class: 'd-none'}
       }"
-      
+
     >
       <template #header>
         <div class="row justify-content-end">
@@ -2330,14 +2348,14 @@ onUnmounted(() => {
   <li class="list-group-item list-group-item-action nav-lg-item" id="metric-nav-item">Metric Visualizaton</li>
   <li class="list-group-item list-group-item-action nav-lg-item" id="analysis-nav-item">Analysis</li>
 </ul>
-     
-      
+
+
   </Sidebar>
 
   <ScrollTop />
   <Toast position="center" />
   <ConfirmDialog></ConfirmDialog>
-  
+
 </template>
 
 <style scoped></style>
