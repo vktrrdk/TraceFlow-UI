@@ -142,6 +142,7 @@ const workflowState = reactive<{
   processObjects: Process[];
   processAnalysis: any;
   tagAnalysis: any;
+  fullAnalysis: any;
   processesByRun: any;
   runStartMapping: any;
   selectedRun: string;
@@ -170,6 +171,7 @@ const workflowState = reactive<{
   processObjects: [],
   processAnalysis: {},
   tagAnalysis: {},
+  fullAnalysis: {},
   processesByRun: {},
   runStartMapping: {},
   selectedRun: '',
@@ -259,6 +261,7 @@ function getDataInitial(token = props.token): void {
           workflowState.runningProcesses = updateRunningProcesses();
           workflowState.processAnalysis = response.data["result_analysis"]["process_wise"];
           workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
+          workflowState.fullAnalysis = response.data["result_analysis"]
           updateCurrentState();
           updateProgress();
 
@@ -306,6 +309,7 @@ function dataPollingLoop(): void {
         workflowState.runningProcesses = updateRunningProcesses();
         workflowState.processAnalysis = response.data["result_analysis"]["process_wise"]
         workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
+        workflowState.fullAnalysis = response.data["result_analysis"]
         updateCurrentState();
         updateProgress();
         workflowState.error_on_request = false;
@@ -1139,6 +1143,27 @@ function getSuffix(str: string) {
   const parts: string[] = str.split(":");
 
   return parts[parts.length - 1];
+}
+
+function getDynamicDurationType(duration: number): string {
+  let durationInSeconds = duration / 1000;
+  if (durationInSeconds > 60) {
+    let durationInMinutes = durationInSeconds / 60;
+    if (durationInMinutes > 60) {
+      let durationInHours = durationInMinutes / 60;
+      let fullHours = Math.floor(durationInHours);
+      let rest = durationInHours - fullHours;
+
+      return `${fullHours}:${(60 * rest).toFixed(2)} h`;
+    } else {
+      let fullMinutes = Math.floor(durationInMinutes);
+      let rest = durationInMinutes - fullMinutes;
+
+      return `${fullMinutes}:${(60 * rest).toFixed(2)}  min`;
+    }
+  } else {
+    return `${durationInSeconds.toFixed(2)} s`;
+  }
 }
 
 function getProcessNamesOnly(): any[] {
@@ -2082,6 +2107,7 @@ onUnmounted(() => {
           </TabPanel>
       </TabView>
       </div>
+      
 
       <div class="card-body my-4"
         v-if="workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0"
@@ -2095,10 +2121,178 @@ onUnmounted(() => {
           </TabPanel>
       </TabView>
       </div>
-      <div class="card-body my-2" 
-      v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length === 0 && workflowState.tagAnalysis[workflowState.selectedRun]?.length === 0">
-        <Message severity="success"></Message>
+
+      <div class="card-body my-4">
+        <h6>Duration</h6>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun]">
+          <p>
+            Below is a list of processes which need the most time.
+          </p>
+          <DataTable :value="workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun]" 
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun].length">
+          <Column field="task_id" header="Task-ID" ></Column>
+          <Column field="process" header="Process">
+            <template #body="{data}">
+              {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="duration" header="Duration" sortable>
+            <template #body="{data}">
+              {{ getDynamicDurationType(data['duration']) }} 
+            </template>
+          </Column>
+          </DataTable>
+        </div>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun]">
+          <p>
+            Below is a list of processes which need the most time summarized over all
+          </p>
+          <DataTable :value="workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun]" 
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun].length">
+          <Column field="process" header="Process">
+            <template #body="{data}">
+              {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="duration" header="Duration summarized" sortable>
+            <template #body="{data}">
+              {{ getDynamicDurationType(data['duration']) }} 
+            </template>
+          </Column>
+          </DataTable>
+        </div>
+
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun]">
+          <p>
+            Below is a list of processes which need the most time in average for all process instances
+          </p>
+          <DataTable :value="workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun]" 
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun].length">
+          <Column field="process" header="Process">
+            <template #body="{data}">
+              {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="duration" header="Duration in average" sortable>
+            <template #body="{data}">
+              {{ getDynamicDurationType(data['duration']) }} 
+            </template>
+          </Column>
+          </DataTable>
+        </div>
+
+        <div v-else>
+          <Message severity="info">There currently is no information to show regarding the duration of processes</Message>
+        </div>
       </div>
+
+      <div class="card-body my-4">
+        <h6>CPU </h6>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun]">
+          <p>
+            Below is a list of processes which have the lowest CPU allocation
+          </p>
+          <DataTable :value="workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun]" 
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun].length">
+          <Column field="task_id" header="Task-ID" ></Column>
+          <Column field="process" header="Process">
+            <template #body="{data}">
+              {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="allocation" header="CPU allocation" sortable>
+            <template #body="{data}">
+              {{ data["allocation"].toFixed(2) }} % 
+            </template>
+          </Column>
+          </DataTable>
+        </div>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun]">
+          <p>
+            Below is a list of processes which have the highest CPU allocation
+          </p>
+          <DataTable :value="workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun]" 
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun].length">
+          <Column field="task_id" header="Task-ID" ></Column>
+          <Column field="process" header="Process">
+            <template #body="{data}">
+              {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="allocation" header="CPU allocation" sortable>
+            <template #body="{data}">
+              {{ data["allocation"].toFixed(2) }} % 
+            </template>
+          </Column>
+          </DataTable>
+        </div>
+        <div v-else>
+          <Message severity="info">There currently is no information to show regarding the CPU allocation of processes</Message>
+        </div>
+      </div>
+
+      <div class="card-body my-4">
+        <h6>Memory</h6>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun]">
+          <p>
+            Below is a list of processes which have the lowest Memory allocation average
+          </p>
+          <DataTable :value="workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun]" 
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun].length">
+          <Column field="process" header="Process">
+            <template #body="{data}">
+              {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="memory_allocation" header="Memory Allocation average" sortable>
+            <template #body="{data}">
+              {{ (data["memory_allocation"] * 100).toFixed(2) }} % 
+            </template>
+          </Column>
+          </DataTable>
+        </div>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun]">
+          <p>
+            Below is a list of processes which have the highest Memory allocation average
+          </p>
+          <DataTable :value="workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun]" 
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun].length">
+          <Column field="process" header="Process">
+            <template #body="{data}">
+              {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="memory_allocation" header="Memory Allocation average" sortable>
+            <template #body="{data}">
+              {{ (data["memory_allocation"] * 100).toFixed(2) }} % 
+            </template>
+          </Column>
+          </DataTable>
+        </div>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun]">
+          <p>
+            Below is a list of processes which have the worst memory usage
+            </p>
+          <DataTable :value="workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun]" 
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun].length">
+          <Column field="process" header="Process">
+            <template #body="{data}">
+              {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="memory_relation" header="Memory Allocation average" sortable>
+            <template #body="{data}">
+              {{ (data["memory_relation"] * 100).toFixed(2) }} % 
+            </template>
+          </Column>
+          </DataTable>
+        </div>
+        <div v-else>
+          <Message severity="info">There currently is no information to show regarding the memory allocation of processes</Message>
+        </div>
+      </div>
+
+      
      
     </div>
     <hr>  

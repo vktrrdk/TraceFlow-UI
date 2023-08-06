@@ -17,12 +17,13 @@
   - [x] Tag und Process-Selection abhängig vom gewählten Run  
 - [x] sortiere Run-Auswahl nach Start-Datum 
 - [x] **Arbeit an Alerting Part**
-- [ ] Sidebar wegen vielem Scrollen
-- [ ] Alerting Adjustments - alle Werte Trace Werte hinzuziehen, nicht nur die des Runs (so ist es aktuell bei der Duration)
+- [x] Sidebar wegen vielem Scrollen
 - [ ] **Test-Workflows** 
   - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
 - [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 
 - [ ] **Vergleiche zwei Runs miteinander** 
+- [ ] Analysemetriken einschränken - setze dynamische grenzen für die Relevanz
+- [ ] Hinweise für den Umgang mit den analysierten Daten
 - [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
 - [ ] filter für currently-running
 - [ ] axis labelings (% and so on)
