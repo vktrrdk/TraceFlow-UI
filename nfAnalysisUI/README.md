@@ -27,6 +27,7 @@
 - [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
 - [ ] filter für currently-running
 - [ ] axis labelings (% and so on)
+- [ ] Ratio plot zahlen anpassen + zoom + einschränken? was ist mit den labels?
 - [ ] native_id - kann für Steal-Time usw. genutzt
   - [ ] Über pyslurm hostnamen des prozesses abfragen
     - [ ] BatchHost für native-id (welche die JobId für Slurm ist) holen

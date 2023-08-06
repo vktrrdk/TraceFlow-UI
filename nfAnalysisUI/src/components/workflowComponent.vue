@@ -34,11 +34,13 @@ import ScrollTop from 'primevue/scrolltop';
 import Sidebar from 'primevue/sidebar';
 import Menubar from 'primevue/menubar';
 import InputSwitch from "primevue/inputswitch";
-import InputNumber from "primevue/inputnumber"
+import InputNumber from "primevue/inputnumber";
+import {PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart-error-bars';
 
 
 
-Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale);
+
+Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale, ScatterWithErrorBarsController, PointWithErrorBar);
 
 const router = useRouter();
 const route = useRoute();
@@ -206,7 +208,9 @@ const metricCharts = reactive<{
   ioChart: any | null;
   ioCanvas: any | null;
   cpuChart: any | null;
-  cpuCanvas: any | null
+  cpuCanvas: any | null;
+  cpuRamRatioCanvas: any | null;
+  cpuRamRatioChart: any | null;
   durationChart: any | null;
   durationCanvas: any | null;
   dynamicChart: any | null;
@@ -221,6 +225,8 @@ const metricCharts = reactive<{
   ioCanvas: null,
   cpuChart: null,
   cpuCanvas: null,
+  cpuRamRatioCanvas: null,
+  cpuRamRatioChart: null,
   durationChart: null,
   durationCanvas: null,
   dynamicChart: null,
@@ -298,6 +304,12 @@ function setAnalysisParams(): any {
   if (requestState.request_activated["top_percent_ratio"]) {
     params["top_percent_ratio"] = requestState.request_params["top_percent_ratio"];
     params["limit_processes_per_domain_by_number"] = requestState.request_params["limit_processes_per_domain_by_number"];
+  }
+  if (requestState.request_activated['interval_valid_cpu_allocation_percentage']) {
+    params['interval_valid_cpu_allocation_percentage'] = [
+      requestState.request_params['interval_valid_cpu_allocation_percentage_min'], 
+      requestState.request_params['interval_valid_cpu_allocation_percentage_max'],
+    ]
   }
 
   return params;
@@ -544,12 +556,13 @@ async function createPlots() {
   createCPUPlot();
   createIOPlot();
   createDurationPlot();
+  createCPURamRatioPlot();
   metricCharts.chartsGenerated = true;
 }
 
 /* TODO: REFACTOR regarding asynchron
 */
-function generateDiv(elementId: string, title: string): HTMLCanvasElement {
+function generateDiv(elementId: string, title: string, targetDivElementID: string = 'canvas_area'): HTMLCanvasElement {
   const divWithCanvas = document.createElement('div');
   const titleElement = document.createElement('h5');
   titleElement.textContent = title;
@@ -559,7 +572,7 @@ function generateDiv(elementId: string, title: string): HTMLCanvasElement {
   canvas.classList.add("p-4")
   divWithCanvas.appendChild(titleElement);
   divWithCanvas.appendChild(canvas);
-  const targetDiv = document.getElementById('canvas_area');
+  const targetDiv = document.getElementById(targetDivElementID);
   if (targetDiv !== null) {
     targetDiv.appendChild(divWithCanvas);
   }
@@ -727,6 +740,38 @@ async function createCPUPlot() {
 
 }
 
+async function createCPURamRatioPlot() {
+  const canvas: HTMLCanvasElement = generateDiv('cpu_ram_ratio', 'CPU/RAM', 'analysis_canvas_area');
+  metricCharts.cpuRamRatioCanvas = canvas;
+  await delay(300);
+  const cpuRamRatioChart = new Chart(
+    metricCharts.cpuRamRatioCanvas,
+    {
+      type: 'scatterWithErrorBars',
+      options: {
+      responsive: true,
+      plugins: {
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
+          }
+        }
+      },
+      data: {
+        labels: [],
+        datasets: [],
+      }
+    
+    } 
+  )
+  Object.seal(cpuRamRatioChart);
+  metricCharts.cpuRamRatioChart = cpuRamRatioChart;
+
+  updateCPURamRatioChart();
+}
+
 /** End of Plot creation */
 
 /** Plot updating **/
@@ -738,6 +783,7 @@ function updatePlots() {
     updateCPUPlot();
     updateIOPlot();
     updateDurationPlot();
+    updateCPURamRatioChart();
   }
 
 }
@@ -776,6 +822,14 @@ function updateCPUPlot() {
   metricCharts.cpuChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.cpuChart.data.datasets = generatedDatasets[1];
   metricCharts.cpuChart.update('none');
+}
+
+function updateCPURamRatioChart() {
+  let rawedFullAnalysis: any = toRaw(workflowState.fullAnalysis);
+  metricCharts.cpuRamRatioChart.data.labels = getSuffixes(rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['labels']);
+  metricCharts.cpuRamRatioChart.data.datasets = [rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['data']];
+  metricCharts.cpuRamRatioChart.update('none');
+  
 }
 
 function updateDurationPlot() {
@@ -1448,6 +1502,11 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
 
 /** this could be more general? **/
 
+
+function generateAnalysisRatioData(): [string[], any[]] {
+  return [];
+}
+
 function generateMemoryRelativeData(): [string[], any[]] {
   let datasets: any[] = [];
   let selectedTags: any = [];
@@ -2111,7 +2170,7 @@ onUnmounted(() => {
 
 
       </div>
-      <div class="card-body my-4 py-2" id="canvas_area">
+      <div class="card-body my-4 py-2" id="canvas_area"> 
 
       </div>
       <hr>
@@ -2125,18 +2184,33 @@ onUnmounted(() => {
         <h5>Settings</h5>
         <p>Below you can adjust the settings for the analyis, e.g. by changing the thresholds to consider.</p>
         <div class="my-2">
-          <div class=row>
-            <div class="col-4 p-2">
+          <div class="row p-1">
+            <div class="col-4 p-1">
             Top percentage ratio and maximal number of processes <InputSwitch v-model="requestState.request_activated['top_percent_ratio']"></InputSwitch>
             </div>
-            <div class="col-4 p-2">
-              <InputNumber suffix="%" v-model="requestState.request_params['top_percent_ratio']" :min="0" :max="100"/>
+            <div class="col-4 p-1">
+              <InputNumber suffix=" %" v-model="requestState.request_params['top_percent_ratio']" :min="0" :max="100"/>
             </div>
-            <div class="col-4 p-2">
+            <div class="col-4 p-1">
               <InputNumber suffix=" processes" v-model="requestState.request_params['limit_processes_per_domain_by_number']" :min="1" :max="15"/>
             </div>
           </div>
+          <div class="row p-1">
+            <div class="col-4 p-1">
+            Valid procentage CPU allocation interval <InputSwitch v-model="requestState.request_activated['interval_valid_cpu_allocation_percentage']"></InputSwitch>
+            </div>
+            <div class="col-4 p-1">
+              <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_cpu_allocation_percentage_min']" :min="0" :max="95"/>
+            </div>
+            <div class="col-4 p-1">
+              <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_cpu_allocation_percentage_max']" :min="96" :max="200"/>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div class="card-body my-4 py-2" id="analysis_canvas_area"> 
+        
       </div>
 
       <div class="my-4"
