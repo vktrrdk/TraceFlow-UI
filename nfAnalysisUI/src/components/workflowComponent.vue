@@ -120,9 +120,11 @@ function allocationSort(a) {
 function processIsDeclaredProblematic(data: any): boolean {
   if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
     const keysToCheck: string[] = ["process", "task_id", "run_name"];
-    return workflowState.processAnalysis[workflowState.selectedRun].some((analysisObj: any) => {
+    if (workflowState.processAnalysis[workflowState.selectedRun]){
+      return workflowState.processAnalysis[workflowState.selectedRun].some((analysisObj: any) => {
       return keysToCheck.every(key => analysisObj[key] === data[key]);
-    } )
+    } );
+    }
   }
   return false;
 }
@@ -914,7 +916,7 @@ function updateCPURamRatioChart() {
 }
 
 function updateDurationPlot() {
-  let generatedDatasets: [string[], any[]] = generateDurationData('h');
+  let generatedDatasets: [string[], any[]] = generateDurationData('min');
   // getSuffixes is already part of generateDurationData-function
   metricCharts.durationChart.data.labels = generatedDatasets[0];
   metricCharts.durationChart.data.datasets = generatedDatasets[1];
@@ -1025,7 +1027,6 @@ function adjustTextForRatioMessage(clickedProcess: string) {
     return processValues.id == clickedProcess;
   });
 
-  console.log(elem);
   let cpu_data: any[] = [elem["xMin"], elem["x"], elem["xMax"]];
   let memory_data: any[] = [elem["yMin"], elem["y"], elem["yMax"]];
 
@@ -1613,9 +1614,9 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1, unit: 
       let value: any = process[key];
       if (value && unit) {
         if (TIME_UNITS.includes(unit)) {
-          getDynamicDurationTypeAsNumber(unit)
+          value = getDynamicDurationTypeAsNumber(value, unit);
         } else if (STORAGE_UNITS.includes(unit)) {
-          getSingleDataInValidStorageFormat(value, unit)
+          value = getSingleDataInValidStorageFormat(value, unit);
         }
       }
       if (!(process.process in processDataMapping)) {
@@ -1864,13 +1865,13 @@ function generateCPUData(): [string[], any[]] {
 
 function generateDurationData(unit: string): [string[], any[]] {
   let data_sum = generateSummarizedDataByKey('duration', 1000, unit);
-  let data_exec = generateDataByKey('realtime', false, 's');
+  let data_exec = generateDataByKey('realtime', false, unit);
   let data_execution: any[] = [];
   data_exec['data'].forEach((element: any[]) => {
-    let mapped: any[] = element.map((value) => value / 1000);
+    let mapped: any[] = element.map((value) => getDynamicDurationTypeAsNumber(value, unit));
     data_execution.push(mapped);
   });
-  let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
+   //let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
 
   let datasets: any[] =
     [
@@ -1886,12 +1887,12 @@ function generateDurationData(unit: string): [string[], any[]] {
         data: data_execution,
         'maxBarThickness': 30,
       },
-      {
+      /* {
         type: 'boxplot',
         label: 'Requested time used in %',
         data: data_allocated[1],
         'maxBarThickness': 30,
-      }
+      } */
     ];
   return [getSuffixes(data_exec["labels"]), datasets];
 
@@ -1904,6 +1905,13 @@ function generateDurationData(unit: string): [string[], any[]] {
 
 function printStuff(): void {
   console.log("TEST");
+}
+
+function goToDiv(divId: string): void {
+  let targetDiv = document.getElementById(divId);
+  if (targetDiv) {
+    targetDiv.scrollIntoView({behavior: 'smooth'});
+  }
 }
 
 /* on mounted */
@@ -2711,11 +2719,11 @@ onUnmounted(() => {
       </div>
       </template>
       <ul class="list-group list-group-flush">
-  <li class="list-group-item list-group-item-action nav-lg-item" id="run-selection-nav-item">Run Selection</li>
-  <li class="list-group-item list-group-item-action nav-lg-item" id="progress-nav-item"  @click="printStuff()">Progress</li>
-  <li class="list-group-item list-group-item-action nav-lg-item" id="datatable-nav-item">Process Information</li>
-  <li class="list-group-item list-group-item-action nav-lg-item" id="metric-nav-item">Metric Visualizaton</li>
-  <li class="list-group-item list-group-item-action nav-lg-item" id="analysis-nav-item">Analysis</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="run-selection-nav-item" @click="goToDiv('run_selection_div')">Run Selection</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="progress-nav-item"  @click="goToDiv('progess_summary_div')">Progress</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="process-information-nav-item" @click="goToDiv('process_information_div')">Process Information</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="metric-nav-item" @click="goToDiv('metric_visualization_div')">Metric Visualizaton</li>
+  <li class="list-group-item list-group-item-action nav-lg-item" id="analysis-nav-item" @click="goToDiv('analysis_div')">Analysis</li>
 </ul>
 
 
