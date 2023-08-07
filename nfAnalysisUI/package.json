@@ -22,7 +22,8 @@
     "@sgratzl/chartjs-chart-boxplot": "^4.2.4",
     "chartjs-plugin-autocolors": "^0.2.2",
     "chartjs-plugin-zoom": "^2.0.1",
-    "chartjs-chart-error-bars": "^4.3.0"
+    "chartjs-chart-error-bars": "^4.3.0",
+    "chartjs-plugin-annotation": "^3.0.1"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.2.0",

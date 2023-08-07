@@ -36,11 +36,20 @@ import Menubar from 'primevue/menubar';
 import InputSwitch from "primevue/inputswitch";
 import InputNumber from "primevue/inputnumber";
 import {PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart-error-bars';
+import annotationPlugin from 'chartjs-plugin-annotation';
 
 
 
 
-Chart.register(BoxPlotController, BoxAndWiskers, LinearScale, CategoryScale, ScatterWithErrorBarsController, PointWithErrorBar);
+Chart.register(
+  BoxPlotController, 
+  BoxAndWiskers, 
+  LinearScale, 
+  CategoryScale, 
+  ScatterWithErrorBarsController, 
+  PointWithErrorBar,
+  annotationPlugin,
+);
 
 const router = useRouter();
 const route = useRoute();
@@ -76,6 +85,10 @@ const props = defineProps<{
 
 const STATUSES = ['SUBMITTED', 'RUNNING', 'COMPLETED', 'FAILED', 'ABORTED'];
 const NON_AUTO_UPDATE_STATES = ["ABORTED", "COMPLETED", "FAILED"];
+
+const STORAGE_UNITS = ['b', 'kiB', 'MiB', 'GiB'];
+const TIME_UNITS = ['s', 'min', 'h'];
+
 const FAST_INTERVAL: number = 10000;
 const SLOW_INTERVAL: number = 30000;
 const filters = ref({
@@ -144,6 +157,13 @@ const requestState = reactive<{
 }>({
   request_params: {},
   request_activated: {},
+});
+
+
+const analysisInfo = reactive<{
+  cpuRamRatioText: string;
+}>({
+  cpuRamRatioText: 'Select a process in the plot to get more information',
 });
 
 const workflowState = reactive<{
@@ -309,6 +329,12 @@ function setAnalysisParams(): any {
     params['interval_valid_cpu_allocation_percentage'] = [
       requestState.request_params['interval_valid_cpu_allocation_percentage_min'], 
       requestState.request_params['interval_valid_cpu_allocation_percentage_max'],
+    ]
+  }
+  if (requestState.request_activated['interval_valid_ram_relation']) {
+    params['interval_valid_ram_relation'] = [
+      requestState.request_params['interval_valid_ram_relation_min'],
+      requestState.request_params['interval_valid_ram_relation_max'],
     ]
   }
 
@@ -749,15 +775,70 @@ async function createCPURamRatioPlot() {
     {
       type: 'scatterWithErrorBars',
       options: {
-      responsive: true,
-      plugins: {
+        responsive: true,
+        plugins: {
+          annotation: {
+                annotations: {
+                  box_valid: {
+                    type: 'box',
+                    xMin: 80, // Minimum x-value of the area
+                    xMax: 120, // Maximum x-value of the area
+                    yMin: 80, // Minimum y-value of the area
+                    yMax: 120, // Maximum y-value of the area
+                    backgroundColor: 'rgba(38, 131, 17, 0.22)', // Area background color
+                    borderWidth: 0,
+                },
+              
+          },
+        },
           legend: {
             display: true,
           },
           tooltip: {
             enabled: true
+          },
+        },
+        scales: {
+            x: {
+              min: 0,
+                ticks: {
+                    // Include a dollar sign in the ticks
+                    callback: function(value, index, ticks) {
+                        return value + ' %'
+                    }
+                }
+            },
+            y: {
+              min: 0,
+                ticks: {
+                    // Include a dollar sign in the ticks
+                    callback: function(value, index, ticks) {
+                        return value + ' %'
+                    }
+                }
+            }
+        },
+        /**
+         * open-ai query: consider having a scatter plot with chart.js.
+is there a possibility to connect the datapoints with certain ids or other values, so when a scatter-plot datapoint gets clicked, it emits this certain id or value?
+         */
+        onClick: function(event, datapoints) {
+          if (datapoints.length > 0) {
+            let element = datapoints[0];
+            let datasetIndex = element.datasetIndex;
+            let index = element.index;
+            let clickedProcess: string = metricCharts.cpuRamRatioChart.data.datasets[datasetIndex].data[index].id;
+            adjustTextForRatioMessage(clickedProcess);
           }
-        }
+        },
+        onHover: function(event, datapoints) {
+            if (datapoints.length > 0) {
+                event.native.target.style.cursor = 'pointer';
+            } else {
+                event.native.target.style.cursor = 'default';
+            }
+        },
+
       },
       data: {
         labels: [],
@@ -792,7 +873,7 @@ function updateIOPlot() {
   let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
     ['read_bytes', 'write_bytes'],
     true,
-    'MiB',
+    'GiB',
     ['Read in ', 'Written in '],
     filterState.selectedMetricProcesses
   );
@@ -806,7 +887,7 @@ function updateRamPlot() {
   let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
     ['memory', 'vmem', 'rss'],
     true,
-    'MiB',
+    'GiB',
     ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '],
     filterState.selectedMetricProcesses,
   );
@@ -833,7 +914,7 @@ function updateCPURamRatioChart() {
 }
 
 function updateDurationPlot() {
-  let generatedDatasets: [string[], any[]] = generateDurationData();
+  let generatedDatasets: [string[], any[]] = generateDurationData('h');
   // getSuffixes is already part of generateDurationData-function
   metricCharts.durationChart.data.labels = generatedDatasets[0];
   metricCharts.durationChart.data.datasets = generatedDatasets[1];
@@ -853,6 +934,111 @@ function updateRelativeRamPlot() {
 
 /** helper functions */
 
+
+
+function getCPURatioAnalysisString(elem: any[]) {
+  let lower = 80, higher = 120;
+  if (requestState.request_activated['interval_valid_cpu_allocation_percentage']) {
+    if (requestState.request_params['interval_valid_cpu_allocation_percentage_min'] && requestState.request_params['interval_valid_cpu_allocation_percentage']){
+      lower = requestState.request_params['interval_valid_cpu_allocation_percentage_min'];
+      higher = requestState.request_params['interval_valid_cpu_allocation_percentage_max'];
+    }
+  }
+  if (elem[0] < lower) {
+    if (elem[1] < lower) {
+      if (elem[2] < lower) {
+        return "The process requires less than the requested CPU resources for all instances."
+      } else if (elem[2] > higher){
+        return "The process requires less CPU resources than requested for several instances, but there are also cases where the process requires significantly more.";
+      } else {
+        return "For some executions, the process requires less than the requested CPU resources";
+      }
+    } else if (elem[1] > higher){
+      return "The process requires less CPU resources than requested for several instances, but for most cases where it requires significantly more.";
+    } else {
+      if (elem[2] > higher) {
+        return "The process requires less CPU resources than requested for several instances, but there are also cases where the process requires significantly more.";
+      } else {
+        return "For some executions, the process requires less than the requested CPU resources";
+      }
+    }
+  } else if (elem[0] > higher){
+    return "The process is using more CPU as wanted for all process instances. It may be useful, to adjust the number of available CPUs for this process.";
+  
+  } else {
+    if (elem[1] < higher) {
+      if (elem[2] < higher) {
+        return "The CPU resources allocated to the process are well used!";
+      } else {
+        return "For some executions, this process requires more CPU resources than requested.";
+      }
+    } else {
+      return "For most executions this process requires more CPU resources than requested.";
+    } 
+  }
+}
+
+function getRAMRatioAnalysisString(elem: any[]) {
+  let lower = 80, higher = 120;
+
+  if (elem[0] < lower) {
+    if (elem[1] < lower) {
+      if (elem[2] < lower) {
+        return "The process requires less than the requested Memory resources for all instances."
+      } else if (elem[2] > higher){
+        return "The process requires less Memory resources than requested for several instances, but there are also cases where the process requires significantly more.";
+      } else {
+        return "For some executions, the process requires less than the requested Memory resources";
+      }
+    } else if (elem[1] > higher){
+      return "The process requires less memory resources than requested for several instances, but for most cases where it requires significantly more.";
+    } else {
+      if (elem[2] > higher) {
+        return "The process requires less memory resources than requested for several instances, but there are also cases where the process requires significantly more.";
+      } else {
+        return "For some executions, the process requires less than the requested memory resources";
+      }
+    }
+  } else if (elem[0] > higher){
+    return "The process is using more memory as wanted for all process instances. It may be useful, to adjust the amount of available memory for this process.";
+  
+  } else {
+    if (elem[1] < higher) {
+      if (elem[2] < higher) {
+        return "The memory resources allocated to the process are well used!";
+      } else {
+        return "For some executions, this process requires more memory resources than requested.";
+      }
+    } else {
+      return "For most executions this process requires more memory resources than requested.";
+    } 
+  }
+}
+
+
+
+
+function adjustTextForRatioMessage(clickedProcess: string) {
+  
+  let analysisData: any[] = toRaw(workflowState.fullAnalysis["cpu_ram_relation_data"][workflowState.selectedRun]["data"]["data"]);
+  let elem = analysisData.find((processValues) => {
+    return processValues.id == clickedProcess;
+  });
+
+  console.log(elem);
+  let cpu_data: any[] = [elem["xMin"], elem["x"], elem["xMax"]];
+  let memory_data: any[] = [elem["yMin"], elem["y"], elem["yMax"]];
+
+
+  
+  let concatString = `The process ${getSuffix(clickedProcess)} has the following characteristics: \n`
+  + `The CPU allocation varies from ${cpu_data[0].toFixed(2)} % to ${cpu_data[2].toFixed(2)} % with an average of ${cpu_data[1].toFixed(2)} %.\n` 
+  + `The used memory percentage varies from ${memory_data[0].toFixed(2)} % to ${memory_data[2].toFixed(2)}  with an average of ${memory_data[1].toFixed(2)} %.\n`
+  + getCPURatioAnalysisString(cpu_data) + '\n' + getRAMRatioAnalysisString(memory_data);
+
+  analysisInfo.cpuRamRatioText = concatString;
+
+}
 
 function problemToMessage(problem: any): string {
   const problemKey: string = Object.keys(problem)[0];
@@ -1221,6 +1407,23 @@ function getSuffix(str: string) {
   return parts[parts.length - 1];
 }
 
+function getDynamicDurationTypeAsNumber(duration: number, unit: any = null): number {
+  if (!unit) {
+    return duration;
+  } else {
+    duration = duration / 1000
+    if (unit === 's') {
+      return duration;
+    } 
+    duration = duration / 60;
+    if (unit === 'min'){
+      return duration;
+    }
+    duration = duration / 60
+    return duration;
+  }
+}
+
 function getDynamicDurationType(duration: number): string {
   let durationInSeconds = duration / 1000;
   if (durationInSeconds > 60) {
@@ -1360,8 +1563,19 @@ function reasonableDataFormat(input: number) {
 
 }
 
-function getDataInValidFormat(byte_numbers: number[], wantedType: string): [number[], string] {
-  const types: string[] = ['b', 'kiB', 'MiB', 'GiB'];
+function getSingleDataInValidStorageFormat(num: number, wantedType: string): number {
+  const types: string[] = STORAGE_UNITS;
+  let idx: number = 0;
+  if (num) {
+    while(types[idx] !== wantedType && idx < types.length) {
+      num = num / 1024
+      idx++;
+    }
+  }
+}
+
+function getDataInValidStorageFormat(byte_numbers: number[], wantedType: string): [number[], string] {
+  const types: string[] = STORAGE_UNITS;
   let iteration: number = 0;
 
   if (byte_numbers.length > 0) {
@@ -1378,7 +1592,7 @@ function getDataInValidFormat(byte_numbers: number[], wantedType: string): [numb
 
 /** data retrieval functions */
 
-function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
+function generateSummarizedDataByKey(key: string, factorizer: number = 1, unit: any = null): any {
   let data_pair: any = {};
   let processDataMapping: any = {};
   let tagFilter: boolean = false;
@@ -1396,17 +1610,25 @@ function generateSummarizedDataByKey(key: string, factorizer: number = 1): any {
       }
     }
     if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
+      let value: any = process[key];
+      if (value && unit) {
+        if (TIME_UNITS.includes(unit)) {
+          getDynamicDurationTypeAsNumber(unit)
+        } else if (STORAGE_UNITS.includes(unit)) {
+          getSingleDataInValidStorageFormat(value, unit)
+        }
+      }
       if (!(process.process in processDataMapping)) {
-        processDataMapping[process.process] = [process[key]];
+        processDataMapping[process.process] = [value];
       } else {
-        processDataMapping[process.process].push(process[key]);
+        processDataMapping[process.process].push(value);
       }
 
     }
   }
 
   for (let processMap in processDataMapping) {
-    if (factorizer !== 1) {
+    if (factorizer !== 1 && unit === null) {
       processDataMapping[processMap] = processDataMapping[processMap].map((elem: number) => elem / factorizer);
     }
     processDataMapping[processMap] = processDataMapping[processMap].reduce((a: number, b: number) => a + b, 0);
@@ -1446,7 +1668,7 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   }
   let temporaryValues: any[] = Object.values(processDataMapping);
   if (adjustFormat) {
-    temporaryValues = temporaryValues.map((lst: any[]) => getDataInValidFormat(lst, wantedFormat)[0]);
+    temporaryValues = temporaryValues.map((lst: any[]) => getDataInValidStorageFormat(lst, wantedFormat)[0]);
   }
 
   data_pair["data"] = temporaryValues;
@@ -1488,7 +1710,7 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
     }
     processNames = Object.keys(processDataMapping);
     if (adjust) {
-      single_dataset['data'] = Object.values(processDataMapping).map((lst: number[]) => getDataInValidFormat(lst, wantedFormat)[0]);
+      single_dataset['data'] = Object.values(processDataMapping).map((lst: number[]) => getDataInValidStorageFormat(lst, wantedFormat)[0]);
     } else {
       single_dataset['data'] = Object.values(processDataMapping);
     }
@@ -1640,8 +1862,8 @@ function generateCPUData(): [string[], any[]] {
   return [Object.keys(processDataMapping), datasets]
 }
 
-function generateDurationData(): [string[], any[]] {
-  let data_sum = generateSummarizedDataByKey('duration', 1000);
+function generateDurationData(unit: string): [string[], any[]] {
+  let data_sum = generateSummarizedDataByKey('duration', 1000, unit);
   let data_exec = generateDataByKey('realtime', false, 's');
   let data_execution: any[] = [];
   data_exec['data'].forEach((element: any[]) => {
@@ -1654,7 +1876,7 @@ function generateDurationData(): [string[], any[]] {
     [
       {
         type: 'bar',
-        label: `Summarized Duration in seconds`,
+        label: `Summarized Duration in ${unit}`,
         data: data_sum["data"],
         'maxBarThickness': 30,
       },
@@ -1851,6 +2073,8 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
+     
+  
     </div>
 
     <div class="card-body mb-4" v-if="Object.keys(workflowState.runningProcesses).length > 0 ">
@@ -1911,6 +2135,7 @@ onUnmounted(() => {
                 <!-- we want progress here https://primevue.org/datatable/#rowgroup_expandable -->
               </div>
             </template>
+            
 
             <p class="m-0">
             <ul class="list-group list-group-flush">
@@ -1951,7 +2176,7 @@ onUnmounted(() => {
         <div class=m-4></div>
         <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
           filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
-          :rowClass="rowClass"
+          :rowClass="rowClass" 
           removableSort>
           <Column field="task_id" header="Task-ID" sortable></Column>
           <Column header="Problematic" sortable field="problematic" :sort-field="isProblematic">
@@ -2029,7 +2254,7 @@ onUnmounted(() => {
           <Column field="timestamp" header="Timestamp" sortable></Column>
           <Column field="duration" sortable header="Duration">
             <template #body="{ data }">
-              <span v-if="data.duration">{{ (data.duration / 1000).toFixed(2) }} </span>
+              <span v-if="data.duration">{{ getDynamicDurationType(data.duration)}} </span>
               <span v-else>No data</span>
             </template>
 
@@ -2051,17 +2276,37 @@ onUnmounted(() => {
               </span>
             </template>
           </Column>
-          <Column field="memory_percentage" header="Memory %" sortable></Column>
+          <Column field="memory_percentage" header="Memory %" sortable>
+            <template #body="{data}">
+              <span v-if="data.memory_percentage">
+                {{ data.memory_percentage }} %
+              </span>
+              <span v-else>
+                No Data
+              </span>
+              </template>
+          </Column>
           <Column></Column>
-          <Column field="memory" header="Requested Memory">
+          <Column field="memory" header="Requested Memory" sortable>
             <template #body="{ data }">
-              {{ reasonableDataFormat(data.memory) }}
+              <span v-if="data.memory">{{ reasonableDataFormat(data.memory) }}</span>
+            <span v-else>No Data</span>
             </template>
           </Column>
-          <Column field="disk" header="Disk"></Column>
+          <Column field="disk" header="Disk" sortable>
+            <template #body="{ data }">
+              <span v-if="data.disk">
+                {{ data.disk}} %
+              </span>
+              <span v-else>
+                No Data
+              </span>
+            </template>
+          </Column>
           <Column field="rchar" header="rchar" sortable>
             <template #body="{ data }">
-              {{ reasonableDataFormat(data.char) }}
+              {{ reasonableDataFormat(data.rchar) }}
+              
             </template>
           </Column>
           <Column field="wchar" header="wchar" sortable>
@@ -2074,7 +2319,12 @@ onUnmounted(() => {
               {{ reasonableDataFormat(data.rss) }}
             </template>
           </Column>
-          <Column field="peak_rss" header="Peak rss" sortable></Column>
+          <Column field="peak_rss" header="Peak rss" sortable>
+            <template #body="{ data }">
+              <span v-if="data.peak_rss">{{ reasonableDataFormat(data.peak_rss) }}</span>
+            <span v-else>No Data</span>
+            </template>
+          </Column>
           <Column field="syscr" header="syscr" sortable></Column>
           <Column field="syscw" header="syscw" sortable></Column>
           <Column field="peak_vmem" header="Peak VMem" sortable>
@@ -2099,7 +2349,8 @@ onUnmounted(() => {
           </Column>
           <Column field="realtime" header="Realtime" sortable>
             <template #body="{ data }">
-              {{ (data.realtime / 1000) }} s
+              <span v-if=data.realtime>{{ getDynamicDurationType(data.realtime)}}</span>
+              <span v-else>No Data</span>
             </template>
           </Column>
         </DataTable>
@@ -2197,7 +2448,7 @@ onUnmounted(() => {
           </div>
           <div class="row p-1">
             <div class="col-4 p-1">
-            Valid procentage CPU allocation interval <InputSwitch v-model="requestState.request_activated['interval_valid_cpu_allocation_percentage']"></InputSwitch>
+            Valid percentage CPU allocation interval <InputSwitch v-model="requestState.request_activated['interval_valid_cpu_allocation_percentage']"></InputSwitch>
             </div>
             <div class="col-4 p-1">
               <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_cpu_allocation_percentage_min']" :min="0" :max="95"/>
@@ -2206,12 +2457,26 @@ onUnmounted(() => {
               <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_cpu_allocation_percentage_max']" :min="96" :max="200"/>
             </div>
           </div>
+          <div class="row p-1">
+            <div class="col-4 p-1">
+            Valid percentage CPU allocation interval <InputSwitch v-model="requestState.request_activated['interval_valid_ram_relation']"></InputSwitch>
+            </div>
+            <div class="col-4 p-1">
+              <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_ram_relation_min']" :min="10" :max="99"/>
+            </div>
+            <div class="col-4 p-1">
+              <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_ram_relation_max']" :min="101" :max="250"/>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="card-body my-4 py-2" id="analysis_canvas_area"> 
         
       </div>
+      <Message severity="info" :closable="false">
+        {{ analysisInfo.cpuRamRatioText }}
+      </Message>
 
       <div class="my-4"
         v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0"
