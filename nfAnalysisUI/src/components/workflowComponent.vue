@@ -35,6 +35,7 @@ import Sidebar from 'primevue/sidebar';
 import Menubar from 'primevue/menubar';
 import InputSwitch from "primevue/inputswitch";
 import InputNumber from "primevue/inputnumber";
+import Dropdown from 'primevue/dropdown';
 import {PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart-error-bars';
 import annotationPlugin from 'chartjs-plugin-annotation';
 
@@ -156,9 +157,11 @@ const uiState = reactive <{
 const requestState = reactive<{
   request_params: any
   request_activated: any,
+  comparableWorkflows: string[],
 }>({
   request_params: {},
   request_activated: {},
+  comparableWorkflows: [],
 });
 
 
@@ -625,7 +628,15 @@ async function createRelativeRamPlot() {
           tooltip: {
             enabled: true
           }
-        }
+        },
+        scales: {
+          y: {
+            title: {
+              display: true,
+              text: 'Memory usage in % (physical memory to requested memory)',
+            }
+          }
+        },
       },
       data: {
         labels: [],
@@ -659,6 +670,14 @@ async function createIOPlot() {
           tooltip: {
             enabled: true
           }
+        },
+        scales: {
+          y: {
+            title: {
+              display: true,
+              text: 'amount of read and written data in GiB',
+            }
+          }
         }
       },
       data: {
@@ -688,6 +707,14 @@ async function createDurationPlot() {
           },
           tooltip: {
             enabled: true
+          }
+        },
+        scales: {
+          y: {
+            title: {
+              display: true,
+              text: "Duration in minutes"
+            }
           }
         }
       },
@@ -721,6 +748,14 @@ async function createRamPlot() {
           tooltip: {
             enabled: true
           }
+        },
+        scales: {
+          y: {
+            title: {
+              display: true,
+            text: 'RAM value in GiB'
+            },
+          },
         }
       },
       data: {
@@ -753,6 +788,14 @@ async function createCPUPlot() {
           tooltip: {
             enabled: true
           }
+        },
+        scales: {
+          y: {
+            title: {
+              display: true,
+            text: 'CPU value in %'
+            },
+          },
         }
       },
       data: {
@@ -802,6 +845,10 @@ async function createCPURamRatioPlot() {
         },
         scales: {
             x: {
+              title: {
+                display: true,
+                text: 'CPU allocation in %',
+              },
               min: 0,
                 ticks: {
                     // Include a dollar sign in the ticks
@@ -811,8 +858,12 @@ async function createCPURamRatioPlot() {
                 }
             },
             y: {
+              title: {
+                display: true,
+                text: 'RAM allocation in %',
+              },
               min: 0,
-                ticks: {
+              ticks: {
                     // Include a dollar sign in the ticks
                     callback: function(value, index, ticks) {
                         return value + ' %'
@@ -1434,15 +1485,15 @@ function getDynamicDurationType(duration: number): string {
       let fullHours = Math.floor(durationInHours);
       let rest = durationInHours - fullHours;
 
-      return `${fullHours}:${(60 * rest).toFixed(2)} h`;
+      return `${fullHours}:${(60 * rest).toFixed(0)} h`;
     } else {
       let fullMinutes = Math.floor(durationInMinutes);
       let rest = durationInMinutes - fullMinutes;
 
-      return `${fullMinutes}:${(60 * rest).toFixed(2)}  min`;
+      return `${fullMinutes}:${(60 * rest).toFixed(0)}  min`;
     }
   } else {
-    return `${durationInSeconds.toFixed(2)} s`;
+    return `${durationInSeconds.toFixed(0)} s`;
   }
 }
 
@@ -2099,7 +2150,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="card-body my-2 py-2"
+    <div class="card-body my-3 py-2"
       v-if="workflowState.token_info_requested && workflowState.processObjects?.length > 0 && !workflowState.error_on_request">
       <h5 class="card-title">By process</h5>
       <hr>
@@ -2186,22 +2237,22 @@ onUnmounted(() => {
           filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
           :rowClass="rowClass" 
           removableSort>
-          <Column field="task_id" header="Task-ID" sortable></Column>
-          <Column header="Problematic" sortable field="problematic" :sort-field="isProblematic">
+          <Column field="task_id" header="Task-ID" sortable :frozen="true"></Column>
+          <Column header="Problematic" sortable field="problematic" :sort-field="isProblematic" :frozen="true">
             <template #body="{ data }" >
               <Tag v-if="isProblematic(data)" value="Problematic" severity="danger" ></Tag>
             </template>
           </Column>
-          <Column field="name" style="min-width: 20rem" header="Name" sortable :show-filter-menu="false"
-            filter-field="name">
-            <template #body="{ data }">
-              {{ data.name }}
-            </template>
-            <template #filter="{ filterModel, filterCallback }">
-              <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
-                placeholder="Filter name" />
-            </template>
-          </Column>
+          <Column field="process" header="Process" style="min-width: 20rem" sortable :show-filter-menu="false"
+          filter-field="process" :frozen="true">
+          <template #filter="{ filterModel, filterCallback }">
+            <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
+              placeholder="Search by process" />
+          </template>
+          <template #body="{data}">
+            <span>{{getSuffix(data.process)}}</span>
+          </template>
+        </Column>
           <Column field="status" style="min-width: 12rem" header="Status" sortable filter-field="status"
             :show-filter-menu="false" :filter-match-mode="'contains'">
             <!-- adjust it to be a dropdown! -->
@@ -2225,13 +2276,7 @@ onUnmounted(() => {
               </MultiSelect>
             </template>
           </Column>
-          <Column field="process" header="Process" style="min-width: 20rem" sortable :show-filter-menu="false"
-            filter-field="process">
-            <template #filter="{ filterModel, filterCallback }">
-              <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
-                placeholder="Search by process" />
-            </template>
-          </Column>
+         
 
           <Column field="tag" header="Tag" style="min-width: 20rem" :show-filter-menu="false" sortable>
             <template #filter="{ filterModel, filterCallback }">
@@ -2301,6 +2346,28 @@ onUnmounted(() => {
             <span v-else>No Data</span>
             </template>
           </Column>
+          <Column field="rss" header="rss" sortable>
+            <template #body="{ data }">
+              {{ reasonableDataFormat(data.rss) }}
+            </template>
+          </Column>
+          <Column field="peak_rss" header="Peak rss" sortable>
+            <template #body="{ data }">
+              <span v-if="data.peak_rss">{{ reasonableDataFormat(data.peak_rss) }}</span>
+            <span v-else>No Data</span>
+            </template>
+          </Column>
+         
+          <Column field="peak_vmem" header="Peak VMem" sortable>
+            <template #body="{ data }">
+              {{ reasonableDataFormat(data.peak_vmem) }}
+            </template>
+          </Column>
+          <Column field="vmem" header="VMem" sortable>
+            <template #body="{ data }">
+              {{ reasonableDataFormat(data.vmem) }}
+            </template>
+          </Column>
           <Column field="disk" header="Disk" sortable>
             <template #body="{ data }">
               <span v-if="data.disk">
@@ -2322,32 +2389,10 @@ onUnmounted(() => {
               {{ reasonableDataFormat(data.wchar) }}
             </template>
           </Column>
-          <Column field="rss" header="rss" sortable>
-            <template #body="{ data }">
-              {{ reasonableDataFormat(data.rss) }}
-            </template>
-          </Column>
-          <Column field="peak_rss" header="Peak rss" sortable>
-            <template #body="{ data }">
-              <span v-if="data.peak_rss">{{ reasonableDataFormat(data.peak_rss) }}</span>
-            <span v-else>No Data</span>
-            </template>
-          </Column>
+          <Column field="read_bytes" header="Read bytes" sortable></Column>
+          <Column field="write_bytes" header="Written bytes" sortable></Column>
           <Column field="syscr" header="syscr" sortable></Column>
           <Column field="syscw" header="syscw" sortable></Column>
-          <Column field="peak_vmem" header="Peak VMem" sortable>
-            <template #body="{ data }">
-              {{ reasonableDataFormat(data.peak_vmem) }}
-            </template>
-          </Column>
-          <Column field="vmem" header="VMem" sortable>
-            <template #body="{ data }">
-              {{ reasonableDataFormat(data.vmem) }}
-            </template>
-          </Column>
-          <Column field="read_bytes" header="Read bytes" sortable></Column>
-          <Column field="write_bytes" header="Written bytes" sortable>
-          </Column>
           <Column field="vol_ctxt" header="Voluntary context switches" sortable></Column>
           <Column field="inv_ctxt" header="Involuntary cs" sortable></Column>
           <Column field="time" header="Time" sortable>
@@ -2361,6 +2406,16 @@ onUnmounted(() => {
               <span v-else>No Data</span>
             </template>
           </Column>
+          <Column field="name" style="min-width: 20rem" header="Name" sortable :show-filter-menu="false"
+            filter-field="name">
+            <template #body="{ data }">
+              {{ data.name }}
+            </template>
+            <template #filter="{ filterModel, filterCallback }">
+              <InputText v-model="filterModel.value" type="text" @input="filterCallback()" class="p-column-filter"
+                placeholder="Filter name" />
+            </template>
+          </Column>
         </DataTable>
       </div>
     </div>
@@ -2368,10 +2423,10 @@ onUnmounted(() => {
 
     <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="metric_visualization_div">
       <div>
-        <h3 class="my-2">Metric Visualizaton</h3>
+        <h3 class="my-3">Metric Visualizaton</h3>
       </div>
-      <div class="card-body my-2">
-        <div class="row my-2">
+      <div class="card-body my-3">
+        <div class="row my-3">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedMetricProcesses" :options="filterState.availableProcesses"
               v-on:change="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
@@ -2391,7 +2446,7 @@ onUnmounted(() => {
               onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricProcessAutoSelectionChanged()" />
           </div>
         </div>
-        <div class="row my-2">
+        <div class="row my-3">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedTags" :options="filterState.availableTags"
               v-on:change="metricTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag"
@@ -2442,7 +2497,7 @@ onUnmounted(() => {
       <div class="my-4">
         <h5>Settings</h5>
         <p>Below you can adjust the settings for the analyis, e.g. by changing the thresholds to consider.</p>
-        <div class="my-2">
+        <div class="my-3">
           <div class="row p-1">
             <div class="col-4 p-1">
             Top percentage ratio and maximal number of processes <InputSwitch v-model="requestState.request_activated['top_percent_ratio']"></InputSwitch>
@@ -2515,16 +2570,21 @@ onUnmounted(() => {
 
       <div class="card-body my-4">
         <h6>Duration</h6>
-        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun]">
-          <p>
-            Below is a list of processes which need the most time.
-          </p>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun]" class="my-3">
+          <Message>
+            Below is a list of tasks, which need the most time for execution - from submission to completion.
+          </Message>
           <DataTable :value="workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun]"
-          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun].length">
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['bad_duration'][workflowState.selectedRun].length" class="p-2">
           <Column field="task_id" header="Task-ID" ></Column>
           <Column field="process" header="Process">
             <template #body="{data}">
               {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="tag" header="Tags">
+            <template #body>
+              Needs to be added
             </template>
           </Column>
           <Column field="duration" header="Duration" sortable>
@@ -2533,15 +2593,15 @@ onUnmounted(() => {
                 {{ getDynamicDurationType(data['duration']) }}
               </span>
               <span v-else>No data</span>
-
             </template>
           </Column>
+          
           </DataTable>
         </div>
         <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun]">
-          <p>
-            Below is a list of processes which need the most time summarized over all
-          </p>
+          <Message>
+            Below is a list of processes which need the most time summarized over all instances of this process.
+          </Message>
           <DataTable :value="workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_duration_sum'][workflowState.selectedRun].length">
           <Column field="process" header="Process">
@@ -2557,12 +2617,15 @@ onUnmounted(() => {
           </DataTable>
         </div>
 
-        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun]">
-          <p>
-            Below is a list of processes which need the most time in average for all process instances
-          </p>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun]"
+          class="my-3">
+          <Message>
+            Below is a list of processes which need the most time, averaged for all process instances.
+          </Message>
           <DataTable :value="workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun]"
-          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun].length">
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_duration_average'][workflowState.selectedRun].length"
+          class="p-2"
+          >
           <Column field="process" header="Process">
             <template #body="{data}">
               {{ getSuffix(data['process']) }}
@@ -2583,31 +2646,34 @@ onUnmounted(() => {
 
       <div class="card-body my-4">
         <h6>CPU </h6>
-        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun]">
-          <p>
-            Below is a list of processes which have the lowest CPU allocation
-          </p>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun]" class="my-3">
+          <Message>
+            Below is a list of processes which have the lowest CPU allocation percentage. <a href="https://www.nextflow.io/docs/latest/metrics.html#cpu-usage" rel="noopener noreferrer" target="_blank" class="alert-link">See here for calculation details.</a>
+          </Message>
           <DataTable :value="workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun]"
-          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun].length">
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun].length" class="p-2">
           <Column field="task_id" header="Task-ID" ></Column>
           <Column field="process" header="Process">
             <template #body="{data}">
               {{ getSuffix(data['process']) }}
             </template>
           </Column>
-          <Column field="allocation" header="CPU allocation" sortable>
+          <Column field="allocation" header="CPU allocation %" sortable>
             <template #body="{data}">
               {{ data["allocation"].toFixed(2) }} %
             </template>
           </Column>
           </DataTable>
         </div>
-        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun]">
-          <p>
-            Below is a list of processes which have the highest CPU allocation
-          </p>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun]"
+         class="my-3">
+          <Message>
+            Below is a list of processes which have the highest CPU allocation percentage. <a href="https://www.nextflow.io/docs/latest/metrics.html#cpu-usage" rel="noopener noreferrer" target="_blank" class="alert-link">See here for calculation details.</a>
+          </Message>
           <DataTable :value="workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun]"
-          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun].length">
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun].length"
+          class="p-2"
+          >
           <Column field="task_id" header="Task-ID" ></Column>
           <Column field="process" header="Process">
             <template #body="{data}">
@@ -2628,54 +2694,58 @@ onUnmounted(() => {
 
       <div class="card-body my-4">
         <h6>Memory</h6>
-        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun]">
-          <p>
-            Below is a list of processes which have the lowest Memory allocation average
-          </p>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun]"
+        class="my-3">
+          <Message>
+            Below is a list of processes which have the lowest Memory allocation percentage in average over all process instances.
+          </Message>
           <DataTable :value="workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun]"
-          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun].length">
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['least_memory_allocation_average'][workflowState.selectedRun].length" class="p-2">
           <Column field="process" header="Process">
             <template #body="{data}">
               {{ getSuffix(data['process']) }}
             </template>
           </Column>
-          <Column field="memory_allocation" header="Memory Allocation average" sortable>
+          <Column field="memory_allocation" header="Memory Allocation % average" sortable>
             <template #body="{data}">
               {{ (data["memory_allocation"] * 100).toFixed(2) }} %
             </template>
           </Column>
           </DataTable>
         </div>
-        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun]">
-          <p>
-            Below is a list of processes which have the highest Memory allocation average
-          </p>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun]" class="my-3">
+          <Message>
+            Below is a list of processes which have the highest Memory allocation percentage in average over all process instances. 
+          </Message>
           <DataTable :value="workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun]"
-          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun].length">
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['most_memory_allocation_average'][workflowState.selectedRun].length"
+          class="p-2"
+          >
           <Column field="process" header="Process">
             <template #body="{data}">
               {{ getSuffix(data['process']) }}
             </template>
           </Column>
-          <Column field="memory_allocation" header="Memory Allocation average" sortable>
+          <Column field="memory_allocation" header="Memory Allocation % average" sortable>
             <template #body="{data}">
               {{ (data["memory_allocation"] * 100).toFixed(2) }} %
             </template>
           </Column>
           </DataTable>
         </div>
-        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun]">
-          <p>
-            Below is a list of processes which have the worst memory usage
-            </p>
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun]" class="my-3">
+          <Message>
+            Below is a list of processes which have the worst values regarding the ratio between physical memory and the combined total of physical memory and swap space utilization.
+          </Message>
           <DataTable :value="workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun]"
-          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun].length">
+          tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['worst_memory_relation_average'][workflowState.selectedRun].length"
+          class="p-2">
           <Column field="process" header="Process">
             <template #body="{data}">
               {{ getSuffix(data['process']) }}
             </template>
           </Column>
-          <Column field="memory_relation" header="Memory relation average (physical RAM to VRAM)" sortable>
+          <Column field="memory_relation" header="Ratio (physical/vmem) in %" sortable>
             <template #body="{data}">
               {{ (data["memory_relation"] * 100).toFixed(2) }} %
             </template>
@@ -2684,6 +2754,20 @@ onUnmounted(() => {
         </div>
         <div v-else>
           <Message severity="info">There currently is no information to show regarding the memory allocation of processes</Message>
+        </div>
+      </div>
+
+      <div class="card-body" v-if="Object.keys(workflowState.processesByRun).length > 1">
+        <h6>Comparisson</h6>
+        <Message severity="info">Please select two workflow runs to compare</Message>
+        <div class="row">
+
+          <!--<div class="col-6">
+            <Dropdown v-model="analysisState" editable :options="cities" optionLabel="name" placeholder="Select a City" class="w-full md:w-14rem" />
+          </div>
+          <div class="col-6">
+            <Dropdown v-model="selectedCity" editable :options="cities" optionLabel="name" placeholder="Select a City" class="w-full md:w-14rem" />
+          </div> -->
         </div>
       </div>
 

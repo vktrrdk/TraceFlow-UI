@@ -27,7 +27,7 @@
 - [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
 - [ ] filter für currently-running
 - [ ] axis labelings (% and so on)
-- [ ] Ratio plot zahlen anpassen + zoom + einschränken? was ist mit den labels?
+- [x] Ratio plot zahlen anpassen + zoom + einschränken? was ist mit den labels?
 - [ ] native_id - kann für Steal-Time usw. genutzt
   - [ ] Über pyslurm hostnamen des prozesses abfragen
     - [ ] BatchHost für native-id (welche die JobId für Slurm ist) holen
@@ -64,3 +64,15 @@ Dann könnte man zeit/cpu in relation bringen, und ab einem bestimmten zeitpunkt
 
 
 Globaler Service: User management --> wer kann anfragen stellen usw. 
+
+
+____
+
+user time? welche time wird bei den durations angezeigt
+--> cpu zeit, wird die zahl der kerne multipliziert? 
+
+process listing mit task-id bei längsten prozessen --> klarmachen, dass es sich um einen task handelt und tag hinzufügen
+
+tags auch zu den least and most stuff!
+
+beim scrollen in der tabelle (process info) namen kürzen und stehen lassen

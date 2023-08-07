@@ -54,28 +54,7 @@ onMounted(() => {
                     </div>
                 </div>
             </div>
-            <div class="col-md">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">Workflows</h5>
-                        <p class="card-text">For tokens with running workflows show data and plots.</p>
-                        <router-link to="/run/">
-                            <button type="button" class="btn btn-outline-dark">Show workflow state</button>
-                        </router-link>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">Help</h5>
-                        <p class="card-text">Read the documentation if anything is unclear.</p>
-                        <router-link to="/help/">
-                            <button type="button" class="btn btn-outline-dark">Read the documentation</button>
-                        </router-link>
-                    </div>
-                </div>
-            </div>
+        
         </div>
     </div>
 </template>
