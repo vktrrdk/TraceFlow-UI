@@ -860,7 +860,7 @@ async function createCPURamRatioPlot() {
             y: {
               title: {
                 display: true,
-                text: 'RAM allocation in %',
+                text: 'RAM usage in % (used related to requested)',
               },
               min: 0,
               ticks: {
