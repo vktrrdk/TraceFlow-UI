@@ -239,6 +239,8 @@ const metricCharts = reactive<{
   ioCanvas: any | null;
   cpuChart: any | null;
   cpuCanvas: any | null;
+  cpuAllocationCanvas: any | null;
+  cpuAllocationChart: any | null;
   cpuRamRatioCanvas: any | null;
   cpuRamRatioChart: any | null;
   durationChart: any | null;
@@ -255,6 +257,8 @@ const metricCharts = reactive<{
   ioCanvas: null,
   cpuChart: null,
   cpuCanvas: null,
+  cpuAllocationCanvas: null,
+  cpuAllocationChart: null,
   cpuRamRatioCanvas: null,
   cpuRamRatioChart: null,
   durationChart: null,
@@ -699,6 +703,7 @@ async function createPlots() {
   createRamPlot();
   createRelativeRamPlot();
   createCPUPlot();
+  createCPUAllocationPlot();
   createIOPlot();
   createDurationPlot();
   createCPURamRatioPlot();
@@ -968,6 +973,57 @@ async function createCPUPlot() {
 
 }
 
+async function createCPUAllocationPlot() {
+  const canvas: HTMLCanvasElement = getCanvasDiv('cpu_allocation_canvas');
+  metricCharts.cpuAllocationCanvas = canvas;
+  const cpuAllocationChart = new Chart(
+    metricCharts.cpuAllocationCanvas,
+    {
+      type: 'boxplot',
+      options: {
+        responsive: true,
+        plugins: {
+          zoom: {
+            pan: {
+              enabled: true,
+              modifierKey: 'ctrl',
+            },
+            zoom: {
+              drag: {
+                enabled: true,
+              },
+              mode: 'xy',
+            },
+          },
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
+          }
+        },
+        scales: {
+          y: {
+            title: {
+              display: true,
+              text: 'CPU allocation value in %'
+            },
+          },
+        }
+      },
+      data: {
+        labels: [],
+        datasets: [],
+      }
+    }
+  );
+  Object.seal(cpuAllocationChart);
+  metricCharts.cpuAllocationChart = cpuAllocationChart;
+
+  updateCPUAllocationPlot();
+
+}
+
 async function createCPURamRatioPlot() {
   const canvas: HTMLCanvasElement = getCanvasDiv('cpu_ram_ratio');
   metricCharts.cpuRamRatioCanvas = canvas;
@@ -1117,12 +1173,20 @@ function updateRamPlot() {
 }
 
 function updateCPUPlot() {
-  /** check this out! **/
   let generatedDatasets: [string[], any[]] = generateCPUData();
 
   metricCharts.cpuChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.cpuChart.data.datasets = generatedDatasets[1];
   metricCharts.cpuChart.update('none');
+}
+
+function updateCPUAllocationPlot() {
+  let generatedDatasets: [string[], any[]] = generateKeyRelativeData('cpu_percentage', 'cpus', 'CPU Allocation', 1);
+
+
+  metricCharts.cpuAllocationChart.data.labels = getSuffixes(generatedDatasets[0]);
+  metricCharts.cpuAllocationChart.data.datasets = generatedDatasets[1];
+  metricCharts.cpuAllocationChart.update('none');
 }
 
 function updateCPURamRatioChart() {
@@ -2019,21 +2083,24 @@ function generateKeyRelativeData(dataKey: string, respectToKey: string, label: s
       if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
         continue;
       }
-      if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-        if (!(process.process in processDataMapping)) {
-          processDataMapping[process.process] = [(process[dataKey] / process[respectToKey]) * factor];
-        } else {
-          processDataMapping[process.process].push((process[dataKey] / process[respectToKey]) * factor)
-        }
+    }
+    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
+      if (!(process.process in processDataMapping)) {
+        processDataMapping[process.process] = [(process[dataKey] / process[respectToKey]) * factor];
+      } else {
+        processDataMapping[process.process].push((process[dataKey] / process[respectToKey]) * factor)
       }
     }
-
+  
   }
   relative_dataset['maxBarThickness'] = 30;
   relative_dataset['data'] = Object.values(processDataMapping);
   datasets.push(relative_dataset);
   return [Object.keys(processDataMapping), datasets];
+  
+
 }
+
 
 function generateCPUData(): [string[], any[]] {
   let datasets: any[] = [];
@@ -2286,7 +2353,7 @@ onUnmounted(() => {
     </div>
     <div class="card-body my-4" v-if="workflowState.selectedRun && workflowState.meta.length > 0">
   
-      <ul class="list-group list-group-flush list-group-light">
+      <ul class="list-group list-group-flush">
         <li class="list-group-item"><strong>Run Information</strong></li>
         <li class="list-group-item" v-if="latestMetaForRun()['commmand_line']">Command Line - {{latestMetaForRun()['commmand_line']}}</li>
         <li class="list-group-item" v-if="latestMetaForRun()['nextflow_version']">Nextflow Version - {{latestMetaForRun()['nextflow_version']}}</li>
@@ -2738,6 +2805,11 @@ onUnmounted(() => {
         <h5>CPU</h5>
         <canvas id="cpu_canvas" class="p-4"></canvas>
         <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.cpuChart.resetZoom()"/>
+      </div>
+      <div class="plot-section">
+        <h5>CPU Allocation</h5>
+        <canvas id="cpu_allocation_canvas" class="p-4"></canvas>
+        <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.cpuAllocationChart.resetZoom()"/>
       </div>
       <div class="plot-section">
         <h5>I/O</h5>

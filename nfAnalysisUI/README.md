@@ -7,18 +7,12 @@
   - [x] Anfang
   - [ ] Fertigstellen
 - [ ] Hinweise für den Umgang mit den analysierten Daten
-
-- [x] filter für currently-running
 - [ ] regard retry as state - show number of attempts if available, same holds for ignore
 - [ ] automatische Formatierung von Zeitdaten und Speichergroeßen - Sekunden, Minuten, Stunden usw
   - [ ] Anfang
   - [ ] An allen Stellen
   - [ ] Dynamisch wählbar?
 - [ ] Welcher Webserver? Config final abschließen!
-- [x] Welche Prozesse laufen im Workflow am längsten?  pro run --> kriegen wir
-- [ ] **INFORMATIONEN ZUM STATUS ETC. UNTER PROGRESS**
-- [ ] **FILTER FOR PROGRESS_PART!**
-- [ ] **CPU ALLOCATION IN METRICPLOTS HINZUFUEGEN** 
 Notes:
 
 # Zukünftige Änderungen
