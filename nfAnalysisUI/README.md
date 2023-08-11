@@ -46,7 +46,9 @@
 - [ ] remove empty columns from list - or show possibility to disable certain columns  
 - [ ] more generic handling of traces --> also use meta
 - [x] Welche Prozesse laufen im Workflow am längsten?  pro run --> kriegen wir
-
+- [ ] **INFORMATIONEN ZUM STATUS ETC. UNTER PROGRESS**
+- [ ] **FILTER FOR PROGRESS_PART!**
+- [ ] **CPU ALLOCATION IN METRICPLOTS HINZUFUEGEN** 
 Notes:
 
 
@@ -74,5 +76,3 @@ user time? welche time wird bei den durations angezeigt
 process listing mit task-id bei längsten prozessen --> klarmachen, dass es sich um einen task handelt und tag hinzufügen
 
 tags auch zu den least and most stuff!
-
-beim scrollen in der tabelle (process info) namen kürzen und stehen lassen
