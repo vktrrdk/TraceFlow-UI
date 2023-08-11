@@ -177,6 +177,7 @@ const workflowState = reactive<{
   currentState: any;
   progress: any;
   runningProcesses: any;
+  filteredRunningProcesses: any;
   processObjects: Process[];
   processAnalysis: any;
   tagAnalysis: any;
@@ -203,9 +204,11 @@ const workflowState = reactive<{
     "running": null,
     "failed": null,
     "completed": null,
-    "aborted": null
+    "cached": null,
+    "pending": null
   },
   runningProcesses: {},
+  filteredRunningProcesses: {},
   processObjects: [],
   processAnalysis: {},
   tagAnalysis: {},
@@ -267,8 +270,12 @@ const filterState = reactive<{
   autoselectAllMetricProcesses: boolean;
   selectedProgressProcesses: string[];
   autoselectAllProgressProcesses: boolean;
+  autoselectAllRunningProcesses: boolean;
+  autoselectAllRunningTags: boolean;
   autoselectAllMetricTags: boolean;
   selectedTags: string[];
+  selectedRunningTags: any[];
+  selectedRunningProcesses: any[];
   processTaskMapping: any;
 
 }>({
@@ -278,8 +285,12 @@ const filterState = reactive<{
   autoselectAllMetricProcesses: true,
   selectedProgressProcesses: [],
   autoselectAllProgressProcesses: true,
+  autoselectAllRunningProcesses: true,
+  autoselectAllRunningTags: true,
   autoselectAllMetricTags: true,
   selectedTags: [],
+  selectedRunningTags: [],
+  selectedRunningProcesses: [],
   processTaskMapping: {},
 
 });
@@ -302,7 +313,9 @@ function getDataInitial(token = props.token): void {
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+          updateFilterState();
           workflowState.runningProcesses = updateRunningProcesses();
+          updateFilteredRunningProcesses()
           workflowState.processAnalysis = response.data["result_analysis"]["process_wise"];
           workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
           workflowState.fullAnalysis = response.data["result_analysis"]
@@ -312,7 +325,7 @@ function getDataInitial(token = props.token): void {
           workflowState.token_info_requested = true;
           workflowState.token = token;
           workflowState.error_on_request = false;
-          updateFilterState();
+          
           progressProcessSelectionChanged();
           if (currentlySelectedWorkflowHasPlottableData()) {
             createPlots();
@@ -374,7 +387,9 @@ function dataPollingLoop(): void {
         workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
         updateRunStartMapping();
         workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+        updateFilterState();
         workflowState.runningProcesses = updateRunningProcesses();
+        updateFilteredRunningProcesses();
         workflowState.processAnalysis = response.data["result_analysis"]["process_wise"]
         workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
         workflowState.fullAnalysis = response.data["result_analysis"]
@@ -410,6 +425,8 @@ function updateFilterState(): void {
   setSelectedProgressProcesses(filterState.availableProcesses);
   setSelectedMetricProcesses(filterState.availableProcesses);
   setSelectedMetricTags(filterState.availableTags);
+  setSelectedRunningProcesses(filterState.availableProcesses);
+  setSelectedRunningTags(filterState.availableTags);
 }
 
 function updateAvailableProcessNamesForFilter(): void {
@@ -459,14 +476,28 @@ function setSelectedMetricTags(tags: any[]): void {
   filterState.selectedTags = tags;
 }
 
+function setSelectedRunningTags(tags: any[]): void {
+  filterState.selectedRunningTags = tags;
+}
+
 function setSelectedProgressProcesses(processes: any[]): void {
   filterState.selectedProgressProcesses = processes;
+}
+
+function setSelectedRunningProcesses(processes: any[]): void {
+  filterState.selectedRunningProcesses = processes;
 }
 
 function selectAllMetricProcesses(): void {
   updateAvailableProcessNamesForFilter();
   setSelectedMetricProcesses(filterState.availableProcesses);
   metricProcessSelectionChanged();
+}
+
+function selectAllRunningProcesses(): void {
+  updateAvailableProcessNamesForFilter();
+  setSelectedRunningProcesses(filterState.availableProcesses);
+  runningProcessSelectionChanged();
 }
 
 function unselectAllMetricProcesses(): void {
@@ -479,9 +510,19 @@ function unselectAllMetricTags(): void {
   metricTagSelectionChanged();
 }
 
+function unselectAllRunningTags(): void {
+  setSelectedRunningTags([]);
+  runningTagSelectionChanged();
+}
+
 function selectAllMetricTags(): void {
   setSelectedMetricTags(filterState.availableTags);
   metricTagSelectionChanged();
+}
+
+function selectAllRunningTags(): void {
+  setSelectedRunningTags(filterState.availableTags);
+  runningTagSelectionChanged();
 }
 
 function selectAllProgressProcesses(): void {
@@ -493,6 +534,11 @@ function selectAllProgressProcesses(): void {
 function unselectAllProgressProcesses(): void {
   setSelectedProgressProcesses([]);
   progressProcessSelectionChanged();
+}
+
+function unselectAllRunningProcesses(): void {
+  setSelectedRunningProcesses([]);
+  runningProcessSelectionChanged();
 }
 
 function updateIfTagAutoSelectEnabled(): void {
@@ -526,10 +572,53 @@ function updateFilteredProgressProcesses(all: boolean = false): void {
   workflowState.filteredProgressProcesses = filtered;
 }
 
+function updateFilteredRunningProcesses(all: boolean = false): void {
+  let filtered: any = {};
+  if (all) {
+    filterState.selectedRunningProcesses = toRaw(filterState.availableProcesses);
+   
+  }
+  let tagFilter: boolean = false;
+  let selectedTags: any = null;
+  if (filterState.selectedRunningTags.length > 0 && filterState.selectedRunningTags.length !== filterState.availableTags.length) {
+    tagFilter = true;
+    selectedTags = toRaw(filterState.selectedTags);
+  }
+  
+  let runningProcesses = toRaw(workflowState.runningProcesses);
+  if (Object.keys(runningProcesses).length > 0 ) {
+    for (let process of Object.values(runningProcesses)) {
+      if (tagFilter) {
+        if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
+          continue;
+        }
+      }
+      process = toRaw(process);
+      for (let prc of process) {
+        if (filterState.selectedRunningProcesses && filterState.selectedRunningProcesses.length > 0){
+          if (filterState.selectedRunningProcesses.some(obj => obj['name'] === prc.process)) {
+            if (!(prc.process in filtered)) {
+                filtered[prc.process] = []
+            }
+          filtered[prc.process].push(process)
+        }
+      } 
+      }
+    }
+  }
+
+  workflowState.filteredRunningProcesses = filtered;
+}
+
 
 function progressProcessSelectionChanged(): void {
   updateFilteredProgressProcesses();
 }
+
+function runningProcessSelectionChanged(): void {
+  updateFilteredRunningProcesses();
+}
+
 
 function metricProcessSelectionChanged(): void {
   if (filterState.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
@@ -541,6 +630,9 @@ function metricTagSelectionChanged(): void {
   updatePlots();
 }
 
+function runningTagSelectionChanged(): void{
+  // pass?
+}
 
 
 function metricProcessAutoSelectionChanged(): void {
@@ -557,6 +649,18 @@ function metricTagAutoSelectionChanged(): void {
   }
 }
 
+function runningTagAutoSelectionChanged(): void {
+  if (filterState.autoselectAllRunningTags && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
+    selectAllRunningTags();
+  }
+}
+
+function runningProcessAutoSelectionChanged(): void {
+  if (filterState.autoselectAllRunningProcesses && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
+    updateFilteredRunningProcesses(true);
+  }
+}
+
 function progressProcessAutoSelectionChanged(): void {
   if (filterState.autoselectAllProgressProcesses && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
     updateFilteredProgressProcesses(true);
@@ -567,6 +671,14 @@ function progressProcessAutoSelectionChanged(): void {
 
 function hideAutoUpdateEnableOptionMetric(): boolean {
   return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllMetricProcesses;
+}
+
+function hideAutoUpdateEnableOptionRunning(): boolean {
+  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllRunningProcesses;
+}
+
+function hideAutoUpdateEnableOptionRunningTags(): boolean {
+  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllRunningTags;
 }
 
 function hideAutoUpdateEnableOptionProgress(): boolean {
@@ -1234,7 +1346,7 @@ function formattedDate(date: Date): string {
 
 function adjustSelectedRun(): void {
   workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
-  updateFilterState()
+  updateFilterState();
   updateFilteredProgressProcesses();
   updateCurrentState();
   updateProgress();
@@ -1338,7 +1450,8 @@ function updateProgress(): void {
   let running: number = 0;
   let completed: number = 0;
   let failed: number = 0;
-  let aborted: number = 0;
+  let cached: number = 0;
+  let pending: number = 0;
   if (allProcesses) {
     for (let process of allProcesses) {
       switch (process.status) {
@@ -1352,10 +1465,16 @@ function updateProgress(): void {
           failed += 1;
           break;
         case "ABORTED":
-          aborted += 1;
+          failed += 1;
           break;
         case "COMPLETED":
           completed += 1;
+          break;
+        case "CACHED":
+          cached += 1;
+          break;
+        case "PENDING":
+          pending += 1;
           break;
       }
       all += 1;
@@ -1368,7 +1487,8 @@ function updateProgress(): void {
     "running": running,
     "failed": failed,
     "completed": completed,
-    "aborted": aborted
+    "cached": cached,
+    "pending": pending,
   }
 
 }
@@ -1507,6 +1627,18 @@ function getSuffixes(strings: string[]) {
     return parts[parts.length - 1];
   });
 }
+
+function latestMetaForRun(): any {
+  if (workflowState.meta.length> 0) {
+    const metas = workflowState.meta.filter((obj: any) => obj["run_name"] === workflowState.selectedRun);
+    const lngt = metas.length;
+    if (lngt > 0){
+     return metas[lngt - 1]; 
+    }
+   } 
+
+   return null;
+  }
 
 function getSuffix(str: string) {
   const parts: string[] = str.split(":");
@@ -2006,12 +2138,8 @@ function generateDurationData(unit: string): [string[], any[]] {
 }
 
 
-/** end of data retrieval functions */
+/** end of data retrieval functions */ 
 
-
-function printStuff(): void {
-  console.log("TEST");
-}
 
 function goToDiv(divId: string): void {
   let targetDiv = document.getElementById(divId);
@@ -2109,6 +2237,8 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+  
     <div class="card-body m-4" v-if="workflowState.selectedRun === ''">
       <div v-if="!(Object.keys(workflowState.runStartMapping).length > 0)">
         <h6 class="card-subtitle mb-2">
@@ -2154,6 +2284,20 @@ onUnmounted(() => {
         You are able to check this in the analysis section of this page.
       </Message>
     </div>
+    <div class="card-body my-4" v-if="workflowState.selectedRun && workflowState.meta.length > 0">
+  
+      <ul class="list-group list-group-flush list-group-light">
+        <li class="list-group-item"><strong>Run Information</strong></li>
+        <li class="list-group-item" v-if="latestMetaForRun()['commmand_line']">Command Line - {{latestMetaForRun()['commmand_line']}}</li>
+        <li class="list-group-item" v-if="latestMetaForRun()['nextflow_version']">Nextflow Version - {{latestMetaForRun()['nextflow_version']}}</li>
+        <li class="list-group-item" v-if="latestMetaForRun()['work_dir']">Work Directory - {{latestMetaForRun()['work_dir']}}</li>
+        <li class="list-group-item" v-if="latestMetaForRun()['user_name']">User Name - {{latestMetaForRun()['user_name']}}</li>
+        <li class="list-group-item" v-if="latestMetaForRun()['project_name']">Project Name - {{latestMetaForRun()['project_name']}}</li>
+        <li class="list-group-item" v-if="latestMetaForRun()['revision']">Revision - {{latestMetaForRun()['revision']}}</li>
+        <li class="list-group-item" v-if="latestMetaForRun()['script_file']">Command Line - {{latestMetaForRun()['script_file']}}</li>
+      </ul>
+      
+    </div>
     <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="progess_summary_div">
       <h3 class="card-title">Progress</h3>
       <hr>
@@ -2171,25 +2315,35 @@ onUnmounted(() => {
 
         </div>
         <div class="row p-2">
-          <div class="col-3 p-2">
+          <div class="col-2 p-2">
             <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
               v-model="workflowState.progress['submitted']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center">Submitted</span>
+            <span class="justify-content-center mx-4">Submitted</span>
           </div>
-          <div class="col-3 p-2">
+          <div class="col-2 p-2">
+            <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
+              v-model="workflowState.progress['pending']" :size="120" readonly :strokeWidth="5" />
+            <span class="justify-content-center mx-4">Pending</span>
+          </div>
+          <div class="col-2 p-2">
             <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
               v-model="workflowState.progress['running']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center">Running</span>
+            <span class="justify-content-center mx-4">Running</span>
           </div>
-          <div class="col-3 p-2">
+          <div class="col-2 p-2">
+            <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
+              v-model="workflowState.progress['cached']" :size="120" readonly :strokeWidth="5" />
+            <span class="justify-content-center mx-4">Cached</span>
+          </div>
+          <div class="col-2 p-2">
             <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
               valueColor="Green" v-model="workflowState.progress['completed']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center">Completed</span>
+            <span class="justify-content-center mx-4">Completed</span>
           </div>
-          <div class="col-3 p-2">
+          <div class="col-2 p-2">
             <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']" valueColor="Red"
               v-model="workflowState.progress['failed']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center">Failed</span>
+            <span class="justify-content-center mx-4">Failed</span>
           </div>
         </div>
       </div>
@@ -2197,26 +2351,94 @@ onUnmounted(() => {
 
     </div>
 
-    <div class="card-body mb-4" v-if="Object.keys(workflowState.runningProcesses).length > 0">
+    <div class="card-body my-5" v-if="Object.keys(workflowState.runningProcesses).length > 0">
       <h5 class="card-title">Currently running</h5>
-      <hr>
-      <!-- refactor - needs filter -->
-      <div v-for="(info, process) in workflowState.runningProcesses" class="row">
+
+      <div class="card-body my-4">
+        <div class="row my-3">
+          <div class="col-6">
+            <MultiSelect v-model="filterState.selectedRunningProcesses" :options="filterState.availableProcesses"
+              v-on:change="runningProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
+              display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
+              :disabled="filterState.autoselectAllRunningProcesses">
+            </MultiSelect>
+          </div>
+          <div class="col-3">
+            <Button :disabled="filterState.autoselectAllRunningProcesses" v-on:click="unselectAllRunningProcesses()"
+              label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllRunningProcesses" v-on:click="selectAllRunningProcesses()"
+              label="Select all" />
+          </div>
+          <div class="col-3">
+            <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllRunningProcesses"
+              onLabel="Autoupdate enabled" offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionRunning()"
+              onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="runningProcessAutoSelectionChanged()" />
+          </div>
+        </div>
+        <div class="row my-3">
+          <div class="col-6">
+            <MultiSelect v-model="filterState.selectedRunningTags" :options="filterState.availableTags"
+              v-on:change="runningTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag" display="chip"
+              class="md:w-20rem" style="max-width: 40vw" optionLabel="name" :disabled="filterState.autoselectAllRunningTags">
+              <template #chip="selectedTag">
+                <div class="flex align-items-center">
+                  <div v-if="Object.keys(selectedTag.value)[0] !== ''">{{ Object.keys(selectedTag.value)[0] }} : {{
+                    Object.values(selectedTag.value)[0] }}</div>
+                  <div v-if="Object.keys(selectedTag.value)[0] === ''">Empty tag</div>
+                </div>
+              </template>
+              <template #option="slotProps">
+                <div class="flex align-items-center">
+                  <div v-if="Object.keys(slotProps.option)[0] !== ''">
+                    {{ Object.keys(slotProps.option)[0] }}: {{ Object.values(slotProps.option)[0] }}
+                  </div>
+                  <div v-if="Object.keys(slotProps.option)[0] === ''">Empty tag</div>
+                </div>
+              </template>
+            </MultiSelect>
+          </div>
+          <div class="col-3">
+            <Button :disabled="filterState.autoselectAllRunningTags" v-on:click="unselectAllRunningTags()"
+              label="Deselect all" />
+            <Button :disabled="filterState.autoselectAllRunningTags" v-on:click="selectAllRunningTags()" label="Select all" />
+          </div>
+          <div class="col-3">
+            <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllRunningTags" onLabel="Autoupdate enabled"
+              offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionRunningTags()" onIcon="pi pi-check"
+              offIcon="pi pi-times" v-on:change="runningTagAutoSelectionChanged()" />
+          </div>
+        </div>
+  
+  
+      </div>
+
+    
+      <div v-for="(info, process) in workflowState.filteredRunningProcesses" class="row my-2">
         <div class="col-auto"><strong>{{ process }}</strong> - {{ info.length > 1 ?
           info.length + ' processes' : '1 process' }} with tags : </div>
-        <div class="mx-1 col-auto" v-for="proc of info">
-          <Tag v-for="tag of proc.tag"
-            :value="Object.keys(tag)[0] === '' ? 'Empty Tag' : Object.keys(tag)[0] + ': ' + Object.values(tag)[0]"></Tag>
-        </div>
+        <div class="mx-1 col-auto" v-for="proc_l of info">
+          <div v-for="proc of proc_l">
+            <Tag v-for="tag_elem of proc.tag"
+              :value="Object.keys(tag_elem)[0] === '' ? 'Empty Tag' : Object.keys(tag_elem)[0] + ': ' + Object.values(tag_elem)[0]"></Tag>
+          </div>
+      </div>
+        
       </div>
     </div>
 
-    <div class="card-body my-3 py-2"
+    <div class="my-5 py-2"
       v-if="workflowState.token_info_requested && workflowState.processObjects?.length > 0 && !workflowState.error_on_request">
-      <h5 class="card-title">By process</h5>
       <hr>
-      <div>
-        <div class="row my-4 py-2">
+      <h5 class="card-title">By process</h5>
+  
+      <div class="my-3">
+      
+        <!-- also check if this can be made better-->
+        <Panel class="my-2" header="Progress by process" toggleable collapsed :pt="{
+          header: { style: { 'max-height': '50px' } },
+          root: { class: 'mt-1 mb-1' }
+        }">
+        <div class="row my-2 py-2">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedProgressProcesses" :options="filterState.availableProcesses"
               :disabled="filterState.autoselectAllProgressProcesses"
@@ -2237,61 +2459,18 @@ onUnmounted(() => {
               offIcon="pi pi-times" /> <!-- need function to handle this -->
           </div>
         </div>
-        <!-- also check if this can be made better-->
-        <div v-for="(info, process) in workflowState.filteredProgressProcesses" class="p-1">
-          <Panel :header="process.toString()" toggleable collapsed :pt="{
-            header: { style: { 'max-height': '40px' } },
-            root: { class: 'mt-1 mb-1' }
-          }">
-            <!-- filter missing, templating missing-->
-            <template #header>
-              <div class="row col-12">
-                <div class="col-8">
-                  <strong>{{ process }}</strong>
-                </div>
-                <div class="col-4">
-                  {{ processNumbers(info) }} processes complete
-                </div>
-                <!-- we want progress here https://primevue.org/datatable/#rowgroup_expandable -->
-              </div>
-            </template>
-
-
-            <p class="m-0">
-            <ul class="list-group list-group-flush">
-              <li class="list-group-item" v-for="(task, id) in info['tasks']">
-                <div class="row col-12">
-                  <div class="col-6">
-                    <Tag :value="`Task #${id} - Tag: ${task['tag']}`"></Tag>
-                  </div>
-                  <div class="col-3 p-1">
-                    <ProgressBar class="mt-2" :showValue="false" :value="getProgressValueForTask(task['status'])"
-                      style="height: 3px" :pt="{
-                        value: { style: { background: generateColorString(task['status']) } }
-                      }">
-
-
-                    </ProgressBar>
-                  </div>
-                  <div class="col-3">{{ task['status'] }}</div>
-                </div>
-
-
-              </li>
-            </ul>
-
-            </p>
-          </Panel>
-
-
-
-
-        </div>
+        <ul class="list-group list-group-flush justify-content-end">
+        <li v-for="(info, process) in workflowState.filteredProgressProcesses" class="p-2 list-group-item d-flex justify-content-between align-items-center">
+          <span class="float-left"><strong>{{process}}</strong></span><span class="float-right">{{ processNumbers(info) }} processes complete</span>
+        </li>
+      </ul>
+      </Panel>
+        
       </div>
 
 
       <hr>
-      <div class="card-body my-4" id="process_information_div">
+      <div class="card-body my-5" id="process_information_div">
         <h3 class="card-title">Process Information for {{ workflowState.selectedRun }} </h3>
         <div class=m-4></div>
         <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
