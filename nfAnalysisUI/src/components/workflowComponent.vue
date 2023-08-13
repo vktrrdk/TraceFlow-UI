@@ -182,7 +182,6 @@ const workflowState = reactive<{
   processAnalysis: any;
   tagAnalysis: any;
   fullAnalysis: any;
-  runScores: any;
   processesByRun: any;
   runStartMapping: any;
   selectedRun: string;
@@ -214,7 +213,6 @@ const workflowState = reactive<{
   processAnalysis: {},
   tagAnalysis: {},
   fullAnalysis: {},
-  runScores: {},
   processesByRun: {},
   runStartMapping: {},
   selectedRun: '',
@@ -325,7 +323,6 @@ function getDataInitial(token = props.token): void {
           workflowState.processAnalysis = response.data["result_analysis"]["process_wise"];
           workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
           workflowState.fullAnalysis = response.data["result_analysis"]
-          workflowState.runScores = response.data["result_scores"];
           updateCurrentState();
           updateProgress();
 
@@ -400,7 +397,6 @@ function dataPollingLoop(): void {
         workflowState.processAnalysis = response.data["result_analysis"]["process_wise"]
         workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
         workflowState.fullAnalysis = response.data["result_analysis"]
-        workflowState.runScores = response.data["result_scores"];
         updateCurrentState();
         updateProgress();
         workflowState.error_on_request = false;
@@ -2890,16 +2886,16 @@ onUnmounted(() => {
       </div>
     </div>
     <hr>
-    <div class="card-body my-2" v-if="workflowState.runScores">
+    <div class="card-body my-2" v-if="workflowState.fullAnalysis['workflow_scores']">
       <div class="p-4">
         <h6>Score for this run</h6>
-        <div class="my-1" v-if="workflowState.runScores[workflowState.selectedRun]['full_run_score'] > -0.01">
+        <div class="my-1" v-if="workflowState.fullAnalysis['workflow_scores'][workflowState.selectedRun]['full_run_score'] > -0.01">
           <div class="row">
             <div class="col-2">
-              <strong>{{(workflowState.runScores[workflowState.selectedRun]['full_run_score'] * 100).toFixed(2)}} %</strong>
+              <strong>{{(workflowState.fullAnalysis['workflow_scores'][workflowState.selectedRun]['full_run_score'] * 100).toFixed(2)}} %</strong>
             </div>
             <div class="col-10">
-              <ProgressBar :value="(workflowState.runScores[workflowState.selectedRun]['full_run_score'] * 100).toFixed(0)"></ProgressBar>
+              <ProgressBar :value="(workflowState.fullAnalysis['workflow_scores'][workflowState.selectedRun]['full_run_score'] * 100).toFixed(0)"></ProgressBar>
             </div>
           </div>
         </div>
@@ -2909,21 +2905,23 @@ onUnmounted(() => {
       </div>
       <div class="p-4">
         <h6>Score Comparison</h6>
-        <div class="my-1" v-for="score_run in sortByScore(workflowState.runScores)">
-          <div class="row" v-if="workflowState.runScores[score_run]['full_run_score'] > -0.01">
+        <div class="my-1" v-for="score_run in sortByScore(workflowState.fullAnalysis['workflow_scores'])">
+          <div class="row" v-if="workflowState.fullAnalysis['workflow_scores'][score_run]['full_run_score'] > -0.01">
             <div class="col-2">
-              <strong v-if="score_run === workflowState.selectedRun">{{ score_run }} - {{(workflowState.runScores[score_run]['full_run_score'] * 100).toFixed(2)}} %</strong>
-              <span v-else>{{ score_run }} - {{(workflowState.runScores[score_run]['full_run_score'] * 100).toFixed(2)}} %</span>
+              <strong v-if="score_run === workflowState.selectedRun">{{ score_run }} - {{(workflowState.fullAnalysis['workflow_scores'][score_run]['full_run_score'] * 100).toFixed(2)}} %</strong>
+              <span v-else>{{ score_run }} - {{(workflowState.fullAnalysis['workflow_scores'][score_run]['full_run_score'] * 100).toFixed(2)}} %</span>
             </div>
             <div class="col-10">
               <ProgressBar :style="{'height': score_run === workflowState.selectedRun ? '12px': '2px'}"
-              :value="(workflowState.runScores[score_run]['full_run_score'] * 100).toFixed(0)"
+              :value="(workflowState.fullAnalysis['workflow_scores'][score_run]['full_run_score'] * 100).toFixed(0)"
               :showValue="false"
               ></ProgressBar>
-              
             </div>
           </div>
         </div>
+      </div>
+      <div class="my-2" v-if="workflowState.fullAnalysis">
+
       </div>
     </div>
     <div class="card-body my-4 py-2" id="analysis_canvas_area">

@@ -2,7 +2,9 @@
 - [ ] **Test-Workflows** 
   - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
 - [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 
-- [ ] **eigenen Score für den Workflow entwickeln**
+ - [x] Anfang
+ - [ ] erweitern
+- [x] **eigenen Score für den Workflow entwickeln**
 - [ ] **WICHTIG: GEDANKEN MACHEN, WELCHE METRIKEN WIE RELEVANT SIND**
 - [ ] **Hinweise für den Umgang mit den analysierten Daten**
 - [ ] **Vergleiche zwei Runs miteinander** 
@@ -55,3 +57,15 @@ user time? welche time wird bei den durations angezeigt
 process listing mit task-id bei längsten prozessen --> klarmachen, dass es sich um einen task handelt und tag hinzufügen
 
 tags auch zu den least and most stuff!
+
+
+___
+
+Score Metric:
+
+CPU allocation beachten - dabei wird cpu% gegen cpu anzahl gerechnet, wenn diese werte gegeben sind. - umso näher man an 100% ist desto besser
+das selbe gilt für memory - hier gilt es einen weg zu finden, wie man vmem und rss miteinander vergleicht
+nehme initial an, man vergleich den RSS-Wert mit dem Requested Memory wert - umso näher man an 100% ist, desto besser. 
+
+
+
