@@ -281,6 +281,7 @@ const filterState = reactive<{
   selectedRunningTags: any[];
   selectedRunningProcesses: any[];
   processTaskMapping: any;
+  expandedRows: any;
 
 }>({
   availableProcesses: [],
@@ -296,6 +297,7 @@ const filterState = reactive<{
   selectedRunningTags: [],
   selectedRunningProcesses: [],
   processTaskMapping: {},
+  expandedRows: [],
 
 });
 
@@ -2920,8 +2922,15 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-      <div class="my-2" v-if="workflowState.fullAnalysis">
+      <div class="my-2" v-if="workflowState.fullAnalysis['workflow_scores']">
+        <DataTable v-model:expandedRows="filterState.expandedRows" sortField="task_id"
+        :value="workflowState.fullAnalysis['workflow_scores']['detail'][workflowState.selectedRun]"
 
+         tableStyle="min-width: 80rem">
+          <Column field="task_id" sortable header="Task ID" expander/>
+          <Column field="process" sortable header="Process"></Column>
+          <Column field="score" sortable header="Score"></Column>
+        </DataTable>
       </div>
     </div>
     <div class="card-body my-4 py-2" id="analysis_canvas_area">
