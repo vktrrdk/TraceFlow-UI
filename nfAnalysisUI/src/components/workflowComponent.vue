@@ -182,6 +182,7 @@ const workflowState = reactive<{
   processAnalysis: any;
   tagAnalysis: any;
   fullAnalysis: any;
+  runScores: any;
   processesByRun: any;
   runStartMapping: any;
   selectedRun: string;
@@ -213,6 +214,7 @@ const workflowState = reactive<{
   processAnalysis: {},
   tagAnalysis: {},
   fullAnalysis: {},
+  runScores: {},
   processesByRun: {},
   runStartMapping: {},
   selectedRun: '',
@@ -323,6 +325,7 @@ function getDataInitial(token = props.token): void {
           workflowState.processAnalysis = response.data["result_analysis"]["process_wise"];
           workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
           workflowState.fullAnalysis = response.data["result_analysis"]
+          workflowState.runScores = response.data["result_scores"];
           updateCurrentState();
           updateProgress();
 
@@ -397,6 +400,7 @@ function dataPollingLoop(): void {
         workflowState.processAnalysis = response.data["result_analysis"]["process_wise"]
         workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
         workflowState.fullAnalysis = response.data["result_analysis"]
+        workflowState.runScores = response.data["result_scores"];
         updateCurrentState();
         updateProgress();
         workflowState.error_on_request = false;
@@ -1051,9 +1055,9 @@ async function createCPURamRatioPlot() {
               box_valid: {
                 type: 'box',
                 xMin: 80,
-                xMax: 120,
+                xMax: 105,
                 yMin: 80,
-                yMax: 120,
+                yMax: 105,
                 backgroundColor: 'rgba(38, 131, 17, 0.22)',
                 borderWidth: 0,
               },
@@ -1218,6 +1222,13 @@ function updateRelativeRamPlot() {
 
 /** helper functions */
 
+
+/**
+ *  only returns the keys
+*/
+function sortByScore(scores: any) {
+  return Object.keys(scores).sort((run_a, run_b) => scores[run_a]["full_run_score"] - scores[run_b]["full_run_score"]);
+}
 
 
 function getCPURatioAnalysisString(elem: any[]) {
@@ -2612,6 +2623,8 @@ onUnmounted(() => {
               </Tag>
             </template>
           </Column>
+          <Column field="attempt" header="Attempts" sortable>
+          </Column>
           <Column field="timestamp" header="Timestamp" sortable></Column>
           <Column field="duration" sortable header="Duration">
             <template #body="{ data }">
@@ -2876,7 +2889,43 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-
+    <hr>
+    <div class="card-body my-2" v-if="workflowState.runScores">
+      <div class="p-4">
+        <h6>Score for this run</h6>
+        <div class="my-1" v-if="workflowState.runScores[workflowState.selectedRun]['full_run_score'] > -0.01">
+          <div class="row">
+            <div class="col-2">
+              <strong>{{(workflowState.runScores[workflowState.selectedRun]['full_run_score'] * 100).toFixed(2)}} %</strong>
+            </div>
+            <div class="col-10">
+              <ProgressBar :value="(workflowState.runScores[workflowState.selectedRun]['full_run_score'] * 100).toFixed(0)"></ProgressBar>
+            </div>
+          </div>
+        </div>
+        <div class="my-1" v-else>
+          <Message>There is no score for this workflow run yet.</Message>
+        </div>
+      </div>
+      <div class="p-4">
+        <h6>Score Comparison</h6>
+        <div class="my-1" v-for="score_run in sortByScore(workflowState.runScores)">
+          <div class="row" v-if="workflowState.runScores[score_run]['full_run_score'] > -0.01">
+            <div class="col-2">
+              <strong v-if="score_run === workflowState.selectedRun">{{ score_run }} - {{(workflowState.runScores[score_run]['full_run_score'] * 100).toFixed(2)}} %</strong>
+              <span v-else>{{ score_run }} - {{(workflowState.runScores[score_run]['full_run_score'] * 100).toFixed(2)}} %</span>
+            </div>
+            <div class="col-10">
+              <ProgressBar :style="{'height': score_run === workflowState.selectedRun ? '12px': '2px'}"
+              :value="(workflowState.runScores[score_run]['full_run_score'] * 100).toFixed(0)"
+              :showValue="false"
+              ></ProgressBar>
+              
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="card-body my-4 py-2" id="analysis_canvas_area">
       <div class="plot-section">
         <h5>CPU-RAM ratio</h5>

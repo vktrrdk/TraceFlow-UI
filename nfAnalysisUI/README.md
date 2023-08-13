@@ -2,14 +2,15 @@
 - [ ] **Test-Workflows** 
   - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
 - [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 
+- [ ] **eigenen Score für den Workflow entwickeln**
+- [ ] **WICHTIG: GEDANKEN MACHEN, WELCHE METRIKEN WIE RELEVANT SIND**
+- [ ] **Hinweise für den Umgang mit den analysierten Daten**
 - [ ] **Vergleiche zwei Runs miteinander** 
 - [ ] Analysemetriken einschränken - setze dynamische grenzen für die Relevanz
   - [x] Anfang
   - [ ] Fertigstellen
-- [ ] Hinweise für den Umgang mit den analysierten Daten
-- [ ] regard retry as state - show number of attempts if available, same holds for ignore
 - [ ] automatische Formatierung von Zeitdaten und Speichergroeßen - Sekunden, Minuten, Stunden usw
-  - [ ] Anfang
+  - [x] Anfang
   - [ ] An allen Stellen
   - [ ] Dynamisch wählbar?
 - [ ] Welcher Webserver? Config final abschließen!
@@ -28,7 +29,7 @@ Notes:
 - [ ] Integration von CloWM
 - [ ] remove empty columns from list - or show possibility to disable certain columns  
 - [ ] create overview: which processes are running, which are submitted, which are completed, which are failed?
-
+- [ ] show ignored processes - in list?
 
 Vergleiche Runs miteinander! wie viel mehr oder weniger cpu z.b 
 Gruppieren nach Task!
