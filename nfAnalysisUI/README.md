@@ -10,6 +10,7 @@
 - [x] **Hinweise für den Umgang mit den analysierten Daten**
   - [ ] erweitern mit I/O
 - [ ] **Vergleiche zwei Runs miteinander** 
+- [ ] **Bugfixing summaries (memory percentage average passt nicht?)**
 - [ ] Analysemetriken einschränken - setze dynamische grenzen für die Relevanz
   - [x] Anfang
   - [ ] Fertigstellen

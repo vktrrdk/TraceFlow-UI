@@ -28,8 +28,6 @@ import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
 import Process from "../models/Process"
 import RadioButton from 'primevue/radiobutton';
-import TabView from 'primevue/tabview';
-import TabPanel from 'primevue/tabpanel'
 import ScrollTop from 'primevue/scrolltop';
 import Sidebar from 'primevue/sidebar';
 import Menubar from 'primevue/menubar';
@@ -110,14 +108,20 @@ function isProblematic(data: any): boolean {
   return processIsDeclaredProblematic(data);
 }
 
-function allocationSort(a) {
+function cpuAllocationSort(a) {
 
   if (a["cpu_percentage"] && a["cpus"] && a["cpus"] > 0) {
     return a["cpu_percentage"] / a["cpus"];
   }
   return 0;
 
+}
 
+function memoryAllocationSort(a){
+  if (a["rss"] && a["memory"]  && a["memory"] > 0 ) {
+    return a["rss"] / a["memory"]
+  }
+  return 0;
 }
 
 function processIsDeclaredProblematic(data: any): boolean {
@@ -1351,12 +1355,12 @@ function showProblem(task: any, problem: any): string {
     }
   } else if (problem["ram"]) { // memory
       if (problem["ram"] === "less") {
-        return `The process requires significantly less RAM than specified and uses only ${task['ram_allocation'].toFixed(2)}% of the assigned physical RAM. You can adjust the assigned RAM-resources for this process to minimise bottlenecks.`;
+        return `The process requires significantly less RAM than specified and uses only ${task['ram_allocation'].toFixed(2)}% of the assigned physical RAM. You can adjust the assigned RAM-resources for this process to minimise bottlenecks. Pick a value around ${reasonableDataFormat(problem["solution"]["ram"])}`;
       } else if (problem["ram"] === "more") {
         if (problem["restriction"] === null){
-          return `The process requires significantly more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. You can adjust the amount of assigned RAM - pick at least ${reasonableDataFormat(problem["solution"]["ram"])}.`;
+          return `The process requires more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. You can adjust the amount of assigned RAM - pick at least ${reasonableDataFormat(problem["solution"]["ram"])}.`;
         } else {
-          return `The process requires significantly more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. As the used RAM of the process is higher, than the maximum value you have assigned to any processes (${reasonableDataFormat(task["solution"]["available"])}) ,you need to check if you have enough RAM resources or if you need to increase them.`;
+          return `The process requires more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. As the used RAM of the process is higher, than the maximum value you have assigned to any processes (${reasonableDataFormat(task["solution"]["available"])}) ,you need to check if you have enough RAM resources or if you need to increase them.`;
         }
       }
 
@@ -2676,14 +2680,14 @@ onUnmounted(() => {
             </template>
 
           </Column>
-          <Column header="CPU allocation" sortable field="allocation" :sort-field="allocationSort">
+          <Column header="CPU allocation" sortable field="allocation" :sort-field="cpuAllocationSort">
             <template #body="{ data }">
               <span v-if="data['cpu_percentage'] && data['cpus']">
                 {{ (data['cpu_percentage'] / data['cpus']).toFixed(2) }} %
               </span>
             </template>
           </Column>
-          <Column field="memory_percentage" header="Memory %" sortable>
+          <Column field="memory_percentage" header="Memory %" sortable >
             <template #body="{ data }">
               <span v-if="data.memory_percentage">
                 {{ data.memory_percentage }} %
@@ -2693,7 +2697,12 @@ onUnmounted(() => {
               </span>
             </template>
           </Column>
-          <Column></Column>
+          <Column field="memory_allocation" header="Memory allocation (Physical)" sortable :sort-field="memoryAllocationSort">
+          <template #body="{ data }">
+            <span v-if="data.rss && data.memory">{{((data.rss / data.memory) * 100).toFixed(2)}}%</span>
+            <span v-else>No data</span>
+          </template>
+          </Column>
           <Column field="memory" header="Requested Memory" sortable>
             <template #body="{ data }">
               <span v-if="data.memory">{{ reasonableDataFormat(data.memory) }}</span>
@@ -2743,8 +2752,18 @@ onUnmounted(() => {
               {{ reasonableDataFormat(data.wchar) }}
             </template>
           </Column>
-          <Column field="read_bytes" header="Read bytes" sortable></Column>
-          <Column field="write_bytes" header="Written bytes" sortable></Column>
+          <Column field="read_bytes" header="I/O Read" sortable>
+            <template #body="{ data }">
+              <span v-if="data.read_bytes">{{ reasonableDataFormat(data.read_bytes) }}</span>
+            <span v-else>No data</span>
+            </template>
+          </Column>
+          <Column field="write_bytes" header="I/O Write" sortable>
+            <template #body="{ data }">
+              <span v-if="data.write_bytes">{{ reasonableDataFormat(data.write_bytes) }}</span>
+              <span v-else>No data</span>
+            </template>
+          </Column>
           <Column field="syscr" header="syscr" sortable></Column>
           <Column field="syscw" header="syscw" sortable></Column>
           <Column field="vol_ctxt" header="Voluntary context switches" sortable></Column>
@@ -2959,9 +2978,9 @@ onUnmounted(() => {
       </div>
       <div class="my-4" v-if="workflowState.fullAnalysis['workflow_scores']">
         <h5 class="my-2">Scores by Task and Problems</h5>
-        <DataTable v-model:expandedRows="filterState.expandedRows" sortField="score"
+        <DataTable v-model:expandedRows="filterState.expandedRows"
         :value="workflowState.fullAnalysis['workflow_scores']['detail'][workflowState.selectedRun]"
-        paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" removable-sort
+        paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" :removable-sort="true"
          tableStyle="min-width: 80rem">
           <Column expander></Column>
           <Column field="task_id" sortable header="Task ID"/>
@@ -3022,8 +3041,10 @@ onUnmounted(() => {
             </template>
           </Column>
           <Column field="tag" header="Tags">
-            <template #body>
-              Needs to be added
+            <template #body={data}>
+              <Tag class="mx-1" v-for="tag_elem of data.tag"
+                :value="tag_elem[1] === null ? 'Empty tag' : `${tag_elem[0]}: ${tag_elem[1]}`" 
+              ></Tag>
             </template>
           </Column>
           <Column field="duration" header="Duration" sortable>
