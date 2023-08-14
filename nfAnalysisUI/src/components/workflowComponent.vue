@@ -1332,6 +1332,41 @@ function adjustTextForRatioMessage(clickedProcess: string) {
 
 }
 
+function showProblem(task: any, problem: any): string {
+  if (problem["cpu"]){ //cpu
+    if (problem["cpu"] === "more") { // more
+      if (problem["restriction"] === null) {
+        return `Currently this task has ${task["cpus"]} assigned, but needs at least ${problem["solution"]["cpus"]}, as the CPU allocation is ${task["cpu_allocation"].toFixed(2)}%. You can adjust the number of assigned CPUs.`;
+      } else if (problem["restriction"] === "max_reached") {
+        return `The maximum number of CPUs you have assigned over all tasks is ${problem["solution"]["available"]} CPUs - to meet the requirements of the process, ${problem["solution"]["needed"]} CPUs should be assigned to it. If there are no more CPU resources available in your current setup, you must increase the available CPU resources or adjust the implementation of the process.`;
+      }
+    } else { // less
+      if (problem["restriction"] === null) {
+        return `The process has a low CPU allocation of ${task["cpu_allocation"].toFixed(2)}% - this means that fewer CPUs are needed than are assigned to the process. Only ${problem["solution"]["cpus"]} CPUs are required, while ${task["cpus"]} are assigned. Change the number of CPUs allocated or, if possible, divide the process into sub-processes if the resource load differs over time.`;
+      } else {
+        if (problem["restriction"] === "min_reached") {
+          return `Only one CPU is assigned to this process and it is hardly used with a load of ${task["cpu_allocation"].toFixed(2)} %. If it is possible, split up the process.`;
+        }
+      }
+    }
+  } else if (problem["ram"]) { // memory
+      if (problem["ram"] === "less") {
+        return `The process requires significantly less RAM than specified and uses only ${task['ram_allocation'].toFixed(2)}% of the assigned physical RAM. You can adjust the assigned RAM-resources for this process to minimise bottlenecks.`;
+      } else if (problem["ram"] === "more") {
+        if (problem["restriction"] === null){
+          return `The process requires significantly more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. You can adjust the amount of assigned RAM - pick at least ${reasonableDataFormat(problem["solution"]["ram"])}.`;
+        } else {
+          return `The process requires significantly more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. As the used RAM of the process is higher, than the maximum value you have assigned to any processes (${reasonableDataFormat(task["solution"]["available"])}) ,you need to check if you have enough RAM resources or if you need to increase them.`;
+        }
+      }
+
+  }
+  return "Not able to show the problem";
+}
+
+/**
+ * old function which was showing problems 
+ */
 function problemToMessage(problem: any): string {
   const problemKey: string = Object.keys(problem)[0];
   let problemValue: any = Object.values(problem)[0];
@@ -2922,18 +2957,41 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-      <div class="my-2" v-if="workflowState.fullAnalysis['workflow_scores']">
-        <DataTable v-model:expandedRows="filterState.expandedRows" sortField="task_id"
+      <div class="my-4" v-if="workflowState.fullAnalysis['workflow_scores']">
+        <h5 class="my-2">Scores by Task and Problems</h5>
+        <DataTable v-model:expandedRows="filterState.expandedRows" sortField="score"
         :value="workflowState.fullAnalysis['workflow_scores']['detail'][workflowState.selectedRun]"
-
+        paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" removable-sort
          tableStyle="min-width: 80rem">
-          <Column field="task_id" sortable header="Task ID" expander/>
+          <Column expander></Column>
+          <Column field="task_id" sortable header="Task ID"/>
           <Column field="process" sortable header="Process"></Column>
-          <Column field="score" sortable header="Score"></Column>
+          <Column field="score" sortable header="Score">
+          <template #body={data}>
+            <span><strong>{{(data.score * 100).toFixed(2)}}%</strong></span>
+          </template></Column>
+          <Column field="problems" sortable header="Problems">
+            <template #body={data}>
+              <span v-if="data.problems.length === 0"><strong>No problems</strong></span>
+              <Tag v-else severity="danger">{{data.problems.length}}</Tag>
+            </template>
+          </Column>
+          <template #expansion="slotProps">
+            <div class="p-3" v-if="slotProps.data.problems.length > 0">
+                <Panel class="mb-3" :header="'Problem #' + (index + 1)" toggleable v-for="(problem, index) of slotProps.data.problems">
+                  <p class="m-1">
+                    {{showProblem(slotProps.data, problem)}}
+                  </p>
+              </Panel>
+            </div>
+            <div class="p-3" v-else>
+              <span>There are no problems detected for this task</span>
+            </div>
+        </template>
         </DataTable>
       </div>
     </div>
-    <div class="card-body my-4 py-2" id="analysis_canvas_area">
+    <div class="card-body my-5 py-2" id="analysis_canvas_area">
       <div class="plot-section">
         <h5>CPU-RAM ratio</h5>
         <canvas id="cpu_ram_ratio" class="p-4"></canvas>
@@ -2945,30 +3003,7 @@ onUnmounted(() => {
       {{ analysisInfo.cpuRamRatioText }}
     </Message>
 
-    <div class="my-4" v-if="workflowState.processAnalysis[workflowState.selectedRun]?.length > 0">
-      <h6>Processes</h6>
-      <TabView>
-        <TabPanel v-for="process in workflowState.processAnalysis[workflowState.selectedRun]" :key="process.process"
-          :header="getSuffix(process.process) + ' - Task ' + process.task_id">
-          <div v-for="problem in process.problems">
-            <Message :closable="false" severity="info">{{ problemToMessage(problem) }}</Message>
-          </div>
-        </TabPanel>
-      </TabView>
-    </div>
-
-
-    <div class="card-body my-4" v-if="workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0">
-      <h6>Tags</h6>
-      <TabView>
-        <TabPanel v-for="tag in workflowState.tagAnalysis[workflowState.selectedRun]" :key="tag.tag"
-          :header="tagToString(tag.tag)">
-          <div v-for="problem in tag.problems">
-            <Message :closable="false" severity="info">{{ problemToMessage(problem) }}</Message>
-          </div>
-        </TabPanel>
-      </TabView>
-    </div>
+    <hr>
 
     <div class="card-body my-4">
       <h6>Duration</h6>
