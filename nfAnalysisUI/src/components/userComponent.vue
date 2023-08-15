@@ -14,6 +14,7 @@ const props = defineProps<{
     token: string;
 }>();
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 const userComponentState = reactive<{
     loading: boolean;
     token: string;
@@ -56,7 +57,7 @@ function updateToken(token: string) {
 function getData(token = props.token) {
     userComponentState.loading = true;
     if (token?.length > 0) {
-        axios.get(`http://localhost:8000/user/${token}/`).then(
+        axios.get(`${API_BASE_URL}user/${token}/`).then(
             response => {
                 let data = response.data;
                 if (data["id"] && data["id"].length > 0) {
@@ -82,7 +83,7 @@ function getData(token = props.token) {
 }
 
 function generateNewUserSpecificToken(user_token: string) {
-    axios.get(`http://localhost:8000/user/${user_token}/token/create/`).then(
+    axios.get(`${API_BASE_URL}user/${user_token}/token/create/`).then(
         () => {
             getData(userComponentState.token);
         }
@@ -90,7 +91,7 @@ function generateNewUserSpecificToken(user_token: string) {
 }
 
 function addTokenToUser(user_token: string, token_to_add: string) {
-    axios.post(`http://localhost:8000/user/token/add/`,  {
+    axios.post(`${API_BASE_URL}user/token/add/`,  {
         token: token_to_add,
         user_token: user_token,
     }).then(
@@ -103,7 +104,7 @@ function addTokenToUser(user_token: string, token_to_add: string) {
 
 function createNewUser(user_name: string) {
     userComponentState.loading = true;
-    axios.post(`http://localhost:8000/user/create/`,
+    axios.post(`${API_BASE_URL}user/create/`,
         {name: user_name}).then(
         response => {
             userComponentState.newly_created_user = response.data;
@@ -125,7 +126,7 @@ function setEnterNewUserMode() {
 }
 
 function removeTokenFromUser(token_to_remove: string) {
-    axios.delete(`http://localhost:8000/user/${userComponentState.token}}/token/${token_to_remove}`).then(
+    axios.delete(`${API_BASE_URL}user/${userComponentState.token}}/token/${token_to_remove}`).then(
         response => {
             console.log(response);
             getData(userComponentState.token);

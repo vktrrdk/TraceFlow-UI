@@ -16,4 +16,7 @@ export default defineConfig({
       host: '0.0.0.0',
       port: 8001,
   }, 
+  define: {
+    'meta.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL)
+  }
 })

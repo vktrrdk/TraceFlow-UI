@@ -52,6 +52,8 @@ Chart.register(
   annotationPlugin,
 );
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+
 const router = useRouter();
 const route = useRoute();
 
@@ -310,7 +312,7 @@ const filterState = reactive<{
 function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
-    axios.post(`http://localhost:8000/run/info/${token}/`,
+    axios.post(`${API_BASE_URL}run/info/${token}/`,
       setAnalysisParams(),
     ).then(
       response => {
@@ -385,7 +387,7 @@ function startPollingLoop(): void {
 }
 
 function dataPollingLoop(): void {
-  axios.post(`http://localhost:8000/run/info/${workflowState.token}/`,
+  axios.post(`${API_BASE_URL}run/info/${workflowState.token}/`,
     setAnalysisParams(),
   ).then(
     response => {
@@ -1876,7 +1878,7 @@ function getProgressValueForTask(status: string): number {
 
 
 function deleteToken() {
-  axios.delete(`http://localhost:8000/token/remove/${workflowState.token}/`).then(
+  axios.delete(`${API_BASE_URL}token/remove/${workflowState.token}/`).then(
     response => {
       if (response.data["deleted"]) {
         toast.add({ severity: 'error', summary: 'Confirmed', detail: 'You have successfully deleted this token and all connected information. You will be redirected to the main-page.', life: 5000 });
@@ -2367,12 +2369,12 @@ onUnmounted(() => {
             </li>
             <li>Start your nextflow workflow as you are used to. Just add the following command line arguments to
               the execution:
-              <strong>{{ `-with-weblog http://localhost:8000/run/${workflowState.token}/` }}</strong>
+              <strong>{{ `-with-weblog ${API_BASE_URL}run/${workflowState.token}/` }}</strong>
             </li>
           </ul>
           So your command to execute will look similar to this: <br>
           <span class="text-muted">./nextflow run nextflow-io/elixir-workshop-21 -r master -with-docker -with-weblog
-            http://localhost:8000/run/{{ workflowState.token }}</span>
+            {{API_BASE_URL}}run/{{ workflowState.token }}</span>
           <br>
           As soon as the first metrics have been sent to the token-specific-endpoint, you will be able to see the
           progress here.

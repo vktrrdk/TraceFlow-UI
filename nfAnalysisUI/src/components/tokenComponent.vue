@@ -15,6 +15,7 @@ const props = defineProps<{
     token_id: string;
 }>();
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 const currentState = reactive<{
     loading: boolean;
@@ -38,7 +39,8 @@ const currentState = reactive<{
 function generateNewToken() {
     currentState.loading = true;
     currentState.token_information_requested = false;
-    axios.get("http://localhost:8000/token/create/").then(
+    console.log(API_BASE_URL)
+    axios.get(`${API_BASE_URL}token/create/`).then(
         response => {
             currentState.newly_created_token = response.data["id"];
             currentState.loading = false;
@@ -52,7 +54,7 @@ function showTokenInformation(token_id: string) {
     currentState.token_information_requested = true;
     currentState.token_generation_requested = false;
     currentState.token = token_id;
-    axios.get(`http://localhost:8000/token/validate/${token_id}/`).then(
+    axios.get(`${API_BASE_URL}token/validate/${token_id}/`).then(
         response => {
             currentState.loading = false;
             if (response.data["valid"] == true) {
