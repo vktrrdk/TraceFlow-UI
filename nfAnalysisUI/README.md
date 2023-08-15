@@ -7,6 +7,7 @@
  - [ ] erweitern mit I/O
 - [x] **eigenen Score für den Workflow entwickeln**
 - [ ] **WICHTIG: GEDANKEN MACHEN, WELCHE METRIKEN WIE RELEVANT SIND**
+- [ ] fix bug on tags in analysis summary
 - [x] **Hinweise für den Umgang mit den analysierten Daten**
   - [ ] erweitern mit I/O
 - [ ] **Vergleiche zwei Runs miteinander** 

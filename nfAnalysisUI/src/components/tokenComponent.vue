@@ -100,7 +100,7 @@ onMounted(() => {
                 Please persist this token. You can now register workflows to this token.
                 <hr>
                 <button class="btn btn-outline-dark" @click="router.push(getLink(currentState.newly_created_token))">
-                    Manage
+                    Show Information
                 </button>
             </div>
         </div>
