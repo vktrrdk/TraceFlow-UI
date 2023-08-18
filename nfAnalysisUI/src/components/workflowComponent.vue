@@ -325,15 +325,14 @@ function getDataInitial(token = props.token): void {
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
-          updateFilterState();
           workflowState.runningProcesses = updateRunningProcesses();
-          updateFilteredRunningProcesses()
+          updateFilterState();
+          updateFilteredRunningProcesses();
           workflowState.processAnalysis = response.data["result_analysis"]["process_wise"];
           workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
           workflowState.fullAnalysis = response.data["result_analysis"]
           updateCurrentState();
           updateProgress();
-
           workflowState.token_info_requested = true;
           workflowState.token = token;
           workflowState.error_on_request = false;
@@ -399,8 +398,8 @@ function dataPollingLoop(): void {
         workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
         updateRunStartMapping();
         workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
-        updateFilterState();
         workflowState.runningProcesses = updateRunningProcesses();
+        updateFilterState();
         updateFilteredRunningProcesses();
         workflowState.processAnalysis = response.data["result_analysis"]["process_wise"]
         workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
@@ -408,11 +407,7 @@ function dataPollingLoop(): void {
         updateCurrentState();
         updateProgress();
         workflowState.error_on_request = false;
-        updateAvailableProcessNamesForFilter();
-        updateAvailableTags();
-        updateIfAutoselectEnabled();
         progressProcessSelectionChanged();
-        updateIfTagAutoSelectEnabled();
         if (currentlySelectedWorkflowHasPlottableData()) {
           if (metricCharts.chartsGenerated) {
             updatePlots();
@@ -434,11 +429,9 @@ function dataPollingLoop(): void {
 function updateFilterState(): void {
   updateAvailableProcessNamesForFilter();
   updateAvailableTags();
-  setSelectedProgressProcesses(filterState.availableProcesses);
-  setSelectedMetricProcesses(filterState.availableProcesses);
-  setSelectedMetricTags(filterState.availableTags);
-  setSelectedRunningProcesses(filterState.availableProcesses);
-  setSelectedRunningTags(filterState.availableTags);
+  updateIfAutoselectEnabled();
+  updateIfTagAutoSelectEnabled();
+
 }
 
 function updateAvailableProcessNamesForFilter(): void {
@@ -501,13 +494,11 @@ function setSelectedRunningProcesses(processes: any[]): void {
 }
 
 function selectAllMetricProcesses(): void {
-  updateAvailableProcessNamesForFilter();
   setSelectedMetricProcesses(filterState.availableProcesses);
   metricProcessSelectionChanged();
 }
 
 function selectAllRunningProcesses(): void {
-  updateAvailableProcessNamesForFilter();
   setSelectedRunningProcesses(filterState.availableProcesses);
   runningProcessSelectionChanged();
 }
@@ -538,7 +529,6 @@ function selectAllRunningTags(): void {
 }
 
 function selectAllProgressProcesses(): void {
-  updateAvailableProcessNamesForFilter();
   setSelectedProgressProcesses(filterState.availableProcesses);
   progressProcessSelectionChanged();
 }
@@ -556,7 +546,11 @@ function unselectAllRunningProcesses(): void {
 function updateIfTagAutoSelectEnabled(): void {
   if (filterState.autoselectAllMetricTags) {
     selectAllMetricTags();
-  }
+  } if (filterState.autoselectAllRunningTags) {
+    selectAllRunningTags();
+  }  /*if (filterState.autoselectAllProgressTags) {
+    selectAllProgressTags(); TODO: IMPLEMENT
+  } */
 }
 
 function updateIfAutoselectEnabled(): void {
@@ -565,6 +559,9 @@ function updateIfAutoselectEnabled(): void {
   }
   if (filterState.autoselectAllMetricProcesses) {
     selectAllMetricProcesses();
+  }
+  if (filterState.autoselectAllRunningProcesses) {
+    selectAllRunningProcesses();
   }
 }
 
@@ -594,29 +591,26 @@ function updateFilteredRunningProcesses(all: boolean = false): void {
   let selectedTags: any = null;
   if (filterState.selectedRunningTags.length > 0 && filterState.selectedRunningTags.length !== filterState.availableTags.length) {
     tagFilter = true;
-    selectedTags = toRaw(filterState.selectedTags);
+    selectedTags = toRaw(filterState.selectedRunningTags);
   }
   
   let runningProcesses = toRaw(workflowState.runningProcesses);
   if (Object.keys(runningProcesses).length > 0 ) {
-    for (let process of Object.values(runningProcesses)) {
-      if (tagFilter) {
-        if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
-          continue;
-        }
-      }
-      process = toRaw(process);
-      for (let prc of process) {
-        if (filterState.selectedRunningProcesses && filterState.selectedRunningProcesses.length > 0){
-          if (filterState.selectedRunningProcesses.some(obj => obj['name'] === prc.process)) {
-            if (!(prc.process in filtered)) {
-                filtered[prc.process] = []
+    for (let [name, processes] of Object.entries(runningProcesses)) {
+      if (filterState.selectedRunningProcesses.some(obj => obj['name'] === name)) {
+        for (let process of processes) {
+          if (tagFilter) {
+            if (!selectedTags.some(tag => checkTagMatch(tag, process["tag"]))) {
+              continue;
             }
-          filtered[prc.process].push(process)
+          }
+          if (!(name in filtered)){
+            filtered[name] = [];
+          }
+          filtered[name].push(process);
         }
-      } 
       }
-    }
+    }  
   }
 
   workflowState.filteredRunningProcesses = filtered;
@@ -639,11 +633,13 @@ function metricProcessSelectionChanged(): void {
 }
 
 function metricTagSelectionChanged(): void {
-  updatePlots();
+  if (filterState.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
+    updatePlots();
+  }
 }
 
 function runningTagSelectionChanged(): void{
-  // pass?
+  updateFilteredRunningProcesses();
 }
 
 
@@ -666,6 +662,7 @@ function runningTagAutoSelectionChanged(): void {
     selectAllRunningTags();
   }
 }
+
 
 function runningProcessAutoSelectionChanged(): void {
   if (filterState.autoselectAllRunningProcesses && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
@@ -2309,6 +2306,7 @@ onUnmounted(() => {
     <Menubar :model="uiState.menuItems">
       <template #start>
         <img alt="logo" src="https://primefaces.org/cdn/primevue/images/logo.svg" height="40" class="mx-4" />
+        <!-- todo: adjust to own logo -->
 
       </template>
       <template #end>
@@ -2318,7 +2316,6 @@ onUnmounted(() => {
       </template>
     </Menubar>
   </div>
-
 
   <div class="card" v-if="!workflowState.token || workflowState.error_on_request">
     <h5 class="card-header">Enter token</h5>
@@ -2338,7 +2335,6 @@ onUnmounted(() => {
   </div>
 
   <div v-if="workflowState.token && workflowState.token_info_requested">
-
 
     <div class="card-body mt-4 py-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0"
       id="run_selection_div">
@@ -2531,14 +2527,16 @@ onUnmounted(() => {
 
     
       <div v-for="(info, process) in workflowState.filteredRunningProcesses" class="row my-2">
-        <div class="col-auto"><strong>{{ process }}</strong> - {{ info.length > 1 ?
-          info.length + ' processes' : '1 process' }} with tags : </div>
-        <div class="mx-1 col-auto" v-for="proc_l of info">
-          <div v-for="proc of proc_l">
-            <Tag v-for="tag_elem of proc.tag"
+        <Panel toggleable :collapsed="true"
+        :header="`${process}${info.length > 1 ? info.length + ' processes' : '1 process'}`">
+          <ul class="list-group list-group-flush">
+            <li v-for="task of info"
+            class="list-group-item"><strong>Task #{{ task['task_id'] }}</strong> <Tag class="m-1" v-for="tag_elem of task['tag']"
               :value="Object.keys(tag_elem)[0] === '' ? 'Empty Tag' : Object.keys(tag_elem)[0] + ': ' + Object.values(tag_elem)[0]"></Tag>
-          </div>
-      </div>
+            </li>
+          </ul>
+        </Panel>
+      
         
       </div>
     </div>

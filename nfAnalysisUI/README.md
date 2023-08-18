@@ -1,29 +1,38 @@
 # Current work
+- [x] Adjust templating for running processes - all tags
 - [ ] **Test-Workflows** 
   - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
 - [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 
  - [x] Anfang
  - [x] erweitern
- - [ ] erweitern mit I/O
 - [x] **eigenen Score für den Workflow entwickeln**
 - [ ] **WICHTIG: GEDANKEN MACHEN, WELCHE METRIKEN WIE RELEVANT SIND**
-- [ ] fix bug on tags in analysis summary
-- [x] **Hinweise für den Umgang mit den analysierten Daten**
-  - [ ] erweitern mit I/O
-- [ ] **Vergleiche zwei Runs miteinander** 
+- [] **Hinweise für den Umgang mit den analysierten Daten**
+   - [x] Anfang
+   - [ ] Prozessebene!
 - [ ] **Bugfixing summaries (memory percentage average passt nicht?)**
-- [ ] Analysemetriken einschränken - setze dynamische grenzen für die Relevanz
-  - [x] Anfang
-  - [ ] Fertigstellen
 - [ ] automatische Formatierung von Zeitdaten und Speichergroeßen - Sekunden, Minuten, Stunden usw
   - [x] Anfang
   - [ ] An allen Stellen
-  - [ ] Dynamisch wählbar?
-- [ ] Welcher Webserver? Config final abschließen!
-Notes:
+- [ ] Tags in allen Listen anzeigen, wo es notwendig ist
+- [ ] Check if Metrics Filter also adjusts CPU/RAM-Ratio plot?
+- [ ] Anpassen der zurückgegebenen Analysis-Listen - mehr Informationen auf Prozessebene!
+- [ ] fix bug on tags in analysis summary
+- [x] Fully working filter on currently Running
+
+
+# Möglicherweise
+
+- [ ] Analysemetriken einschränken - setze dynamische grenzen für die Relevanz
+  - [x] Anfang
+  - [ ] Fertigstellen
 
 # Zukünftige Änderungen
-
+- [ ] **Vergleiche zwei Runs miteinander** 
+- [ ] Webserver Konfiguration
+- [ ] Einheiten dynamisch wählbar machenn.
+- [ ] Metriken: Score erweitern mit I/O
+- [ ] Hinweise erweitern auf I/O
 - [ ] native_id - kann für Steal-Time usw. genutzt
   - [ ] Über pyslurm hostnamen des prozesses abfragen
     - [ ] BatchHost für native-id (welche die JobId für Slurm ist) holen
@@ -71,5 +80,10 @@ CPU allocation beachten - dabei wird cpu% gegen cpu anzahl gerechnet, wenn diese
 das selbe gilt für memory - hier gilt es einen weg zu finden, wie man vmem und rss miteinander vergleicht
 nehme initial an, man vergleich den RSS-Wert mit dem Requested Memory wert - umso näher man an 100% ist, desto besser. 
 
+____ 
 
+gängiges vorgehen von entwicklern, checke was der peak an ram ist, nehme den wert für alle tasks dieses prozesses --> viele tasks brauchen viel weniger, wodurch diese ineffizient gewertet werden.
+unterscheide bei den handlungsanweisungen zwischen prozessen und tasks!
+--> problemdarstellung auf prozessebene muss!
 
+--> Result section!
