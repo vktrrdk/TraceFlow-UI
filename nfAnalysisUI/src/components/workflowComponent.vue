@@ -1280,7 +1280,7 @@ function getCPURatioAnalysisString(elem: any[]) {
   if (elem[0] < lower) {
     if (elem[1] < lower) {
       if (elem[2] < lower) {
-        return "The process requires less than the requested CPU resources for all instances."
+        return "The task requires less than the requested CPU resources for all instances."
       } else if (elem[2] > higher) {
         return "The process requires less CPU resources than requested for several instances, but there are also cases where the process requires significantly more.";
       } else {
@@ -1378,25 +1378,25 @@ function showProblem(task: any, problem: any): string {
       if (problem["restriction"] === null) {
         return `Currently this task has ${task["cpus"]} assigned, but needs at least ${problem["solution"]["cpus"]}, as the CPU allocation is ${task["cpu_allocation"].toFixed(2)}%. You can adjust the number of assigned CPUs.`;
       } else if (problem["restriction"] === "max_reached") {
-        return `The maximum number of CPUs you have assigned over all tasks is ${problem["solution"]["available"]} CPUs - to meet the requirements of the process, ${problem["solution"]["needed"]} CPUs should be assigned to it. If there are no more CPU resources available in your current setup, you must increase the available CPU resources or adjust the implementation of the process.`;
+        return `The maximum number of CPUs you have assigned over all tasks is ${problem["solution"]["available"]} CPUs - to meet the requirements of the task, ${problem["solution"]["needed"]} CPUs should be assigned to it. If there are no more CPU resources available in your current setup, you must increase the available CPU resources or adjust the implementation of the process.`;
       }
     } else { // less
       if (problem["restriction"] === null) {
-        return `The process has a low CPU allocation of ${task["cpu_allocation"].toFixed(2)}% - this means that fewer CPUs are needed than are assigned to the process. Only ${problem["solution"]["cpus"]} CPUs are required, while ${task["cpus"]} are assigned. Change the number of CPUs allocated or, if possible, divide the process into sub-processes if the resource load differs over time.`;
+        return `The task has a low CPU allocation of ${task["cpu_allocation"].toFixed(2)}% - this means that fewer CPUs are needed than are assigned to the task. Only ${problem["solution"]["cpus"]} CPUs are required, while ${task["cpus"]} are assigned. Change the number of CPUs allocated or, if possible, divide the process into sub-processes if the resource load differs over time.`;
       } else {
         if (problem["restriction"] === "min_reached") {
-          return `Only one CPU is assigned to this process and it is hardly used with a load of ${task["cpu_allocation"].toFixed(2)} %. If it is possible, split up the process.`;
+          return `Only one CPU is assigned to this task and it is hardly used with a load of ${task["cpu_allocation"].toFixed(2)} %. If it is possible, split up the computations of the corresponding process.`;
         }
       }
     }
   } else if (problem["ram"]) { // memory
       if (problem["ram"] === "less") {
-        return `The process requires significantly less RAM than specified and uses only ${task['ram_allocation'].toFixed(2)}% of the assigned physical RAM. You can adjust the assigned RAM-resources for this process to minimise bottlenecks. Pick a value around ${reasonableDataFormat(problem["solution"]["ram"])}`;
+        return `The task requires significantly less RAM than specified and uses only ${task['ram_allocation'].toFixed(2)}% of the assigned physical RAM. You can adjust the assigned RAM-resources for this task to minimise bottlenecks. Pick a value around ${reasonableDataFormat(problem["solution"]["ram"])}`;
       } else if (problem["ram"] === "more") {
         if (problem["restriction"] === null){
-          return `The process requires more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. You can adjust the amount of assigned RAM - pick at least ${reasonableDataFormat(problem["solution"]["ram"])}.`;
+          return `The task requires more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. You can adjust the amount of assigned RAM - pick at least ${reasonableDataFormat(problem["solution"]["ram"])}.`;
         } else {
-          return `The process requires more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. As the used RAM of the process is higher, than the maximum value you have assigned to any processes (${reasonableDataFormat(task["solution"]["available"])}) ,you need to check if you have enough RAM resources or if you need to increase them.`;
+          return `The task requires more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. As the used RAM of the task is higher, than the maximum value you have assigned to any processes (${reasonableDataFormat(task["solution"]["available"])}) ,you need to check if you have enough RAM resources or if you need to increase them.`;
         }
       }
 
@@ -3209,7 +3209,7 @@ onUnmounted(() => {
       <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['least_cpu'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of processes which have the lowest CPU allocation percentage. <a
+          Below is a list of tasks which have the lowest CPU allocation percentage. <a
             href="https://www.nextflow.io/docs/latest/metrics.html#cpu-usage" rel="noopener noreferrer" target="_blank"
             class="alert-link">See here for calculation details.</a>
         </Message>
@@ -3222,6 +3222,13 @@ onUnmounted(() => {
               {{ getSuffix(data['process']) }}
             </template>
           </Column>
+          <Column field="tag" header="Tags">
+            <template #body={data}>
+              <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
+                :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
+              ></Tag>
+            </template>
+          </Column>
           <Column field="allocation" header="CPU allocation %" sortable>
             <template #body="{ data }">
               {{ data["allocation"].toFixed(2) }} %
@@ -3232,7 +3239,7 @@ onUnmounted(() => {
       <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['most_cpu'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of processes which have the highest CPU allocation percentage. <a
+          Below is a list of tasks which have the highest CPU allocation percentage. <a
             href="https://www.nextflow.io/docs/latest/metrics.html#cpu-usage" rel="noopener noreferrer" target="_blank"
             class="alert-link">See here for calculation details.</a>
         </Message>
@@ -3243,6 +3250,13 @@ onUnmounted(() => {
           <Column field="process" header="Process">
             <template #body="{ data }">
               {{ getSuffix(data['process']) }}
+            </template>
+          </Column>
+          <Column field="tag" header="Tags">
+            <template #body={data}>
+              <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
+                :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
+              ></Tag>
             </template>
           </Column>
           <Column field="allocation" header="CPU allocation" sortable>
@@ -3278,7 +3292,7 @@ onUnmounted(() => {
           </Column>
           <Column field="memory_allocation" header="Memory Allocation % average" sortable>
             <template #body="{ data }">
-              {{ (data["memory_allocation"] * 100).toFixed(2) }} %
+              {{ (data["memory_allocation"]).toFixed(2) }} %
             </template>
           </Column>
         </DataTable>
@@ -3301,7 +3315,7 @@ onUnmounted(() => {
           </Column>
           <Column field="memory_allocation" header="Memory Allocation % average" sortable>
             <template #body="{ data }">
-              {{ (data["memory_allocation"] * 100).toFixed(2) }} %
+              {{ (data["memory_allocation"]).toFixed(2) }} %
             </template>
           </Column>
         </DataTable>
