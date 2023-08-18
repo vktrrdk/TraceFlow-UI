@@ -20,6 +20,9 @@ Notes:
 Also ein 2GB prozess, der nur 50% verarbeitet ist weniger schlimm als ein 16 gb prozess der 65% prozent verarbeitet
 Gewichten der Metriken, wie ? Normalisierung usw?
 
+`(sum_over_all_tasks ((w_1 * r_t_1 * a_t_1 * d) + (w_2 * r_t_2 * a_t_2 * d))) / (sum_over_all_tasks (w_1 * a_t_1 * d) + (w_2 * a_t_2 * d))
+`
+
 
 # Möglicherweise
 
