@@ -33,6 +33,7 @@ import Sidebar from 'primevue/sidebar';
 import Menubar from 'primevue/menubar';
 import InputSwitch from "primevue/inputswitch";
 import InputNumber from "primevue/inputnumber";
+import Fieldset from "primevue/fieldset"
 import Dropdown from 'primevue/dropdown';
 import { PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart-error-bars';
 import annotationPlugin from 'chartjs-plugin-annotation';
@@ -237,6 +238,8 @@ const workflowState = reactive<{
 
 const metricCharts = reactive<{
   chartsGenerated: boolean;
+  durationFormat: string; // ['s', 'min', 'h']
+  memoryFormat: string; 
   memoryChart: any | null;
   memoryCanvas: any | null;
   relativeMemoryChart: any | null;
@@ -255,6 +258,8 @@ const metricCharts = reactive<{
   dynamicCanvas: any | null;
 }>({
   chartsGenerated: false,
+  durationFormat: 'h',
+  memoryFormat: 'GiB',
   memoryChart: null,
   memoryCanvas: null,
   relativeMemoryChart: null,
@@ -321,6 +326,8 @@ function getDataInitial(token = props.token): void {
           workflowState.error_on_request = true;
         } else {
           workflowState.meta = response.data["result_meta"];
+          metricCharts.memoryFormat = 'GiB';
+          metricCharts.durationFormat = 'h';
           workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
           updateRunStartMapping();
           setFirstRunName();
@@ -858,7 +865,7 @@ async function createDurationPlot() {
           y: {
             title: {
               display: true,
-              text: "Duration in minutes"
+              text: `Duration in ${metricCharts.durationFormat}`
             }
           }
         }
@@ -909,7 +916,7 @@ async function createRamPlot() {
           y: {
             title: {
               display: true,
-              text: 'RAM value in GiB'
+              text: `RAM value in ${metricCharts.memoryFormat}`
             },
           },
         }
@@ -1138,6 +1145,13 @@ is there a possibility to connect the datapoints with certain ids or other value
 
 /** Plot updating **/
 
+function updatePlotsConditional() {
+  if (metricCharts.chartsGenerated) 
+  {
+    updatePlots();
+  }
+}
+
 function updatePlots() {
   if (currentlySelectedWorkflowHasPlottableData()) {
     updateRamPlot();
@@ -1154,7 +1168,7 @@ function updateIOPlot() {
   let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
     ['read_bytes', 'write_bytes'],
     true,
-    'GiB',
+    metricCharts.memoryFormat,
     ['Read in ', 'Written in '],
     filterState.selectedMetricProcesses
   );
@@ -1168,12 +1182,13 @@ function updateRamPlot() {
   let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
     ['memory', 'vmem', 'rss'],
     true,
-    'GiB',
+    metricCharts.memoryFormat,
     ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '],
     filterState.selectedMetricProcesses,
   );
   metricCharts.memoryChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.memoryChart.data.datasets = generatedDatasets[1];
+  metricCharts.memoryChart.options.scales.y.title.text = `RAM value in ${metricCharts.memoryFormat}`;
   metricCharts.memoryChart.update('none');
 }
 
@@ -1203,10 +1218,11 @@ function updateCPURamRatioChart() {
 }
 
 function updateDurationPlot() {
-  let generatedDatasets: [string[], any[]] = generateDurationData('min');
+  let generatedDatasets: [string[], any[]] = generateDurationData(metricCharts.durationFormat);
   // getSuffixes is already part of generateDurationData-function
   metricCharts.durationChart.data.labels = generatedDatasets[0];
   metricCharts.durationChart.data.datasets = generatedDatasets[1];
+  metricCharts.durationChart.options.scales.y.title.text = `Duration in ${metricCharts.durationFormat}`;
   metricCharts.durationChart.update('none');
   // there is a bug somewhere, which leads to wrong calculation of datasets on filter change
 }
@@ -1761,15 +1777,11 @@ function getDynamicDurationTypeAsNumber(duration: number, unit: any = null): num
   if (!unit) {
     return duration;
   } else {
-    duration = duration / 1000
-    if (unit === 's') {
-      return duration;
+    switch(unit) {
+      case 's': return duration / 1000
+      case 'min': return duration / (1000 * 60)
+      case 'h': return duration / (1000 * 60 * 60)
     }
-    duration = duration / 60;
-    if (unit === 'min') {
-      return duration;
-    }
-    duration = duration / 60
     return duration;
   }
 }
@@ -2465,9 +2477,11 @@ onUnmounted(() => {
     </div>
 
     <div class="card-body my-5" v-if="Object.keys(workflowState.runningProcesses).length > 0">
-      <h5 class="card-title">Currently running</h5>
+    
 
-      <div class="card-body my-4">
+      <Fieldset legend="Currently Running" :toggleable="true">
+
+        <div class="card-body my-4">
         <div class="row my-3">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedRunningProcesses" :options="filterState.availableProcesses"
@@ -2525,20 +2539,22 @@ onUnmounted(() => {
   
       </div>
 
-    
-      <div v-for="(info, process) in workflowState.filteredRunningProcesses" class="row my-2">
+        <div v-for="(info, process) in workflowState.filteredRunningProcesses" class="row my-2">
         <Panel toggleable :collapsed="true"
         :header="`${process}${info.length > 1 ? info.length + ' processes' : '1 process'}`">
           <ul class="list-group list-group-flush">
             <li v-for="task of info"
-            class="list-group-item"><strong>Task #{{ task['task_id'] }}</strong> <Tag class="m-1" v-for="tag_elem of task['tag']"
+            class="list-group-item"><strong>Task #{{ task['task_id'] }}<span :class="task['attempt'] > 1 ? 'text-danger' : ''"> - attempt {{ task['attempt'] }}</span></strong> <Tag class="m-1" v-for="tag_elem of task['tag']"
               :value="Object.keys(tag_elem)[0] === '' ? 'Empty Tag' : Object.keys(tag_elem)[0] + ': ' + Object.values(tag_elem)[0]"></Tag>
             </li>
           </ul>
         </Panel>
-      
-        
+    
       </div>
+      </Fieldset>
+      
+
+
     </div>
 
     <div class="my-5 py-2"
@@ -2851,6 +2867,56 @@ onUnmounted(() => {
             offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionTags()" onIcon="pi pi-check"
             offIcon="pi pi-times" v-on:change="metricTagAutoSelectionChanged()" />
         </div>
+      </div>
+
+      <div class="row my-3">
+        <div class="col-3">
+          <h6 class="p-2">Memory Format</h6>
+        </div>
+        <div class="col-6 d-flex justify-content-between align-items-center">
+            <div class="p-2">
+              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_b" value="b" 
+              :update:modelValue="updatePlotsConditional()"/>
+              <label for="mem_format_selection_b" class="mx-1">Bytes</label>
+            </div>
+            <div class="p-2"> 
+              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_kib" value="kiB" />
+              <label for="mem_format_selection_kib" class="mx-1">kiB</label>
+            </div>
+            <div class="p-2"> 
+              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_mib" value="MiB" />
+              <label for="mem_format_selection_mib" class="mx-1">MiB</label>
+            </div>
+            <div class="p-2"> 
+              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_gib" value="GiB" />
+              <label for="mem_format_selection_gib" class="mx-1">GiB</label>
+            </div>
+            <div class="p-2"> 
+              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_tib" value="TiB" />
+              <label for="mem_format_selection_tib" class="mx-1">TiB</label>
+            </div>
+          </div>
+      </div>
+
+      <div class="row my-3">
+        <div class="col-3">
+          <h6 class="p-2">Duration Format</h6>
+        </div>
+        <div class="col-4 d-flex justify-content-between align-items-center">
+            <div class="p-2">
+              <RadioButton v-model="metricCharts.durationFormat" id="duration_format_selection_s" value="s" 
+              :update:modelValue="updatePlotsConditional()"/>
+              <label for="duration_format_selection_s" class="mx-1">s</label>
+            </div>
+            <div class="p-2"> 
+              <RadioButton v-model="metricCharts.durationFormat" id="duration_format_selection_min" value="min" />
+              <label for="duration_format_selection_min" class="mx-1">min</label>
+            </div>
+            <div class="p-2"> 
+              <RadioButton v-model="metricCharts.durationFormat" id="mem_format_selection_mib" value="h" />
+              <label for="duration_format_selection_h" class="mx-1">h</label>
+            </div>
+          </div>
       </div>
 
 

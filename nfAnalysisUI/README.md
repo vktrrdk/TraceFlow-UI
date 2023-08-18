@@ -1,24 +1,19 @@
 # Current work
-- [x] Adjust templating for running processes - all tags
-- [ ] **Test-Workflows** 
-  - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
 - [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 
  - [x] Anfang
  - [x] erweitern
-- [x] **eigenen Score für den Workflow entwickeln**
-- [ ] **WICHTIG: GEDANKEN MACHEN, WELCHE METRIKEN WIE RELEVANT SIND**
-- [] **Hinweise für den Umgang mit den analysierten Daten**
+ - [ ] Prozessebene
+ - [ ] Anpassen der Berechnung
+- [ ] **Hinweise für den Umgang mit den analysierten Daten**
    - [x] Anfang
    - [ ] Prozessebene!
 - [ ] **Bugfixing summaries (memory percentage average passt nicht?)**
-- [ ] automatische Formatierung von Zeitdaten und Speichergroeßen - Sekunden, Minuten, Stunden usw
-  - [x] Anfang
-  - [ ] An allen Stellen
 - [ ] Tags in allen Listen anzeigen, wo es notwendig ist
-- [ ] Check if Metrics Filter also adjusts CPU/RAM-Ratio plot?
 - [ ] Anpassen der zurückgegebenen Analysis-Listen - mehr Informationen auf Prozessebene!
 - [ ] fix bug on tags in analysis summary
-- [x] Fully working filter on currently Running
+- [ ] **Test-Workflows** 
+  - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
+  - [ ] MGTK nutzen
 
 
 # Möglicherweise
