@@ -1,4 +1,8 @@
 # Current work
+- [x] fix bug on tags in analysis summary
+- x ] Tags in allen Listen anzeigen, wo es notwendig ist
+- [ ] Anpassen der zurückgegebenen Analysis-Listen - mehr Informationen auf Prozessebene!
+- [ ] **Bugfixing summaries (memory percentage average passt nicht?)**
 - [ ] **eigene Metrik - eine Evaluation des Workflows anhand von kombinierten Daten** 
  - [x] Anfang
  - [x] erweitern
@@ -7,10 +11,6 @@
 - [ ] **Hinweise für den Umgang mit den analysierten Daten**
    - [x] Anfang
    - [ ] Prozessebene!
-- [ ] **Bugfixing summaries (memory percentage average passt nicht?)**
-- [ ] Tags in allen Listen anzeigen, wo es notwendig ist
-- [ ] Anpassen der zurückgegebenen Analysis-Listen - mehr Informationen auf Prozessebene!
-- [ ] fix bug on tags in analysis summary
 - [ ] **Test-Workflows** 
   - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
   - [ ] MGTK nutzen

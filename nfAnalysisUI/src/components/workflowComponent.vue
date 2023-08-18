@@ -449,6 +449,27 @@ function updateAvailableTags(): void {
   filterState.availableTags = getTags();
 }
 
+function getTagsFromString(tagString: string): any[] {
+        let keyValuePairs: any[] = [];
+        if (tagString !== null) {
+            let stringParts: string[] = tagString.split(',');
+            for (let part of stringParts) {
+                let pair: any = {}
+                let partParts: string[] = part.split(':');
+                if (partParts.length > 1) {
+                    pair[partParts[0].trim()] = partParts[1].trim();
+                } else {
+                    pair['_'] = partParts[0];
+                }
+                keyValuePairs.push(pair);
+            }
+        } else {
+            return [{"": null}]
+        }
+        
+        return keyValuePairs;
+    }
+
 function getTags(): any[] {
   let tags: any[] = [];
   const task_states: Process[] = toRaw(workflowState.processObjects);
@@ -2358,6 +2379,9 @@ onUnmounted(() => {
           <label :for="key" class="ms-2">
             {{ key }} - {{ workflowState.runStartMapping[key] ? ' started at ' +
               formattedDate(workflowState.runStartMapping[key]) : 'no start-date available' }}
+              <span v-if="workflowState.fullAnalysis['workflow_scores'][workflowState.selectedRun]">
+              - Score: <strong>{{ (workflowState.fullAnalysis['workflow_scores'][workflowState.selectedRun]['full_run_score']).toFixed(2) * 100 }}%</strong>
+              </span>
           </label>
         </div>
       </div>
@@ -3051,7 +3075,15 @@ onUnmounted(() => {
           <Column expander></Column>
           <Column field="task_id" sortable header="Task ID"/>
           <Column field="process" sortable header="Process"></Column>
+          <Column field="tag">
+            <template #body={data}>
+              <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
+                :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
+              ></Tag>
+            </template>
+          </Column>
           <Column field="score" sortable header="Score">
+          
           <template #body={data}>
             <span><strong>{{(data.score * 100).toFixed(2)}}%</strong></span>
           </template></Column>
@@ -3109,7 +3141,7 @@ onUnmounted(() => {
           <Column field="tag" header="Tags">
             <template #body={data}>
               <Tag class="mx-1" v-for="tag_elem of data.tag"
-                :value="tag_elem[1] === null ? 'Empty tag' : `${tag_elem[0]}: ${tag_elem[1]}`" 
+                :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
               ></Tag>
             </template>
           </Column>
