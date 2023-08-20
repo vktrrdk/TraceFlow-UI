@@ -31,7 +31,7 @@ import Menubar from 'primevue/menubar';
 import InputSwitch from "primevue/inputswitch";
 import InputNumber from "primevue/inputnumber";
 import Fieldset from "primevue/fieldset"
-import Dropdown from 'primevue/dropdown';
+import Tooltip from 'primevue/tooltip';
 import { PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart-error-bars';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
@@ -2643,7 +2643,7 @@ onUnmounted(() => {
                 placeholder="Search by process" />
             </template>
             <template #body="{ data }">
-              <span>{{ getSuffix(data.process) }}</span>
+              <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{ getSuffix(data.process) }}</span>
             </template>
           </Column>
           <Column field="status" style="min-width: 12rem" header="Status" sortable filter-field="status"
@@ -3066,14 +3066,17 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="my-4" v-if="workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]">
-        <h5 class="my-2">Scores by Task and Problems</h5>
+        <h5 class="my-2">Scores by Task</h5>
         <DataTable v-model:expandedRows="filterState.expandedRows"
         :value="workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]"
         paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" :removable-sort="true"
-         tableStyle="min-width: 80rem">
-          <Column expander></Column>
+         tableStyle="min-width: 80rem ">
           <Column field="task_id" sortable header="Task ID"/>
-          <Column field="process" sortable header="Process"></Column>
+          <Column field="process" sortable header="Process">
+            <template #body="{data}">
+              <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{getSuffix(data.process)}}</span>
+            </template>
+          </Column>
           <Column field="tag">
             <template #body={data}>
               <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
@@ -3086,25 +3089,6 @@ onUnmounted(() => {
           <template #body={data}>
             <span><strong>{{(data['pure_score'] * 100).toFixed(2)}}%</strong></span>
           </template></Column>
-           <!-- <Column field="problems" sortable header="Problems">
-            <template #body={data}>
-              <span v-if="data.problems.length === 0"><strong>No problems</strong></span>
-              <Tag v-else severity="danger">{{data.problems.length}}</Tag>
-            </template>
-            TODO: needs adjustment, also API-wise
-          </Column>
-          <template #expansion="slotProps">
-            <div class="p-3" v-if="slotProps.data.problems.length > 0">
-                <Panel class="mb-3" :header="'Problem #' + (index + 1)" toggleable v-for="(problem, index) of slotProps.data.problems">
-                  <p class="m-1">
-                    {{showProblem(slotProps.data, problem)}}
-                  </p>
-              </Panel>
-            </div>
-            <div class="p-3" v-else>
-              <span>There are no problems detected for this task</span>
-            </div>
-        </template> -->
         </DataTable> 
 
         <h5 class="my-2">Scores by Process and Problems</h5>
@@ -3113,7 +3097,11 @@ onUnmounted(() => {
         paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" :removable-sort="true"
          tableStyle="min-width: 80rem">
           <Column expander></Column>
-          <Column field="process" sortable header="Process"></Column>
+          <Column field="process" sortable header="Process">
+            <template #body="{data}">
+              <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{getSuffix(data.process)}}</span>
+            </template>
+          </Column>
           <Column field="score" sortable header="Score">
           
           <template #body={data}>
@@ -3169,7 +3157,7 @@ onUnmounted(() => {
           <Column field="task_id" header="Task-ID"></Column>
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process']) }}</span>
             </template>
           </Column>
           <Column field="tag" header="Tags">
@@ -3200,7 +3188,7 @@ onUnmounted(() => {
           :rows="workflowState.fullAnalysis['bad_duration_processes_sum'][workflowState.selectedRun].length">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process']) }}</span>
             </template>
           </Column>
           <Column field="duration" header="Duration summarized" sortable>
@@ -3222,7 +3210,7 @@ onUnmounted(() => {
           :rows="workflowState.fullAnalysis['bad_duration_processes_average'][workflowState.selectedRun].length" class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process']) }}</span>
             </template>
           </Column>
           <Column field="duration" header="Duration in average" sortable>
@@ -3251,7 +3239,7 @@ onUnmounted(() => {
           <Column field="task_id" header="Task-ID"></Column>
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process']) }}</span>
             </template>
           </Column>
           <Column field="tag" header="Tags">
@@ -3278,7 +3266,7 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process_name']) }}
+              <span v-tooltip="{value: data.process_name, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process_name']) }}</span>
             </template>
           </Column>
           <Column field="sum" header="CPU allocation" sortable>
@@ -3303,7 +3291,7 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process_name']) }}
+              <span v-tooltip="{value: data.process_name, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process_name']) }}</span>
             </template>
           </Column>
           <Column field="allocation" header="CPU allocation" sortable>
@@ -3333,7 +3321,7 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process']) }}</span>
             </template>
           </Column>
           <Column field="tag" header="Tags">
@@ -3363,7 +3351,7 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process_name']) }}
+              <span v-tooltip="{value: data.process_name, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process_name']) }}</span>
             </template>
           </Column>
           <Column field="memory_allocation" header="Memory Allocation % average" sortable>
@@ -3387,7 +3375,7 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process_name']) }}
+              <span v-tooltip="{value: data.process_name, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process_name']) }}</span>
             </template>
           </Column>
           <Column field="memory_allocation" header="Memory Allocation % average" sortable>
@@ -3412,7 +3400,7 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process_name']) }}
+              <span v-tooltip="{value: data.process_name, showDelay: 500, hideDelay: 200}">{{ getSuffix(data['process_name']) }}</span>
             </template>
           </Column>
           <Column field="memory_relation" header="Ratio (physical/vmem) in %" sortable>
