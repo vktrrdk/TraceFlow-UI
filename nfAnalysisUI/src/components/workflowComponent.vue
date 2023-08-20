@@ -335,7 +335,6 @@ function getDataInitial(token = props.token): void {
           // workflowState.processAnalysis = response.data["result_analysis"]["process_scores"];
            // workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
           workflowState.fullAnalysis = response.data["result_analysis"]
-          console.log(workflowState.fullAnalysis['workflow_scores']['process_scores'])
           updateCurrentState();
           updateProgress();
           workflowState.token_info_requested = true;
@@ -1371,36 +1370,40 @@ function adjustTextForRatioMessage(clickedProcess: string) {
 
 }
 
-function showProblem(task: any, problem: any): string {
+function showProblem(problem: any): string {
   if (problem["cpu"]){ //cpu
     if (problem["cpu"] === "more") { // more
       if (problem["restriction"] === null) {
-        return `Currently this task has ${task["cpus"]} assigned, but needs at least ${problem["solution"]["cpus"]}, as the CPU allocation is ${task["cpu_allocation"].toFixed(2)}%. You can adjust the number of assigned CPUs.`;
+        return `Currently this process has ${problem["requested"].toFixed(2)} CPUs assigned in average, but needs ${problem["solution"]["cpus"].toFixed(2)} CPUs in average. You can adjust the number of assigned CPUs. Please consider that the number of CPUs needed for this process may vary from task to task. Consider to set this value dynamically.`;
       } else if (problem["restriction"] === "max_reached") {
-        return `The maximum number of CPUs you have assigned over all tasks is ${problem["solution"]["available"]} CPUs - to meet the requirements of the task, ${problem["solution"]["needed"]} CPUs should be assigned to it. If there are no more CPU resources available in your current setup, you must increase the available CPU resources or adjust the implementation of the process.`;
+        return `The maximum number of CPUs you have assigned over all tasks is ${problem["solution"]["available"]} CPUs - to meet the requirements of the process, ${problem["solution"]["needed"].toFixed(2)} CPUs should be assigned tasks of this process. If there are no more CPU resources available in your current setup, you must increase the available CPU resources or adjust the implementation of the process.`;
+      } else if (problem["restriction"] === "max_reached_unsure") {
+        return `Currently this process has ${problem["requested"].toFixed(2)} CPUs assigned in average, but needs ${problem["solution"]["cpus"].toFixed(2)} CPUs in average. You can adjust the number of assigned CPUs. Please consider that the number of CPUs needed for this process may vary from task to task. Consider to set this value dynamically. Unfortunately, it is not clear from the data whether they have already fully exhausted the CPU resources on your machine.`;
       }
     } else { // less
       if (problem["restriction"] === null) {
-        return `The task has a low CPU allocation of ${task["cpu_allocation"].toFixed(2)}% - this means that fewer CPUs are needed than are assigned to the task. Only ${problem["solution"]["cpus"]} CPUs are required, while ${task["cpus"]} are assigned. Change the number of CPUs allocated or, if possible, divide the process into sub-processes if the resource load differs over time.`;
+        return `The process has a low CPU allocation in average. This means that fewer CPUs are needed than are assigned to the process. Only ${problem["solution"]["cpus"].toFixed(2)} CPUs are required in average, while ${problem["requested"].toFixed(2)} are assigned in average. Change the number of CPUs allocated or, if possible, divide the process into sub-processes if the resource load differs over time.`;
       } else {
         if (problem["restriction"] === "min_reached") {
-          return `Only one CPU is assigned to this task and it is hardly used with a load of ${task["cpu_allocation"].toFixed(2)} %. If it is possible, split up the computations of the corresponding process.`;
+          return `Only one CPU is assigned to this process and it is hardly used in average. If it is possible, split up the computations of the corresponding process.`;
         }
       }
     }
   } else if (problem["ram"]) { // memory
       if (problem["ram"] === "less") {
-        return `The task requires significantly less RAM than specified and uses only ${task['ram_allocation'].toFixed(2)}% of the assigned physical RAM. You can adjust the assigned RAM-resources for this task to minimise bottlenecks. Pick a value around ${reasonableDataFormat(problem["solution"]["ram"])}`;
+        return `The process requires less RAM than specified and uses only ${reasonableDataFormat(problem['solution']['ram'])} of physical RAM in average, while ${reasonableDataFormat(problem['requested'])} are assigned in average. You can adjust the assigned RAM-resources for this task to minimise bottlenecks.`;
       } else if (problem["ram"] === "more") {
         if (problem["restriction"] === null){
-          return `The task requires more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. You can adjust the amount of assigned RAM - pick at least ${reasonableDataFormat(problem["solution"]["ram"])}.`;
-        } else {
-          return `The task requires more RAM, as was assigned to it. It reaches an physical RAM allocation of ${task['ram_allocation'].toFixed(2)}%. As the used RAM of the task is higher, than the maximum value you have assigned to any processes (${reasonableDataFormat(task["solution"]["available"])}) ,you need to check if you have enough RAM resources or if you need to increase them.`;
+          return `The process requires more RAM, as was assigned to it. It uses ${reasonableDataFormat(problem['solution']['ram'])} in average, while only ${reasonableDataFormat(problem['requested'])} are assigned in average. You can adjust the amount of assigned RAM.`;
+        } else if (problem["restriction"] === "max_reached" ){
+          return `The proces requires more RAM, as was assigned to it. It uses ${reasonableDataFormat(problem['solution']['ram'])} in average, while only ${reasonableDataFormat(problem['requested'])} are assigned in average. As the used RAM of the task is higher, than the maximum value you have assigned to any processes (${reasonableDataFormat(problem["solution"]["available"])}), you need to check if you have enough RAM resources or if you need to increase them.`;
+        } else if (problem["restriction"] === "max_reached_unsure") {
+          return `The proces requires more RAM, as was assigned to it. It uses ${reasonableDataFormat(problem['solution']['ram'])} in average, while only ${reasonableDataFormat(problem['requested'])} are assigned in average. The used RAM of the task is may be higher, than the maximum value of available RAM on your machine. Unfortunately, it is not clear from the data whether you have already fully exhausted the RAM resources on your machine. Please check, if you have enough RAM resources or if you need to increase them.`;
         }
       }
 
   }
-  return "Not able to show the problem";
+  return "Sorry, the data could not be processed. The tool is not able to show the problem.";
 }
 
 /**
@@ -3107,25 +3110,24 @@ onUnmounted(() => {
           <template #body={data}>
             <span><strong>{{(data.score * 100).toFixed(2)}}%</strong></span>
           </template></Column>
-          <!-- <Column field="problems" sortable header="Problems">
+          <Column field="problems" sortable header="Problems">
             <template #body={data}>
               <span v-if="data.problems.length === 0"><strong>No problems</strong></span>
               <Tag v-else severity="danger">{{data.problems.length}}</Tag>
             </template>
-            TODO: needs adjustment, also API-wise
           </Column>
           <template #expansion="slotProps">
             <div class="p-3" v-if="slotProps.data.problems.length > 0">
                 <Panel class="mb-3" :header="'Problem #' + (index + 1)" toggleable v-for="(problem, index) of slotProps.data.problems">
                   <p class="m-1">
-                    {{showProblem(slotProps.data, problem)}}
+                    {{showProblem(problem)}}
                   </p>
               </Panel>
             </div>
             <div class="p-3" v-else>
               <span>There are no problems detected for this task</span>
             </div>
-        </template> -->
+        </template>
         </DataTable>
 
       </div>
