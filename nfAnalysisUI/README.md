@@ -1,17 +1,17 @@
 # Current work
-- [ ] **Anpassen der Analyse-Metriken**
-  - [ ]Bewertung eines Tasks
-    - [ ] Raw
-    - Gewichtet nach Metrik-Eigenschaften (z.b Ram duration usw.)
-  - [ ] Bewertung eines Prozesses
-    - [ ] Gewichtet nach Metrik Eigenschaften
-    - [ ] Abstand zum Optimum im Schnitt, nicht nur der Durschnitt
-  - [ ] Bewertung des gesammten Workflows
-    - [ ] Gewichtungen
-- [ ] **Hinweise für den Umgang mit den analysierten Daten**
+- [x] **Anpassen der Analyse-Metriken**
+  - [x] Bewertung eines Tasks
+    - [x] Raw
+    - [x] Gewichtet nach Metrik-Eigenschaften (z.b Ram duration usw.)
+  - [x] Bewertung eines Prozesses
+    - [x] Gewichtet nach Metrik Eigenschaften
+    - [x] Abstand zum Optimum im Schnitt, nicht nur der Durschnitt
+  - [x] Bewertung des gesammten Workflows
+    - [x] Gewichtungen
+- [x] **Hinweise für den Umgang mit den analysierten Daten**
   - [x] Anfang
-  - [ ] Prozessebene!
-  - [ ] Anpassen der zurückgegebenen Analysis-Listen - mehr Informationen auf Prozessebene!
+  - [x] Prozessebene!
+  - [x] Anpassen der zurückgegebenen Analysis-Listen - mehr Informationen auf Prozessebene!
 - [ ] **Test-Workflows** 
   - [ ] Beispiele nutzen, wie schneidet die eigene Lösung ab usw.
   - [ ] MGTK nutzen
