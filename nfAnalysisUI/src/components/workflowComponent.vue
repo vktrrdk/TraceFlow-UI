@@ -5,11 +5,10 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js";
 import { useRouter, useRoute } from "vue-router";
 import axios, { all } from "axios";
-import { Chart, LinearScale, CategoryScale, TimeScale } from 'chart.js/auto'; // check vue-chartjs as wrapper
+import { Chart, LinearScale, CategoryScale, TimeScale } from 'chart.js/auto'; 
 import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
-import CascadeSelect from 'primevue/cascadeselect'; // could be used to show aprocess names as a "tree"
 import Button from 'primevue/button';
 import ToggleButton from 'primevue/togglebutton';
 import Tag from 'primevue/tag';
@@ -17,9 +16,7 @@ import MultiSelect from "primevue/multiselect";
 import { FilterMatchMode, FilterService } from 'primevue/api';
 import InputText from 'primevue/inputtext';
 import ProgressBar from 'primevue/progressbar';
-import Message from 'primevue/message'; // could replace alerts
-// import Skeleton from 'primevue/skeleton'; // while loading
-// import ProgressSpinner from 'primevue/progressspinner'; // same
+import Message from 'primevue/message';
 import Knob from 'primevue/knob';
 import Panel from 'primevue/panel';
 import ConfirmDialog from "primevue/confirmdialog";
@@ -128,14 +125,14 @@ function memoryAllocationSort(a){
 }
 
 function processIsDeclaredProblematic(data: any): boolean {
-  if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
+  /* TODO REFACTOR if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
     const keysToCheck: string[] = ["process", "task_id", "run_name"];
     if (workflowState.processAnalysis[workflowState.selectedRun]) {
       return workflowState.processAnalysis[workflowState.selectedRun].some((analysisObj: any) => {
         return keysToCheck.every(key => analysisObj[key] === data[key]);
       });
     }
-  }
+  } */
   return false;
 }
 
@@ -338,6 +335,7 @@ function getDataInitial(token = props.token): void {
           // workflowState.processAnalysis = response.data["result_analysis"]["process_scores"];
            // workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
           workflowState.fullAnalysis = response.data["result_analysis"]
+          console.log(workflowState.fullAnalysis['workflow_scores']['process_scores'])
           updateCurrentState();
           updateProgress();
           workflowState.token_info_requested = true;
@@ -739,8 +737,9 @@ async function createPlots() {
   createCPUAllocationPlot();
   createIOPlot();
   createDurationPlot();
-  // createCPURamRatioPlot();
+  createCPURamRatioPlot();
   metricCharts.chartsGenerated = true;
+ 
 }
 
 /* TODO: REFACTOR regarding asynchron
@@ -1128,10 +1127,9 @@ async function createCPURamRatioPlot() {
             }
           }
         },
-        /**
-         * open-ai query: consider having a scatter plot with chart.js.
-is there a possibility to connect the datapoints with certain ids or other values, so when a scatter-plot datapoint gets clicked, it emits this certain id or value?
-         */
+        
+        // These seems to be a bug, the name of the clicked prozess remains "undefined"
+
         onClick: function (event, datapoints) {
           if (datapoints.length > 0) {
             let element = datapoints[0];
@@ -1181,7 +1179,7 @@ function updatePlots() {
     updateCPUPlot();
     updateIOPlot();
     updateDurationPlot();
-    //updateCPURamRatioChart();
+    updateCPURamRatioChart();
   }
 
 }
@@ -1233,7 +1231,6 @@ function updateCPUAllocationPlot() {
 
 function updateCPURamRatioChart() {
   let rawedFullAnalysis: any = toRaw(workflowState.fullAnalysis);
-  console.log(rawedFullAnalysis)
   metricCharts.cpuRamRatioChart.data.labels = getSuffixes(rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['labels']);
   metricCharts.cpuRamRatioChart.data.datasets = [rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['data']];
   metricCharts.cpuRamRatioChart.update('none');
@@ -1365,7 +1362,7 @@ function adjustTextForRatioMessage(clickedProcess: string) {
 
 
 
-  let concatString = `The process ${getSuffix(clickedProcess)} has the following characteristics: \n`
+  let concatString = `The process ${clickedProcess} has the following characteristics: \n`
     + `The CPU allocation varies from ${cpu_data[0].toFixed(2)} % to ${cpu_data[2].toFixed(2)} % with an average of ${cpu_data[1].toFixed(2)} %.\n`
     + `The used memory percentage varies from ${memory_data[0].toFixed(2)} % to ${memory_data[2].toFixed(2)}  with an average of ${memory_data[1].toFixed(2)} %.\n`
     + getCPURatioAnalysisString(cpu_data) + '\n' + getRAMRatioAnalysisString(memory_data);
@@ -1526,7 +1523,7 @@ function createProcessObjectsByRun(data: any): any {
 
 function setFirstRunName(): void {
   if (Object.keys(workflowState.processesByRun).length > 0) {
-    // workflowState.selectedRun = Object.keys(workflowState.processesByRun)[0]; todo: fix
+    workflowState.selectedRun = Object.keys(workflowState.processesByRun)[0];
   } else {
     workflowState.selectedRun = '';
   }
@@ -2381,7 +2378,7 @@ onUnmounted(() => {
           <label :for="key" class="ms-2">
             {{ key }} - {{ workflowState.runStartMapping[key] ? ' started at ' +
               formattedDate(workflowState.runStartMapping[key]) : 'no start-date available' }}
-              <span v-if="workflowState.fullAnalysis['workflow_scores'][workflowState.selectedRun]">
+              <span v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]">
               - Score: <strong>{{ (workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]).toFixed(2) * 100 }}%</strong>
               </span>
           </label>
@@ -2982,7 +2979,7 @@ onUnmounted(() => {
     <hr>
   </div>
 
-  <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="analysis_div">
+  <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData() && workflowState.fullAnalysis" id="analysis_div">
     <div class="card-header">
       <h3>Analysis</h3>
     </div>
@@ -3037,7 +3034,7 @@ onUnmounted(() => {
     <div class="card-body my-2" v-if="workflowState.fullAnalysis['workflow_scores']">
       <div class="p-4">
         <h6>Score for this run</h6>
-        <div class="my-1" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]> -0.01">
+        <div class="my-1" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] > -0.01">
           <div class="row">
             <div class="col-2">
               <strong>{{(workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] * 100).toFixed(2)}} %</strong>
@@ -3053,15 +3050,15 @@ onUnmounted(() => {
       </div>
       <div class="p-4">
         <h6>Score Comparison</h6>
-        <div class="my-1" v-for="score_run in sortByScore(workflowState.fullAnalysis['workflow_scores'])">
-          <div class="row" v-if="workflowState.fullAnalysis['workflow_scores'][score_run]['full_run_score'] > -0.01">
+        <div class="my-1" v-for="score_run in sortByScore(workflowState.fullAnalysis['workflow_scores']['full_scores'])">
+          <div class="row" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] > -0.01">
             <div class="col-2">
-              <strong v-if="score_run === workflowState.selectedRun">{{ score_run }} - {{(workflowState.fullAnalysis['workflow_scores'][score_run]['full_run_score'] * 100).toFixed(2)}} %</strong>
-              <span v-else>{{ score_run }} - {{(workflowState.fullAnalysis['workflow_scores'][score_run]['full_run_score'] * 100).toFixed(2)}} %</span>
+              <strong v-if="score_run === workflowState.selectedRun">{{ score_run }} - {{(workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] * 100).toFixed(2)}} %</strong>
+              <span v-else>{{ score_run }} - {{(workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] * 100).toFixed(2)}} %</span>
             </div>
             <div class="col-10">
               <ProgressBar :style="{'height': score_run === workflowState.selectedRun ? '12px': '2px'}"
-              :value="(workflowState.fullAnalysis['workflow_scores'][score_run]['full_run_score'] * 100).toFixed(0)"
+              :value="(workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] * 100).toFixed(0)"
               :showValue="false"
               ></ProgressBar>
             </div>
@@ -3087,9 +3084,9 @@ onUnmounted(() => {
           <Column field="score" sortable header="Score">
           
           <template #body={data}>
-            <span><strong>{{(data.score * 100).toFixed(2)}}%</strong></span>
+            <span><strong>{{(data['pure_score'] * 100).toFixed(2)}}%</strong></span>
           </template></Column>
-          <!-- <Column field="problems" sortable header="Problems">
+           <!-- <Column field="problems" sortable header="Problems">
             <template #body={data}>
               <span v-if="data.problems.length === 0"><strong>No problems</strong></span>
               <Tag v-else severity="danger">{{data.problems.length}}</Tag>
@@ -3108,7 +3105,7 @@ onUnmounted(() => {
               <span>There are no problems detected for this task</span>
             </div>
         </template> -->
-        </DataTable>
+        </DataTable> 
 
         <h5 class="my-2">Scores by Process and Problems</h5>
         <DataTable v-model:expandedRows="filterState.expandedRows"
@@ -3161,7 +3158,7 @@ onUnmounted(() => {
 
     <div class="card-body my-4">
       <h6>Duration</h6>
-      <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_duration_tasks'][workflowState.selectedRun]"
+      <div v-if="workflowState.fullAnalysis"
         class="my-3">
         <Message>
           Below is a list of tasks, which need the most time for execution - from submission to completion.
@@ -3177,7 +3174,7 @@ onUnmounted(() => {
           </Column>
           <Column field="tag" header="Tags">
             <template #body={data}>
-              <Tag class="mx-1" v-for="tag_elem of data.tag"
+              <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
                 :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
               ></Tag>
             </template>
@@ -3208,7 +3205,7 @@ onUnmounted(() => {
           </Column>
           <Column field="duration" header="Duration summarized" sortable>
             <template #body="{ data }">
-              {{ getDynamicDurationType(data['duration']) }}
+              {{ getDynamicDurationType(data['sum']) }}
             </template>
           </Column>
         </DataTable>
@@ -3230,7 +3227,7 @@ onUnmounted(() => {
           </Column>
           <Column field="duration" header="Duration in average" sortable>
             <template #body="{ data }">
-              {{ getDynamicDurationType(data['duration']) }}
+              {{ getDynamicDurationType(data['average']) }}
             </template>
           </Column>
         </DataTable>
@@ -3246,9 +3243,7 @@ onUnmounted(() => {
       <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_cpu_allocation_tasks'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of tasks which have the worst CPU allocation<a
-            href="https://www.nextflow.io/docs/latest/metrics.html#cpu-usage" rel="noopener noreferrer" target="_blank"
-            class="alert-link">See here for calculation details.</a>
+          Below is a list of tasks which have the worst CPU allocation.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['bad_cpu_allocation_tasks'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['bad_cpu_allocation_tasks'][workflowState.selectedRun].length"
@@ -3268,7 +3263,7 @@ onUnmounted(() => {
           </Column>
           <Column field="allocation" header="CPU allocation %" sortable>
             <template #body="{ data }">
-              {{ data["allocation"].toFixed(2) }} %
+              {{ data["cpu_allocation"].toFixed(2) }} %
             </template>
           </Column>
         </DataTable>
@@ -3281,22 +3276,14 @@ onUnmounted(() => {
         <DataTable :value="workflowState.fullAnalysis['cpu_allocation_deviation_sum'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['cpu_allocation_deviation_sum'][workflowState.selectedRun].length"
           class="p-2">
-          <Column field="task_id" header="Task-ID"></Column>
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              {{ getSuffix(data['process_name']) }}
             </template>
           </Column>
-          <Column field="tag" header="Tags">
-            <template #body={data}>
-              <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
-                :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
-              ></Tag>
-            </template>
-          </Column>
-          <Column field="allocation" header="CPU allocation" sortable>
+          <Column field="sum" header="CPU allocation" sortable>
             <template #body="{ data }">
-              {{ data["allocation"].toFixed(2) }} %
+              {{ data["deviation_sum"].toFixed(2) }} %
             </template>
           </Column>
         </DataTable>
@@ -3314,22 +3301,14 @@ onUnmounted(() => {
         <DataTable :value="workflowState.fullAnalysis['cpu_allocation_deviation_average'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['cpu_allocation_deviation_average'][workflowState.selectedRun].length"
           class="p-2">
-          <Column field="task_id" header="Task-ID"></Column>
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
-            </template>
-          </Column>
-          <Column field="tag" header="Tags">
-            <template #body={data}>
-              <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
-                :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
-              ></Tag>
+              {{ getSuffix(data['process_name']) }}
             </template>
           </Column>
           <Column field="allocation" header="CPU allocation" sortable>
             <template #body="{ data }">
-              {{ data["allocation"].toFixed(2) }} %
+              {{ data["deviation_average"].toFixed(2) }} %
             </template>
           </Column>
         </DataTable>
@@ -3357,6 +3336,13 @@ onUnmounted(() => {
               {{ getSuffix(data['process']) }}
             </template>
           </Column>
+          <Column field="tag" header="Tags">
+            <template #body={data}>
+              <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
+                :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
+              ></Tag>
+            </template>
+          </Column>
           <Column field="memory_allocation" header="Memory Allocation % average" sortable>
             <template #body="{ data }">
               {{ (data["memory_allocation"]).toFixed(2) }} %
@@ -3377,12 +3363,12 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              {{ getSuffix(data['process_name']) }}
             </template>
           </Column>
           <Column field="memory_allocation" header="Memory Allocation % average" sortable>
             <template #body="{ data }">
-              {{ (data["memory_allocation"]).toFixed(2) }} %
+              {{ (data["deviation_sum"]).toFixed(2) }} %
             </template>
           </Column>
         </DataTable>
@@ -3401,12 +3387,12 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              {{ getSuffix(data['process_name']) }}
             </template>
           </Column>
           <Column field="memory_allocation" header="Memory Allocation % average" sortable>
             <template #body="{ data }">
-              {{ (data["memory_allocation"]).toFixed(2) }} %
+              {{ (data["deviation_average"]).toFixed(2) }} %
             </template>
           </Column>
         </DataTable>
@@ -3426,12 +3412,12 @@ onUnmounted(() => {
           class="p-2">
           <Column field="process" header="Process">
             <template #body="{ data }">
-              {{ getSuffix(data['process']) }}
+              {{ getSuffix(data['process_name']) }}
             </template>
           </Column>
           <Column field="memory_relation" header="Ratio (physical/vmem) in %" sortable>
             <template #body="{ data }">
-              {{ (data["memory_relation"] * 100).toFixed(2) }} %
+              {{ (data["ratio_average"] * 100).toFixed(2) }} %
             </template>
           </Column>
         </DataTable>
