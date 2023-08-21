@@ -28,9 +28,10 @@ import RadioButton from 'primevue/radiobutton';
 import ScrollTop from 'primevue/scrolltop';
 import Sidebar from 'primevue/sidebar';
 import Menubar from 'primevue/menubar';
-import InputSwitch from "primevue/inputswitch";
+import Slider from 'primevue/slider';
 import InputNumber from "primevue/inputnumber";
-import Fieldset from "primevue/fieldset"
+import Fieldset from "primevue/fieldset";
+import Chip from 'primevue/chip';
 import Tooltip from 'primevue/tooltip';
 import { PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart-error-bars';
 import annotationPlugin from 'chartjs-plugin-annotation';
@@ -125,14 +126,20 @@ function memoryAllocationSort(a){
 }
 
 function processIsDeclaredProblematic(data: any): boolean {
-  /* TODO REFACTOR if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
-    const keysToCheck: string[] = ["process", "task_id", "run_name"];
-    if (workflowState.processAnalysis[workflowState.selectedRun]) {
-      return workflowState.processAnalysis[workflowState.selectedRun].some((analysisObj: any) => {
-        return keysToCheck.every(key => analysisObj[key] === data[key]);
+  if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
+    if (workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]){
+      let task_informations: any[] = toRaw(workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]);
+      const task_info = task_informations.find((task: any) => {
+        return task.task_id == data.task_id && task.run_name == data.run_name;
       });
+      if (task_info !== null) {
+        if (task_info.raw_cpu_penalty > (requestState.request_params['valid_cpu_allocation_deviation'] / 100).toFixed(2)
+          || task_info.raw_memory_penalty > (requestState.request_params['valid_memory_allocation_deviation'] / 100).toFixed(2)) {
+          return true;
+        }
+      } 
     }
-  } */
+  } 
   return false;
 }
 
@@ -162,13 +169,17 @@ const uiState = reactive<{
 
 const requestState = reactive<{
   request_params: any
-  request_activated: any,
-  comparableWorkflows: string[],
 }>({
-  request_params: {},
-  request_activated: {},
-  comparableWorkflows: [],
+  request_params: {
+    'valid_cpu_allocation_deviation': 25,
+    'valid_memory_allocation_deviation': 25,
+    'cpu_ram_slide': 50,
+    'cpu_weight': 0.5,
+    'ram_weight': 0.5,
+  },
 });
+
+
 
 
 const analysisInfo = reactive<{
@@ -183,7 +194,6 @@ const workflowState = reactive<{
   runningProcesses: any;
   filteredRunningProcesses: any;
   processObjects: Process[];
-  processAnalysis: any;
   tagAnalysis: any;
   fullAnalysis: any;
   processesByRun: any;
@@ -214,7 +224,6 @@ const workflowState = reactive<{
   runningProcesses: {},
   filteredRunningProcesses: {},
   processObjects: [],
-  processAnalysis: {},
   tagAnalysis: {},
   fullAnalysis: {},
   processesByRun: {},
@@ -315,7 +324,7 @@ function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
     axios.post(`${API_BASE_URL}run/info/${token}/`,
-      setAnalysisParams(),
+      requestState.request_params,
     ).then(
       response => {
         if (response.data["error"]) {
@@ -332,8 +341,6 @@ function getDataInitial(token = props.token): void {
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilterState();
           updateFilteredRunningProcesses();
-          // workflowState.processAnalysis = response.data["result_analysis"]["process_scores"];
-           // workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
           workflowState.fullAnalysis = response.data["result_analysis"]
           updateCurrentState();
           updateProgress();
@@ -354,27 +361,6 @@ function getDataInitial(token = props.token): void {
 
 }
 
-function setAnalysisParams(): any {
-  let params: any = {};
-  if (requestState.request_activated["top_percent_ratio"]) {
-    params["top_percent_ratio"] = requestState.request_params["top_percent_ratio"];
-    params["limit_processes_per_domain_by_number"] = requestState.request_params["limit_processes_per_domain_by_number"];
-  }
-  if (requestState.request_activated['interval_valid_cpu_allocation_percentage']) {
-    params['interval_valid_cpu_allocation_percentage'] = [
-      requestState.request_params['interval_valid_cpu_allocation_percentage_min'],
-      requestState.request_params['interval_valid_cpu_allocation_percentage_max'],
-    ]
-  }
-  if (requestState.request_activated['interval_valid_ram_relation']) {
-    params['interval_valid_ram_relation'] = [
-      requestState.request_params['interval_valid_ram_relation_min'],
-      requestState.request_params['interval_valid_ram_relation_max'],
-    ]
-  }
-
-  return params;
-}
 
 function destroyPollTimer(): void {
   clearInterval(workflowState.pollIntervalId);
@@ -391,7 +377,7 @@ function startPollingLoop(): void {
 
 function dataPollingLoop(): void {
   axios.post(`${API_BASE_URL}run/info/${workflowState.token}/`,
-    setAnalysisParams(),
+    requestState.request_params,
   ).then(
     response => {
       if (response.data["error"]) {
@@ -405,8 +391,6 @@ function dataPollingLoop(): void {
         workflowState.runningProcesses = updateRunningProcesses();
         updateFilterState();
         updateFilteredRunningProcesses();
-        workflowState.processAnalysis = response.data["result_analysis"]["process_wise"]
-        workflowState.tagAnalysis = response.data["result_analysis"]["tag_wise"]
         workflowState.fullAnalysis = response.data["result_analysis"]
         updateCurrentState();
         updateProgress();
@@ -1132,10 +1116,9 @@ async function createCPURamRatioPlot() {
         onClick: function (event, datapoints) {
           if (datapoints.length > 0) {
             let element = datapoints[0];
-            let datasetIndex = element.datasetIndex;
             let index = element.index;
-            let clickedProcess: string = metricCharts.cpuRamRatioChart.data.datasets[datasetIndex].data[index].id;
-            adjustTextForRatioMessage(clickedProcess);
+            let clickedProcess: string = metricCharts.cpuRamRatioChart.data.labels[index];
+            adjustTextForRatioMessage(clickedProcess, index);
           }
         },
         onHover: function (event, datapoints) {
@@ -1258,6 +1241,10 @@ function updateRelativeRamPlot() {
 
 /** helper functions */
 
+function recalculateWeights() {
+  requestState.request_params['cpu_weight'] = (1 - (requestState.request_params['cpu_ram_slide'] / 100).toFixed(2)).toFixed(2);
+  requestState.request_params['ram_weight'] = (1 - requestState.request_params['cpu_weight']).toFixed(2);
+}
 
 /**
  *  only returns the keys
@@ -1267,14 +1254,23 @@ function sortByScore(scores: any) {
 }
 
 
+function checkIfProblemsFound() {
+  if (workflowState.selectedRun !== '') {
+    if (workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]){
+      let scores: any[] = toRaw(workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]);
+      return scores.some((process: any) => process["problems"].length > 0);
+    }
+  } else {
+    return false;
+  }
+}
+
 function getCPURatioAnalysisString(elem: any[]) {
   let lower = 80, higher = 120;
-  if (requestState.request_activated['interval_valid_cpu_allocation_percentage']) {
     if (requestState.request_params['interval_valid_cpu_allocation_percentage_min'] && requestState.request_params['interval_valid_cpu_allocation_percentage']) {
       lower = requestState.request_params['interval_valid_cpu_allocation_percentage_min'];
       higher = requestState.request_params['interval_valid_cpu_allocation_percentage_max'];
     }
-  }
   if (elem[0] < lower) {
     if (elem[1] < lower) {
       if (elem[2] < lower) {
@@ -1349,12 +1345,10 @@ function getRAMRatioAnalysisString(elem: any[]) {
 
 
 
-function adjustTextForRatioMessage(clickedProcess: string) {
+function adjustTextForRatioMessage(clickedProcess: string, idx: number) {
 
   let analysisData: any[] = toRaw(workflowState.fullAnalysis["cpu_ram_relation_data"][workflowState.selectedRun]["data"]["data"]);
-  let elem = analysisData.find((processValues) => {
-    return processValues.id == clickedProcess;
-  });
+  let elem = analysisData[idx];
 
   let cpu_data: any[] = [elem["xMin"], elem["x"], elem["xMax"]];
   let memory_data: any[] = [elem["yMin"], elem["y"], elem["yMax"]];
@@ -1363,8 +1357,7 @@ function adjustTextForRatioMessage(clickedProcess: string) {
 
   let concatString = `The process ${clickedProcess} has the following characteristics: \n`
     + `The CPU allocation varies from ${cpu_data[0].toFixed(2)} % to ${cpu_data[2].toFixed(2)} % with an average of ${cpu_data[1].toFixed(2)} %.\n`
-    + `The used memory percentage varies from ${memory_data[0].toFixed(2)} % to ${memory_data[2].toFixed(2)}  with an average of ${memory_data[1].toFixed(2)} %.\n`
-    + getCPURatioAnalysisString(cpu_data) + '\n' + getRAMRatioAnalysisString(memory_data);
+    + `The used memory percentage varies from ${memory_data[0].toFixed(2)} % to ${memory_data[2].toFixed(2)}  with an average of ${memory_data[1].toFixed(2)} %.\n`;
 
   analysisInfo.cpuRamRatioText = concatString;
 
@@ -2427,13 +2420,13 @@ onUnmounted(() => {
         {{ messageFromWorkflowState() }}</Message>
       <Message v-if="workflowState.failedProcesses" severity="warn">There are processes, which failed during execution of
         the workflow!</Message>
-      <!--<Message :closable="false"
-        v-if="workflowState.fullAnalysis[workflowState.selectedRun]?.length > 0 || workflowState.tagAnalysis[workflowState.selectedRun]?.length > 0"
+      <Message :closable="false"
+        v-if="checkIfProblemsFound()"
         severity="warn">
         In the analysis of the metrics, it was found that improvements can possibly be made in the development of the
         workflow.
         You are able to check this in the analysis section of this page.
-      </Message> TODO: adjust to new structure --> 
+      </Message>
     </div>
     <div class="card-body my-4" v-if="workflowState.selectedRun && workflowState.meta.length > 0">
   
@@ -2986,49 +2979,43 @@ onUnmounted(() => {
     <div class="card-header">
       <h3>Analysis</h3>
     </div>
-    <div class="my-4">
+    <div class="my-4" v-if="requestState.request_params['valid_cpu_allocation_deviation']">
       <h5>Settings</h5>
-      <p>Below you can adjust the settings for the analyis, e.g. by changing the thresholds to consider.</p>
+      <p>Below you can adjust the thresholds to consider for analysis.</p>
       <div class="my-3">
-        <div class="row p-1">
-          <div class="col-4 p-1">
-            Top percentage ratio and maximal number of processes <InputSwitch
-              v-model="requestState.request_activated['top_percent_ratio']"></InputSwitch>
+        <div class="row p-1 m-2">
+          <div class="col-4 p-1 align-content-center">
+            Valid CPU allocation deviation percentage
           </div>
           <div class="col-4 p-1">
-            <InputNumber suffix=" %" v-model="requestState.request_params['top_percent_ratio']" :min="0" :max="100" />
-          </div>
-          <div class="col-4 p-1">
-            <InputNumber suffix=" processes" v-model="requestState.request_params['limit_processes_per_domain_by_number']"
-              :min="1" :max="15" />
+            <InputNumber suffix=" %" v-model="requestState.request_params['valid_cpu_allocation_deviation']"
+            mode="decimal" showButtons
+              :min="0" :max="100" />
           </div>
         </div>
-        <div class="row p-1">
-          <div class="col-4 p-1">
-            Valid percentage CPU allocation interval <InputSwitch
-              v-model="requestState.request_activated['interval_valid_cpu_allocation_percentage']"></InputSwitch>
+        <div class="row p-1 m-2">
+          <div class="col-4 p-1 align-content-center">
+            Valid Memory allocation deviation percentage
           </div>
           <div class="col-4 p-1">
-            <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_cpu_allocation_percentage_min']"
-              :min="0" :max="95" />
-          </div>
-          <div class="col-4 p-1">
-            <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_cpu_allocation_percentage_max']"
-              :min="96" :max="200" />
+            <InputNumber suffix=" %" v-model="requestState.request_params['valid_memory_allocation_deviation']"
+            mode="decimal" showButtons
+              :min="0" :max="100" />
           </div>
         </div>
-        <div class="row p-1">
-          <div class="col-4 p-1">
-            Valid percentage CPU allocation interval <InputSwitch
-              v-model="requestState.request_activated['interval_valid_ram_relation']"></InputSwitch>
+        <div class="row p-1 m-2">
+          <div class="col-4 p-1 align-content-center">
+            Weighting of CPU and RAM metrics
           </div>
-          <div class="col-4 p-1">
-            <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_ram_relation_min']" :min="10"
-              :max="99" />
-          </div>
-          <div class="col-4 p-1">
-            <InputNumber suffix=" %" v-model="requestState.request_params['interval_valid_ram_relation_max']" :min="101"
-              :max="250" />
+          <div class="col-6">
+            <div class="row">
+              <div class="col-3"><Chip :label="(requestState.request_params['cpu_weight'] * 100).toFixed(0) + ' %'" /></div>
+              <div class="col-6 mt-3">
+                <Slider v-model="requestState.request_params['cpu_ram_slide']" :step="1" class="w-14rem" v-on:change="recalculateWeights()" />
+              </div>
+              <div class="col-3"><span><Chip :label="(requestState.request_params['ram_weight'] * 100).toFixed(0) + ' %'" /></span></div>
+              
+            </div>
           </div>
         </div>
       </div>
