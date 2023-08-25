@@ -1251,7 +1251,28 @@ function recalculateWeights() {
  *  only returns the keys
 */
 function sortByScore(scores: any) {
-  return Object.keys(scores).sort((run_a, run_b) => scores[run_a]["full_run_score"] - scores[run_b]["full_run_score"]);
+  return Object.keys(scores).sort((run_a, run_b) => {
+    if (scores[run_a] !== null && scores[run_b] !== null) {
+      if (scores[run_a]["full_run_score"] !== null) {
+      if (scores[run_b]["full_run_score"] !== null) {
+        return scores[run_a]["full_run_score"] - scores[run_b]["full_run_score"];
+      } else {
+        return 1;
+      }
+    } else {
+      if (scores[run_b]["full_run_score"] !== null) {
+        return -1;
+      } else {
+        return 0
+      }
+    }
+  } else {
+    return 0;
+  }
+    
+
+  });
+
 }
 
 
@@ -1265,84 +1286,6 @@ function checkIfProblemsFound() {
     return false;
   }
 }
-
-function getCPURatioAnalysisString(elem: any[]) {
-  let lower = 80, higher = 120;
-    if (requestState.request_params['interval_valid_cpu_allocation_percentage_min'] && requestState.request_params['interval_valid_cpu_allocation_percentage']) {
-      lower = requestState.request_params['interval_valid_cpu_allocation_percentage_min'];
-      higher = requestState.request_params['interval_valid_cpu_allocation_percentage_max'];
-    }
-  if (elem[0] < lower) {
-    if (elem[1] < lower) {
-      if (elem[2] < lower) {
-        return "The task requires less than the requested CPU resources for all instances."
-      } else if (elem[2] > higher) {
-        return "The process requires less CPU resources than requested for several instances, but there are also cases where the process requires significantly more.";
-      } else {
-        return "For some executions, the process requires less than the requested CPU resources";
-      }
-    } else if (elem[1] > higher) {
-      return "The process requires less CPU resources than requested for several instances, but for most cases where it requires significantly more.";
-    } else {
-      if (elem[2] > higher) {
-        return "The process requires less CPU resources than requested for several instances, but there are also cases where the process requires significantly more.";
-      } else {
-        return "For some executions, the process requires less than the requested CPU resources";
-      }
-    }
-  } else if (elem[0] > higher) {
-    return "The process is using more CPU as wanted for all process instances. It may be useful, to adjust the number of available CPUs for this process.";
-
-  } else {
-    if (elem[1] < higher) {
-      if (elem[2] < higher) {
-        return "The CPU resources allocated to the process are well used!";
-      } else {
-        return "For some executions, this process requires more CPU resources than requested.";
-      }
-    } else {
-      return "For most executions this process requires more CPU resources than requested.";
-    }
-  }
-}
-
-function getRAMRatioAnalysisString(elem: any[]) {
-  let lower = 80, higher = 120;
-
-  if (elem[0] < lower) {
-    if (elem[1] < lower) {
-      if (elem[2] < lower) {
-        return "The process requires less than the requested Memory resources for all instances."
-      } else if (elem[2] > higher) {
-        return "The process requires less Memory resources than requested for several instances, but there are also cases where the process requires significantly more.";
-      } else {
-        return "For some executions, the process requires less than the requested Memory resources";
-      }
-    } else if (elem[1] > higher) {
-      return "The process requires less memory resources than requested for several instances, but for most cases where it requires significantly more.";
-    } else {
-      if (elem[2] > higher) {
-        return "The process requires less memory resources than requested for several instances, but there are also cases where the process requires significantly more.";
-      } else {
-        return "For some executions, the process requires less than the requested memory resources";
-      }
-    }
-  } else if (elem[0] > higher) {
-    return "The process is using more memory as wanted for all process instances. It may be useful, to adjust the amount of available memory for this process.";
-
-  } else {
-    if (elem[1] < higher) {
-      if (elem[2] < higher) {
-        return "The memory resources allocated to the process are well used!";
-      } else {
-        return "For some executions, this process requires more memory resources than requested.";
-      }
-    } else {
-      return "For most executions this process requires more memory resources than requested.";
-    }
-  }
-}
-
 
 
 
@@ -1368,31 +1311,31 @@ function showProblem(problem: any): string {
   if (problem["cpu"]){ //cpu
     if (problem["cpu"] === "more") { // more
       if (problem["restriction"] === null) {
-        return `Currently this process has ${problem["requested"].toFixed(2)} CPUs assigned in average, but needs ${problem["solution"]["cpus"].toFixed(2)} CPUs in average. You can adjust the number of assigned CPUs. Please consider that the number of CPUs needed for this process may vary from task to task. Consider to set this value dynamically.`;
+        return `Currently this process has ${problem["requested"].toFixed(2)} CPUs assigned in average, but needs ${problem["solution"]["cpus"].toFixed(2)} CPUs in average. It may be useful to increase the number of CPUs assigned to certain tasks of this process.. Please consider that the number of CPUs needed for this process may vary from task to task. Consider to set this value dynamically.`;
       } else if (problem["restriction"] === "max_reached") {
         return `The maximum number of CPUs you have assigned over all tasks is ${problem["solution"]["available"]} CPUs - to meet the requirements of the process, ${problem["solution"]["needed"].toFixed(2)} CPUs should be assigned tasks of this process. If there are no more CPU resources available in your current setup, you must increase the available CPU resources or adjust the implementation of the process.`;
       } else if (problem["restriction"] === "max_reached_unsure") {
-        return `Currently this process has ${problem["requested"].toFixed(2)} CPUs assigned in average, but needs ${problem["solution"]["cpus"].toFixed(2)} CPUs in average. You can adjust the number of assigned CPUs. Please consider that the number of CPUs needed for this process may vary from task to task. Consider to set this value dynamically. Unfortunately, it is not clear from the data whether they have already fully exhausted the CPU resources on your machine.`;
+        return `Currently this process has ${problem["requested"].toFixed(2)} CPUs assigned in average, but needs ${problem["solution"]["cpus"].toFixed(2)} CPUs in average. It may be useful to increase the number of CPUs assigned to certain tasks of this process. Please consider that the number of CPUs needed for this process may vary from task to task. Consider to set this value dynamically. Unfortunately, it is not clear from the data whether they have already fully exhausted the CPU resources on your machine.`;
       }
     } else { // less
       if (problem["restriction"] === null) {
-        return `The process has a low CPU allocation in average. This means that fewer CPUs are needed than are assigned to the process. Only ${problem["solution"]["cpus"].toFixed(2)} CPUs are required in average, while ${problem["requested"].toFixed(2)} are assigned in average. Change the number of CPUs allocated or, if possible, divide the process into sub-processes if the resource load differs over time.`;
+        return `The process has a low CPU allocation in average. This means that fewer CPUs are needed than are assigned to the process. Only ${problem["solution"]["cpus"].toFixed(2)} CPUs are required in average, while ${problem["requested"].toFixed(2)} are assigned in average. It is a good idea to assign the number of allocated CPU cores for a task more dynamically. If the CPU allocation for certain processed data is lower, a lower value can be assigned here. Please bear in mind that the specified average is not necessarily suitable as a value for all tasks of the process.  If the process is one that can be split and where the load on the CPU varies greatly during execution, it may be a good idea to split the process.`;
       } else {
         if (problem["restriction"] === "min_reached") {
-          return `Only one CPU is assigned to this process and it is hardly used in average. If it is possible, split up the computations of the corresponding process.`;
+          return `Only one CPU is assigned to this process and it is not fully used in average. If the process is one that can be split and where the load on the CPU varies greatly during execution, it may be a good idea to split the process.`;
         }
       }
     }
   } else if (problem["ram"]) { // memory
       if (problem["ram"] === "less") {
-        return `The process requires less RAM than specified and uses only ${reasonableDataFormat(problem['solution']['ram'])} of physical RAM in average, while ${reasonableDataFormat(problem['requested'])} are assigned in average. You can adjust the assigned RAM-resources for this task to minimise bottlenecks.`;
+        return `The process requires less RAM than specified and uses only ${reasonableDataFormat(problem['solution']['ram'])} of physical RAM in average, while ${reasonableDataFormat(problem['requested'])} are assigned in average. Consider adjusting the allocated RAM resources according to the data being processed, if possible.`;
       } else if (problem["ram"] === "more") {
         if (problem["restriction"] === null){
-          return `The process requires more RAM, as was assigned to it. It uses ${reasonableDataFormat(problem['solution']['ram'])} in average, while only ${reasonableDataFormat(problem['requested'])} are assigned in average. You can adjust the amount of assigned RAM.`;
+          return `The process requires more RAM, as was assigned to it. It uses ${reasonableDataFormat(problem['solution']['ram'])} in average, while only ${reasonableDataFormat(problem['requested'])} are assigned in average. There seem to be cases where the process consumes more RAM resources than have been assigned to it. This can lead to bottlenecks and process failures. If possible, adjust the allocated resources for tasks that are expected to use more memory.`;
         } else if (problem["restriction"] === "max_reached" ){
           return `The proces requires more RAM, as was assigned to it. It uses ${reasonableDataFormat(problem['solution']['ram'])} in average, while only ${reasonableDataFormat(problem['requested'])} are assigned in average. As the used RAM of the task is higher, than the maximum value you have assigned to any processes (${reasonableDataFormat(problem["solution"]["available"])}), you need to check if you have enough RAM resources or if you need to increase them.`;
         } else if (problem["restriction"] === "max_reached_unsure") {
-          return `The proces requires more RAM, as was assigned to it. It uses ${reasonableDataFormat(problem['solution']['ram'])} in average, while only ${reasonableDataFormat(problem['requested'])} are assigned in average. The used RAM of the task is may be higher, than the maximum value of available RAM on your machine. Unfortunately, it is not clear from the data whether you have already fully exhausted the RAM resources on your machine. Please check, if you have enough RAM resources or if you need to increase them.`;
+          return `The proces requires more RAM, as was assigned to it. It uses ${reasonableDataFormat(problem['solution']['ram'])} in average, while only ${reasonableDataFormat(problem['requested'])} are assigned in average. The used RAM of the task may be higher, than the maximum value of available RAM on your machine. Unfortunately, it is not clear from the data whether you have already fully exhausted the RAM resources on your machine. Please check, if you have enough RAM resources or if you need to increase them.`;
         }
       }
 
@@ -1400,58 +1343,7 @@ function showProblem(problem: any): string {
   return "Sorry, the data could not be processed. The tool is not able to show the problem.";
 }
 
-/**
- * old function which was showing problems 
- */
-function problemToMessage(problem: any): string {
-  const problemKey: string = Object.keys(problem)[0];
-  let problemValue: any = Object.values(problem)[0];
-  switch (problemKey) {
-    case 'ram_relative': {
 
-      if (problemValue < 0.6) {
-        return `The process is consuming only ${(problemValue * 100).toFixed(2)}% of the requested RAM.`;
-      } else {
-        return `The process is consuming significantly more RAM than requested: It uses ${(problemValue * 100).toFixed(2)}% of the requested RAM.`;
-      }
-    }
-    case 'cpu_allocation': {
-      if (problemValue < 60) {
-        return `The process is consuming only ${problemValue.toFixed(2)}% of the allocated CPUs.`;
-      } else {
-        return `The process is consuming significantly high values of CPU. It uses ${problemValue.toFixed(2)}% of the allocated CPUs.`;
-      }
-    }
-    case 'duration_ratio_compared_to_other_processes': {
-      return `This process is relatively slow compared to other types of processes. It uses ${(problemValue * 100).toFixed(2)}% of the average time`;
-    }
-    case 'duration_ratio_to_requested': {
-      return `The runtime of the process is too long in relation to the requested runtime. It is ${(problemValue * 100).toFixed(2)} % of the requested time.`
-    }
-    case 'duration_ratio_compared_to_all': {
-      return `This process is relatively slow compared to all processes executed in this workflow run. It uses ${(problemValue * 100).toFixed(2)}% of the average time`;
-    }
-    case 'duration_ratio_compared_to_same': {
-      return `This process is relatively slow compared to processes with the same type. It uses ${(problemValue * 100).toFixed(2)}% of the average time for processes of the same type.`;
-    }
-    case 'tag_duration_comparison_ratio': {
-      return `Processes which run with this tag, need ${(problemValue * 100).toFixed(2)}% of the time, processes with other tags need.`;
-    }
-    case 'tag_duration_to_full_ratio': {
-      return `Processes which run with this tag, use the majority of time. They are responsible for ${(problemValue * 100).toFixed(2)}% of the runtime.`;
-    }
-    case 'tag_cpu_allocation_ratio': {
-      return `Processes which run with this tag, allocate comparably much CPU. They take ${(problemValue * 100).toFixed(2)}% of the average CPU allocation of the CPU.`;
-    }
-    case 'tag_cpu_percentage_ratio': {
-      return `Processes which run with this tag, use comparably high values of CPU. ${(problemValue * 100).toFixed(2)}% of the average CPU usage values are used.`;
-    }
-    case 'tag_memory_ratio': {
-      return `Processes which run with this tag, use comparably high values of RAM. It is ${(problemValue * 100).toFixed(2)}% of the average RAM usage.`;
-    }
-  }
-  return 'There seems to be an error displaying this alert.';
-}
 
 function currentlySelectedWorkflowHasPlottableData(): boolean {
   if (workflowState.selectedRun !== '') {
@@ -1461,28 +1353,6 @@ function currentlySelectedWorkflowHasPlottableData(): boolean {
 
 }
 
-function tagToString(tag: any) {
-
-  if (Object.keys(tag)[0] !== '') {
-    return `${Object.keys(tag)[0].toString()}: ${Object.values(tag)[0].toString()}`
-  } else {
-    return 'Empty tag';
-  }
-}
-
-/* even if unused, keep */
-function createProcessObjects(data: any[]): Process[] {
-  let processes: Process[] = [];
-  for (let object of data) {
-    let process = new Process(object);
-    processes.push(process);
-  }
-  return processes;
-}
-
-/*
-Openai: prompt: how to use the date class in vuejs to format date in html, also considering the time
-*/
 function formattedDate(date: Date): string {
   const options: any = { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
   return new Intl.DateTimeFormat('de-DE', options).format(date);
@@ -1503,7 +1373,6 @@ function adjustSelectedRun(): void {
 
   }
 }
-
 
 
 function createProcessObjectsByRun(data: any): any {
@@ -2245,7 +2114,7 @@ function generateCPUData(): [string[], any[]] {
 }
 
 function generateDurationData(unit: string): [string[], any[]] {
-  let data_sum = generateSummarizedDataByKey('duration', 1000, unit);
+  let data_sum = generateSummarizedDataByKey('realtime', 1000, unit);
   let data_exec = generateDataByKey('realtime', false, unit);
   let data_execution: any[] = [];
   data_exec['data'].forEach((element: any[]) => {
@@ -2258,7 +2127,7 @@ function generateDurationData(unit: string): [string[], any[]] {
     [
       {
         type: 'bar',
-        label: `Summarized Duration in ${unit}`,
+        label: `Summarized Execution in ${unit}`,
         data: data_sum["data"],
         'maxBarThickness': 30,
       },
@@ -2295,8 +2164,6 @@ function goToDiv(divId: string): void {
 
 onMounted(() => {
   FilterService.register('tagTableFilter', (value, filter): boolean => {
-    console.log(filter);
-    console.log(value);
     filter = toRaw(filter);
     value = toRaw(value);
 
@@ -2378,7 +2245,7 @@ onUnmounted(() => {
           <label :for="key" class="ms-2">
             {{ key }} - {{ workflowState.runStartMapping[key] ? ' started at ' +
               formattedDate(workflowState.runStartMapping[key]) : 'no start-date available' }}
-              <span v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]">
+              <span v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] !== null">
               - Score: <strong>{{ (workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]).toFixed(2) * 100 }}%</strong>
               </span>
           </label>
@@ -3059,7 +2926,7 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="my-4" v-if="workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]">
-        <h5 class="my-2">Scores by Task</h5>
+        <h5 class="my-2">Allocation Scores by Task</h5>
         <DataTable v-model:expandedRows="filterState.expandedRows"
         :value="workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]"
         paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" :removable-sort="true" sortField="pure_score" :sort-order="-1"
@@ -3077,11 +2944,24 @@ onUnmounted(() => {
               ></Tag>
             </template>
           </Column>
-          <Column field="pure_score" sortable header="Score">
-          
+          <Column field="pure_score" sortable header="Allocation Score">
+        
           <template #body={data}>
-            <span><strong>{{(data['pure_score'] * 100).toFixed(2)}}%</strong></span>
+            <span v-if="data['pure_score'] !== null"><strong>{{(data['pure_score'] * 100).toFixed(2)}}%</strong></span>
+            <span v-else><strong>No combined score</strong></span>
           </template></Column>
+          <Column field="raw_cpu_score" sortable header="CPU Score">
+        
+            <template #body={data}>
+              <span v-if="data['raw_cpu_score'] !== null"><strong>{{(data['raw_cpu_score'] * 100).toFixed(2)}}%</strong></span>
+              <span v-else><strong>No score</strong></span>
+            </template></Column>
+            <Column field="raw_memory_score" sortable header="Memory Score">
+        
+              <template #body={data}>
+                <span v-if="data['raw_memory_score'] !== null"><strong>{{(data['raw_memory_score'] * 100).toFixed(2)}}%</strong></span>
+                <span v-else><strong>No score</strong></span>
+              </template></Column>
         </DataTable> 
 
         <h5 class="my-2">Scores by Process and Problems</h5>
@@ -3098,7 +2978,8 @@ onUnmounted(() => {
           <Column field="score" sortable header="Score">
           
           <template #body={data}>
-            <span><strong>{{(data.score * 100).toFixed(2)}}%</strong></span>
+            <span v-if="data.score !== null"><strong>{{(data.score * 100).toFixed(2)}}%</strong></span>
+            <span v-else><strong>No score</strong></span>
           </template></Column>
           <Column field="problems" sortable header="Problems">
             <template #body={data}>
@@ -3243,7 +3124,12 @@ onUnmounted(() => {
           </Column>
           <Column field="allocation" header="CPU allocation %" sortable>
             <template #body="{ data }">
-              {{ data["cpu_allocation"].toFixed(2) }} %
+              <span v-if="data['cpu_allocation']">
+                {{ (data["cpu_allocation"]).toFixed(2) }} %
+              </span>
+              <span v-else >
+                No data
+                </span>
             </template>
           </Column>
         </DataTable>
@@ -3325,7 +3211,12 @@ onUnmounted(() => {
           </Column>
           <Column field="memory_allocation" header="Memory Allocation % average" sortable>
             <template #body="{ data }">
-              {{ (data["memory_allocation"]).toFixed(2) }} %
+              <span v-if="data['memory_allocation']">
+                {{ (data["memory_allocation"]).toFixed(2) }} %
+              </span>
+              <span v-else >
+                No data
+                </span>
             </template>
           </Column>
         </DataTable>
