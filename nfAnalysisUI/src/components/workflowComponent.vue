@@ -36,6 +36,7 @@ import Tooltip from 'primevue/tooltip';
 import { PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart-error-bars';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
+import svgImage from "@/assets/traceflow.svg"
 
 
 
@@ -1927,7 +1928,7 @@ function delay(ms: number) {
 
 
 function reasonableDataFormat(input: number) {
-  const types: string[] = ['b', 'kiB', 'MiB', 'GiB', 'TiB'];
+  const types: string[] = ['b', 'kiB', 'MiB', 'GiB'];
   let iteration: number = 0;
   if (input) {
     while (input >= 1024 && iteration < types.length) {
@@ -2294,6 +2295,8 @@ function goToDiv(divId: string): void {
 
 onMounted(() => {
   FilterService.register('tagTableFilter', (value, filter): boolean => {
+    console.log(filter);
+    console.log(value);
     filter = toRaw(filter);
     value = toRaw(value);
 
@@ -2333,7 +2336,7 @@ onUnmounted(() => {
   <div class="card relative z-2 fixed-top bg-white">
     <Menubar :model="uiState.menuItems">
       <template #start>
-        <img alt="logo" src="https://primefaces.org/cdn/primevue/images/logo.svg" height="40" class="mx-4" />
+        <img alt="logo" src="@/assets/traceflow.svg" height="40" class="mx-4" />
         <!-- todo: adjust to own logo -->
 
       </template>
@@ -2345,7 +2348,8 @@ onUnmounted(() => {
     </Menubar>
   </div>
 
-  <div class="card" v-if="!workflowState.token || workflowState.error_on_request">
+  <div class="limitPane py-3">
+    <div class="card" v-if="!workflowState.token || workflowState.error_on_request">
     <h5 class="card-header">Enter token</h5>
     <div class="card-body">
       <div class="alert"
@@ -2501,6 +2505,7 @@ onUnmounted(() => {
       <Fieldset legend="Currently Running" :toggleable="true">
 
         <div class="card-body my-4">
+          <Message closable >This area displays the tasks, grouped by process, that are currently running and correspond to the settings of the following filter</Message>
         <div class="row my-3">
           <div class="col-6">
             <MultiSelect v-model="filterState.selectedRunningProcesses" :options="filterState.availableProcesses"
@@ -2560,7 +2565,7 @@ onUnmounted(() => {
 
         <div v-for="(info, process) in workflowState.filteredRunningProcesses" class="row my-2">
         <Panel toggleable :collapsed="true"
-        :header="`${process}${info.length > 1 ? info.length + ' processes' : '1 process'}`">
+        :header="`${process}${info.length > 1 ? info.length + ' tasks' : ' 1 task'}`">
           <ul class="list-group list-group-flush">
             <li v-for="task of info"
             class="list-group-item"><strong>Task #{{ task['task_id'] }}<span :class="task['attempt'] > 1 ? 'text-danger' : ''"> - attempt {{ task['attempt'] }}</span></strong> <Tag class="m-1" v-for="tag_elem of task['tag']"
@@ -2611,7 +2616,8 @@ onUnmounted(() => {
         </div>
         <ul class="list-group list-group-flush justify-content-end">
         <li v-for="(info, process) in workflowState.filteredProgressProcesses" class="p-2 list-group-item d-flex justify-content-between align-items-center">
-          <span class="float-left"><strong>{{process}}</strong></span><span class="float-right">{{ processNumbers(info) }} processes complete</span>
+          <span class="float-left"><strong>{{process}}</strong></span><span class="float-right">{{ processNumbers(info) }} tasks complete</span>
+          <!-- TODO: add failed here ? -->
         </li>
       </ul>
       </Panel>
@@ -2621,7 +2627,7 @@ onUnmounted(() => {
 
       <hr>
       <div class="card-body my-5" id="process_information_div">
-        <h3 class="card-title">Process Information for {{ workflowState.selectedRun }} </h3>
+        <h3 class="card-title">Task Information for {{ workflowState.selectedRun }} </h3>
         <div class=m-4></div>
         <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
           filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
@@ -2678,7 +2684,7 @@ onUnmounted(() => {
                       Object.values(selectedTag.value)[0] }}</div>
                     <div v-if="Object.keys(selectedTag.value)[0] === ''">Empty tag</div>
                   </div>
-                </template>
+                </template> 
                 <template #option="slotProps">
                   <div class="flex align-items-center">
                     <div v-if="Object.keys(slotProps.option)[0] !== ''">
@@ -2698,6 +2704,7 @@ onUnmounted(() => {
           <Column field="attempt" header="Attempts" sortable>
           </Column>
           <Column field="timestamp" header="Timestamp" sortable></Column>
+          <Column field="hash" header="Hash" sortable></Column>
           <Column field="duration" sortable header="Duration">
             <template #body="{ data }">
               <span v-if="data.duration">{{ getDynamicDurationType(data.duration) }} </span>
@@ -2910,10 +2917,6 @@ onUnmounted(() => {
               <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_gib" value="GiB" />
               <label for="mem_format_selection_gib" class="mx-1">GiB</label>
             </div>
-            <div class="p-2"> 
-              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_tib" value="TiB" />
-              <label for="mem_format_selection_tib" class="mx-1">TiB</label>
-            </div>
           </div>
       </div>
 
@@ -3059,7 +3062,7 @@ onUnmounted(() => {
         <h5 class="my-2">Scores by Task</h5>
         <DataTable v-model:expandedRows="filterState.expandedRows"
         :value="workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]"
-        paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" :removable-sort="true"
+        paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" :removable-sort="true" sortField="pure_score" :sort-order="-1"
          tableStyle="min-width: 80rem ">
           <Column field="task_id" sortable header="Task ID"/>
           <Column field="process" sortable header="Process">
@@ -3067,14 +3070,14 @@ onUnmounted(() => {
               <span v-tooltip="{value: data.process, showDelay: 500, hideDelay: 200}">{{getSuffix(data.process)}}</span>
             </template>
           </Column>
-          <Column field="tag">
+          <Column field="tag" header="Tags">
             <template #body={data}>
               <Tag class="mx-1" v-for="tag_elem of getTagsFromString(data.tag)"
                 :value="Object.values(tag_elem)[0] === null ? 'Empty tag' : `${tag_elem[Object.keys(tag_elem)[0]]}: ${Object.values(tag_elem)[0]}`" 
               ></Tag>
             </template>
           </Column>
-          <Column field="score" sortable header="Score">
+          <Column field="pure_score" sortable header="Score">
           
           <template #body={data}>
             <span><strong>{{(data['pure_score'] * 100).toFixed(2)}}%</strong></span>
@@ -3084,7 +3087,7 @@ onUnmounted(() => {
         <h5 class="my-2">Scores by Process and Problems</h5>
         <DataTable v-model:expandedRows="filterState.expandedRows"
         :value="workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]"
-        paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" :removable-sort="true"
+        paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]" :removable-sort="true" sortField="score" :sort-order="-1"
          tableStyle="min-width: 80rem">
           <Column expander></Column>
           <Column field="process" sortable header="Process">
@@ -3170,7 +3173,7 @@ onUnmounted(() => {
       <div
         v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_duration_processes_sum'][workflowState.selectedRun]">
         <Message>
-          Below is a list of processes which need the most time summarized over all instances of this process.
+          Below is a list of processes which need the most time for execution, summarized over all task instances of this process.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['bad_duration_processes_sum'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem"
@@ -3192,7 +3195,7 @@ onUnmounted(() => {
         v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_duration_processes_average'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of processes which need the most time, averaged for all process instances.
+          Below is a list of processes which need the most time for execution, averaged over all tasks of process.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['bad_duration_processes_average'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem"
@@ -3220,7 +3223,7 @@ onUnmounted(() => {
       <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_cpu_allocation_tasks'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of tasks which have the worst CPU allocation.
+          Below is a list of tasks which have the worst CPU allocation. Here, the deviation from the 100% optimum is considered.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['bad_cpu_allocation_tasks'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['bad_cpu_allocation_tasks'][workflowState.selectedRun].length"
@@ -3248,7 +3251,7 @@ onUnmounted(() => {
       <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['cpu_allocation_deviation_sum'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of processes which have the worst CPU allocation in summary - it is the summed up deviation from the 100%-optimum.
+          Below is a list of processes which have the worst CPU allocation in summary. The deviation from the 100% optimum is added up over all tasks of a process.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['cpu_allocation_deviation_sum'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['cpu_allocation_deviation_sum'][workflowState.selectedRun].length"
@@ -3273,7 +3276,7 @@ onUnmounted(() => {
       <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['cpu_allocation_deviation_average'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of processes which have the worst CPU allocation in average - it is the averaged deviation for all tasks of the process, regarding the 100%-optimum.
+          Below is a list of processes which have the worst CPU allocation in average. The value represents the averaged deviation for all tasks of the process, regarding the 100%-optimum.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['cpu_allocation_deviation_average'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem" :rows="workflowState.fullAnalysis['cpu_allocation_deviation_average'][workflowState.selectedRun].length"
@@ -3302,7 +3305,7 @@ onUnmounted(() => {
         v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_memory_allocation_tasks'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of tasks which have the worst Memory allocation percentages.
+          Below is a list of tasks which have the worst Memory allocation percentages, considering the deviation from the 100%-optimum.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['bad_memory_allocation_tasks'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem"
@@ -3331,7 +3334,7 @@ onUnmounted(() => {
         v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['memory_allocation_deviation_sum'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of processes which have the worst Memory allocation percentage summed up over all process
+          Below is a list of processes which have the worst Memory allocation percentage summed up over all process. The deviation from the 100% optimum is added up over all tasks of a process.
           instances.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['memory_allocation_deviation_sum'][workflowState.selectedRun]"
@@ -3355,8 +3358,7 @@ onUnmounted(() => {
         v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['memory_allocation_deviation_average'][workflowState.selectedRun]"
         class="my-3">
         <Message>
-          Below is a list of processes which have the worst Memory allocation percentage summed up over all process
-          instances.
+          Below is a list of processes with the worst average Memory allocation. The value represents the averaged deviation for all tasks of the process, regarding the 100%-optimum.
         </Message>
         <DataTable :value="workflowState.fullAnalysis['memory_allocation_deviation_average'][workflowState.selectedRun]"
           tableStyle="min-width: 50rem"
@@ -3419,6 +3421,7 @@ onUnmounted(() => {
     </div>
 
   </div>
+</div>
   <Sidebar v-model:visible="uiState.sidebarVisible" :pt="{
           closeButton : { class: 'd-none'}
       }">
@@ -3438,7 +3441,7 @@ onUnmounted(() => {
     <li class="list-group-item list-group-item-action nav-lg-item" id="progress-nav-item"
       @click="goToDiv('progess_summary_div')">Progress</li>
     <li class="list-group-item list-group-item-action nav-lg-item" id="process-information-nav-item"
-      @click="goToDiv('process_information_div')">Process Information</li>
+      @click="goToDiv('process_information_div')">Task Information</li>
     <li class="list-group-item list-group-item-action nav-lg-item" id="metric-nav-item"
       @click="goToDiv('metric_visualization_div')">Metric Visualizaton</li>
     <li class="list-group-item list-group-item-action nav-lg-item" id="analysis-nav-item"
