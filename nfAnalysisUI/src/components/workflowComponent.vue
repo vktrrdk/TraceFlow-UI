@@ -1347,7 +1347,7 @@ function showProblem(problem: any): string {
 
 function currentlySelectedWorkflowHasPlottableData(): boolean {
   if (workflowState.selectedRun !== '') {
-    return workflowState.currentState[workflowState.selectedRun] !== null";
+    return workflowState.currentState[workflowState.selectedRun] !== null;
   }
   return false;
 
