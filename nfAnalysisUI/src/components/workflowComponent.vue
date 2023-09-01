@@ -324,9 +324,8 @@ const filterState = reactive<{
 function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
-    axios.post(`${API_BASE_URL}run/info/${token}/`,
-      requestState.request_params,
-    ).then(
+    axios.get(`${API_BASE_URL}run/info/${token}/`)
+    .then(
       response => {
         if (response.data["error"]) {
           workflowState.processObjects = [];
@@ -342,11 +341,11 @@ function getDataInitial(token = props.token): void {
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilterState();
           updateFilteredRunningProcesses();
-          workflowState.fullAnalysis = response.data["result_analysis"]
+          workflowState.token = token;
+          requestAnalysisData();
           updateCurrentState();
           updateProgress();
           workflowState.token_info_requested = true;
-          workflowState.token = token;
           workflowState.error_on_request = false;
           
           progressProcessSelectionChanged();
@@ -363,6 +362,20 @@ function getDataInitial(token = props.token): void {
 }
 
 
+function requestAnalysisData(): void {
+  axios.post(`${API_BASE_URL}run/analysis/${workflowState.token}/`,
+    requestState.request_params,
+    { responseType: 'json', 'decompress': true, headers: {
+    "Content-Type": "application/json",
+    "Content-Encoding": "gzip, deflate, br",
+  },}
+  ).then(response => {
+    workflowState.fullAnalysis = response.data;
+    console.log(response);
+  })
+  
+}
+
 function destroyPollTimer(): void {
   clearInterval(workflowState.pollIntervalId);
 
@@ -377,8 +390,7 @@ function startPollingLoop(): void {
 }
 
 function dataPollingLoop(): void {
-  axios.post(`${API_BASE_URL}run/info/${workflowState.token}/`,
-    requestState.request_params,
+  axios.get(`${API_BASE_URL}run/info/${workflowState.token}/`,
   ).then(
     response => {
       if (response.data["error"]) {
@@ -395,6 +407,7 @@ function dataPollingLoop(): void {
         workflowState.fullAnalysis = response.data["result_analysis"]
         updateCurrentState();
         updateProgress();
+        requestAnalysisData();
         workflowState.error_on_request = false;
         progressProcessSelectionChanged();
         if (currentlySelectedWorkflowHasPlottableData()) {
