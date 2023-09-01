@@ -1347,7 +1347,7 @@ function showProblem(problem: any): string {
 
 function currentlySelectedWorkflowHasPlottableData(): boolean {
   if (workflowState.selectedRun !== '') {
-    return workflowState.currentState[workflowState.selectedRun] && workflowState.currentState[workflowState.selectedRun] !== "WAITING";
+    return workflowState.currentState[workflowState.selectedRun] !== null";
   }
   return false;
 
@@ -2571,7 +2571,7 @@ onUnmounted(() => {
           <Column field="attempt" header="Attempts" sortable>
           </Column>
           <Column field="timestamp" header="Timestamp" sortable></Column>
-          <Column field="hash" header="Hash" sortable></Column>
+          <Column field="process_hash" header="Hash" sortable></Column>
           <Column field="duration" sortable header="Duration">
             <template #body="{ data }">
               <span v-if="data.duration">{{ getDynamicDurationType(data.duration) }} </span>
