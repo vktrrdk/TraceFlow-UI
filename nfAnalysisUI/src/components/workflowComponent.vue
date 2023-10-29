@@ -2445,7 +2445,7 @@ onUnmounted(() => {
 
         <div v-for="(info, process) in workflowState.filteredRunningProcesses" class="row my-2">
         <Panel toggleable :collapsed="true"
-        :header="`${process}${info.length > 1 ? info.length + ' tasks' : ' 1 task'}`">
+        :header="`${process}: ${info.length > 1 ? info.length + ' tasks' : ' 1 task'}`">
           <ul class="list-group list-group-flush">
             <li v-for="task of info"
             class="list-group-item"><strong>Task #{{ task['task_id'] }}<span :class="task['attempt'] > 1 ? 'text-danger' : ''"> - attempt {{ task['attempt'] }}</span></strong> <Tag class="m-1" v-for="tag_elem of task['tag']"
