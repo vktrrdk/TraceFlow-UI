@@ -39,6 +39,10 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import svgImage from "@/assets/traceflow.svg"
 
 
+/**
+ * check how to have nested-ifs
+ */
+
 
 
 Chart.register(
@@ -128,7 +132,7 @@ function memoryAllocationSort(a){
 
 function processIsDeclaredProblematic(data: any): boolean {
   if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
-    if (workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['task_information'] && workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]){
+    if (workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['task_information'] && workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]){
       let task_informations: any[] = toRaw(workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]);
       const task_info = task_informations.find((task: any) => {
         return task.task_id == data.task_id && task.run_name == data.run_name;
@@ -1227,7 +1231,7 @@ function updateCPUAllocationPlot() {
 
 function updateCPURamRatioChart() {
   let rawedFullAnalysis: any = toRaw(workflowState.fullAnalysis);
-  if (rawedFullAnalysis['cpu_ram_relation_data']) {
+  if (rawedFullAnalysis && rawedFullAnalysis['cpu_ram_relation_data']) {
     metricCharts.cpuRamRatioChart.data.labels = getSuffixes(rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['labels']);
     metricCharts.cpuRamRatioChart.data.datasets = [rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['data']];
     metricCharts.cpuRamRatioChart.update('none');
@@ -1294,7 +1298,7 @@ function sortByScore(scores: any) {
 
 function checkIfProblemsFound() {
   if (workflowState.selectedRun !== '') {
-    if (workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]){
+    if (workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]){
       let scores: any[] = toRaw(workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]);
       return scores.some((process: any) => process["problems"].length > 0);
     }
@@ -2268,7 +2272,7 @@ onUnmounted(() => {
           <label :for="key" class="ms-2">
             {{ key }} - {{ workflowState.runStartMapping[key] ? ' started at ' +
               formattedDate(workflowState.runStartMapping[key]) : 'no start-date available' }}
-              <span v-if="workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] !== null">
+              <span v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] !== null">
               - Score: <strong>{{ workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] ? (workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]).toFixed(2) * 100 + '%' : 'None'}}</strong>
               </span>
           </label>
@@ -2914,7 +2918,7 @@ onUnmounted(() => {
       </div>
     </div>
     <hr>
-    <div class="card-body my-2" v-if="workflowState.fullAnalysis['workflow_scores']">
+    <div class="card-body my-2" v-if="workflowState.fullAnaylsis && workflowState.fullAnalysis['workflow_scores']">
       <div class="p-4">
         <h6>Score for this run</h6>
         <div class="my-1" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] > -0.01">
@@ -2933,7 +2937,7 @@ onUnmounted(() => {
       </div>
       <div class="p-4" >
         <h6>Score Comparison</h6>
-        <div v-if="workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores']">
+        <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores']">
         <div class="my-1" v-for="score_run in sortByScore(workflowState.fullAnalysis['workflow_scores']['full_scores'])">
           <div class="row" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] > -0.01">
             <div class="col-2">
@@ -2953,7 +2957,7 @@ onUnmounted(() => {
           There are no scores to show at the moment
         </div>
       </div>
-      <div class="my-4" v-if="workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['task_information'] && workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]">
+      <div class="my-4" v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['task_information'] && workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]">
         <h5 class="my-2">Allocation Scores by Task</h5>
         <DataTable v-model:expandedRows="filterState.expandedRows"
         :value="workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]"
