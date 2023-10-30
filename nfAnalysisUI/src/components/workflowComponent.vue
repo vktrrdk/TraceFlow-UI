@@ -128,7 +128,7 @@ function memoryAllocationSort(a){
 
 function processIsDeclaredProblematic(data: any): boolean {
   if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
-    if (workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]){
+    if (workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['task_information'] && workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]){
       let task_informations: any[] = toRaw(workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]);
       const task_info = task_informations.find((task: any) => {
         return task.task_id == data.task_id && task.run_name == data.run_name;
@@ -371,7 +371,6 @@ function requestAnalysisData(): void {
   },}
   ).then(response => {
     workflowState.fullAnalysis = response.data;
-    console.log(response);
   })
   
 }
@@ -413,6 +412,7 @@ function dataPollingLoop(): void {
         if (currentlySelectedWorkflowHasPlottableData()) {
           if (metricCharts.chartsGenerated) {
             updatePlots();
+          
           } else {
             createPlots();
           }
@@ -1227,9 +1227,12 @@ function updateCPUAllocationPlot() {
 
 function updateCPURamRatioChart() {
   let rawedFullAnalysis: any = toRaw(workflowState.fullAnalysis);
-  metricCharts.cpuRamRatioChart.data.labels = getSuffixes(rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['labels']);
-  metricCharts.cpuRamRatioChart.data.datasets = [rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['data']];
-  metricCharts.cpuRamRatioChart.update('none');
+  if (rawedFullAnalysis['cpu_ram_relation_data']) {
+    metricCharts.cpuRamRatioChart.data.labels = getSuffixes(rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['labels']);
+    metricCharts.cpuRamRatioChart.data.datasets = [rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['data']];
+    metricCharts.cpuRamRatioChart.update('none');
+  }
+  
 
 }
 
@@ -1291,7 +1294,7 @@ function sortByScore(scores: any) {
 
 function checkIfProblemsFound() {
   if (workflowState.selectedRun !== '') {
-    if (workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]){
+    if (workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]){
       let scores: any[] = toRaw(workflowState.fullAnalysis['workflow_scores']['process_scores'][workflowState.selectedRun]);
       return scores.some((process: any) => process["problems"].length > 0);
     }
@@ -1401,6 +1404,8 @@ function createProcessObjectsByRun(data: any): any {
 }
 
 function setFirstRunName(): void {
+  console.log(workflowState.processesByRun);
+  console.log(Object.keys(workflowState.processesByRun));
   if (Object.keys(workflowState.processesByRun).length > 0) {
     workflowState.selectedRun = Object.keys(workflowState.processesByRun)[0];
   } else {
@@ -1410,11 +1415,13 @@ function setFirstRunName(): void {
 
 function updateRunStartMapping(): void {
   let result: any = {};
+  let hasRunning: boolean = false;
   const metaObjects: any = toRaw(workflowState.meta);
   if (Object.keys(metaObjects).length > 0) {
     for (let meta of metaObjects) {
       if (meta["event"] === "started") {
         result[meta["run_name"]] = new Date(meta["timestamp"]);
+        hasRunning = true;
         if ([undefined, "WAITING"].includes(workflowState.currentState[meta["run_name"]])) {
           workflowState.currentState[meta["run_name"]] = "SUBMITTED";
           updateToFasterPolling();
@@ -1423,6 +1430,9 @@ function updateRunStartMapping(): void {
     }
   }
   workflowState.runStartMapping = result;
+  if ((workflowState.selectedRun === '' || workflowState.selectedRun === null) && hasRunning) {
+    setFirstRunName();
+  }
 
 
 }
@@ -2258,8 +2268,8 @@ onUnmounted(() => {
           <label :for="key" class="ms-2">
             {{ key }} - {{ workflowState.runStartMapping[key] ? ' started at ' +
               formattedDate(workflowState.runStartMapping[key]) : 'no start-date available' }}
-              <span v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] !== null">
-              - Score: <strong>{{ (workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]).toFixed(2) * 100 }}%</strong>
+              <span v-if="workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] !== null">
+              - Score: <strong>{{ workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] ? (workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]).toFixed(2) * 100 + '%' : 'None'}}</strong>
               </span>
           </label>
         </div>
@@ -2907,7 +2917,7 @@ onUnmounted(() => {
     <div class="card-body my-2" v-if="workflowState.fullAnalysis['workflow_scores']">
       <div class="p-4">
         <h6>Score for this run</h6>
-        <div class="my-1" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] > -0.01">
+        <div class="my-1" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] > -0.01">
           <div class="row">
             <div class="col-2">
               <strong>{{(workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] * 100).toFixed(2)}} %</strong>
@@ -2921,10 +2931,11 @@ onUnmounted(() => {
           <Message>There is no score for this workflow run yet.</Message>
         </div>
       </div>
-      <div class="p-4">
+      <div class="p-4" >
         <h6>Score Comparison</h6>
+        <div v-if="workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores']">
         <div class="my-1" v-for="score_run in sortByScore(workflowState.fullAnalysis['workflow_scores']['full_scores'])">
-          <div class="row" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] > -0.01">
+          <div class="row" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] > -0.01">
             <div class="col-2">
               <strong v-if="score_run === workflowState.selectedRun">{{ score_run }} - {{(workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] * 100).toFixed(2)}} %</strong>
               <span v-else>{{ score_run }} - {{(workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] * 100).toFixed(2)}} %</span>
@@ -2938,7 +2949,11 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-      <div class="my-4" v-if="workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]">
+        <div v-else>
+          There are no scores to show at the moment
+        </div>
+      </div>
+      <div class="my-4" v-if="workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['task_information'] && workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]">
         <h5 class="my-2">Allocation Scores by Task</h5>
         <DataTable v-model:expandedRows="filterState.expandedRows"
         :value="workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]"
@@ -3032,7 +3047,7 @@ onUnmounted(() => {
 
     <div class="card-body my-4">
       <h6>Duration</h6>
-      <div v-if="workflowState.fullAnalysis"
+      <div v-if="workflowState.fullAnalysis['bad_duration']"
         class="my-3">
         <Message>
           Below is a list of tasks, which need the most time for execution - from submission to completion.
@@ -3065,7 +3080,7 @@ onUnmounted(() => {
         </DataTable>
       </div>
       <div
-        v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_duration_processes_sum'][workflowState.selectedRun]">
+        v-if="workflowState.fullAnalysis['bad_duration_processes_sum'] && workflowState.fullAnalysis['bad_duration_processes_sum'][workflowState.selectedRun]">
         <Message>
           Below is a list of processes which need the most time for execution, summarized over all task instances of this process.
         </Message>
@@ -3086,7 +3101,7 @@ onUnmounted(() => {
       </div>
 
       <div
-        v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_duration_processes_average'][workflowState.selectedRun]"
+        v-if="workflowState.fullAnalysis['bad_duration_processes_average'] && workflowState.fullAnalysis['bad_duration_processes_average'][workflowState.selectedRun]"
         class="my-3">
         <Message>
           Below is a list of processes which need the most time for execution, averaged over all tasks of process.
@@ -3114,7 +3129,7 @@ onUnmounted(() => {
 
     <div class="card-body my-4">
       <h6>CPU </h6>
-      <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_cpu_allocation_tasks'][workflowState.selectedRun]"
+      <div v-if="workflowState.fullAnalysis['bad_cpu_allocation_tasks'] && workflowState.fullAnalysis['bad_cpu_allocation_tasks'][workflowState.selectedRun]"
         class="my-3">
         <Message>
           Below is a list of tasks which have the worst CPU allocation. Here, the deviation from the 100% optimum is considered.
@@ -3147,7 +3162,7 @@ onUnmounted(() => {
           </Column>
         </DataTable>
       </div>
-      <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['cpu_allocation_deviation_sum'][workflowState.selectedRun]"
+      <div v-if="workflowState.fullAnalysis['cpu_allocation_deviation_sum'] && workflowState.fullAnalysis['cpu_allocation_deviation_sum'][workflowState.selectedRun]"
         class="my-3">
         <Message>
           Below is a list of processes which have the worst CPU allocation in summary. The deviation from the 100% optimum is added up over all tasks of a process.
@@ -3172,7 +3187,7 @@ onUnmounted(() => {
         </Message>
       </div>
       
-      <div v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['cpu_allocation_deviation_average'][workflowState.selectedRun]"
+      <div v-if="workflowState.fullAnalysis['cpu_allocation_deviation_average'] && workflowState.fullAnalysis['cpu_allocation_deviation_average'][workflowState.selectedRun]"
         class="my-3">
         <Message>
           Below is a list of processes which have the worst CPU allocation in average. The value represents the averaged deviation for all tasks of the process, regarding the 100%-optimum.
@@ -3201,7 +3216,7 @@ onUnmounted(() => {
     <div class="card-body my-4">
       <h6>Memory</h6>
       <div
-        v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_memory_allocation_tasks'][workflowState.selectedRun]"
+        v-if="workflowState.fullAnalysis['bad_memory_allocation_tasks'] && workflowState.fullAnalysis['bad_memory_allocation_tasks'][workflowState.selectedRun]"
         class="my-3">
         <Message>
           Below is a list of tasks which have the worst Memory allocation percentages, considering the deviation from the 100%-optimum.
@@ -3235,7 +3250,7 @@ onUnmounted(() => {
         </DataTable>
       </div>
       <div
-        v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['memory_allocation_deviation_sum'][workflowState.selectedRun]"
+        v-if="workflowState.fullAnalysis['memory_allocation_deviation_sum'] && workflowState.fullAnalysis['memory_allocation_deviation_sum'][workflowState.selectedRun]"
         class="my-3">
         <Message>
           Below is a list of processes which have the worst Memory allocation percentage summed up over all process. The deviation from the 100% optimum is added up over all tasks of a process.
@@ -3259,7 +3274,7 @@ onUnmounted(() => {
       </div>
 
       <div
-        v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['memory_allocation_deviation_average'][workflowState.selectedRun]"
+        v-if="workflowState.fullAnalysis['memory_allocation_deviation_average'] && workflowState.fullAnalysis['memory_allocation_deviation_average'][workflowState.selectedRun]"
         class="my-3">
         <Message>
           Below is a list of processes with the worst average Memory allocation. The value represents the averaged deviation for all tasks of the process, regarding the 100%-optimum.
@@ -3283,7 +3298,7 @@ onUnmounted(() => {
       
       
       <div
-        v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['bad_memory_ratio'][workflowState.selectedRun]"
+        v-if="workflowState.fullAnalysis['bad_memory_ratio'] && workflowState.fullAnalysis['bad_memory_ratio'][workflowState.selectedRun]"
         class="my-3">
         <Message>
           Below is a list of processes which have the worst values regarding the ratio between physical memory and the
