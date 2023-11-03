@@ -342,6 +342,7 @@ function getDataInitial(token = props.token): void {
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+          console.log(workflowState.processesByRun)
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilterState();
           updateFilteredRunningProcesses();
@@ -1408,8 +1409,6 @@ function createProcessObjectsByRun(data: any): any {
 }
 
 function setFirstRunName(): void {
-  console.log(workflowState.processesByRun);
-  console.log(Object.keys(workflowState.processesByRun));
   if (Object.keys(workflowState.processesByRun).length > 0) {
     workflowState.selectedRun = Object.keys(workflowState.processesByRun)[0];
   } else {
@@ -1422,18 +1421,21 @@ function updateRunStartMapping(): void {
   let hasRunning: boolean = false;
   const metaObjects: any = toRaw(workflowState.meta);
   if (Object.keys(metaObjects).length > 0) {
+    console.log(metaObjects);
     for (let meta of metaObjects) {
       if (meta["event"] === "started") {
         result[meta["run_name"]] = new Date(meta["timestamp"]);
         hasRunning = true;
         if ([undefined, "WAITING"].includes(workflowState.currentState[meta["run_name"]])) {
           workflowState.currentState[meta["run_name"]] = "SUBMITTED";
+          console.log("i get here")
           updateToFasterPolling();
         }
       }
     }
   }
   workflowState.runStartMapping = result;
+  console.log(result)
   if ((workflowState.selectedRun === '' || workflowState.selectedRun === null) && hasRunning) {
     setFirstRunName();
   }
@@ -1798,6 +1800,10 @@ function getProgressValueForTask(status: string): number {
 
 }
 
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text);
+}
 
 function deleteToken() {
   axios.delete(`${API_BASE_URL}token/remove/${workflowState.token}/`).then(
@@ -2262,10 +2268,10 @@ onUnmounted(() => {
 
   <div v-if="workflowState.token && workflowState.token_info_requested">
 
-    <div class="card-body mt-4 py-4" v-if="workflowState.token && Object.keys(workflowState.processesByRun).length > 0"
+    <div class="card-body mt-4 py-4" v-if="workflowState.token && Object.keys(workflowState.runStartMapping).length > 0"
       id="run_selection_div">
       <h3 class="card-title">Select runs</h3>
-      <div class="row flex flex-wrap m-2" v-for="key in Object.keys(workflowState.processesByRun)">
+      <div class="row flex flex-wrap m-2" v-for="key in Object.keys(workflowState.runStartMapping)">
         <div class="flex col-auto align-items-center">
           <RadioButton v-model="workflowState.selectedRun" v-on:update:model-value="adjustSelectedRun()" :input-id="key"
             :value="key" />
@@ -2296,6 +2302,10 @@ onUnmounted(() => {
               the execution:
               <strong>{{ `-with-weblog ${API_BASE_URL}run/${workflowState.token}/` }}</strong>
             </li>
+          <button
+              @click="copyToClipboard( `-with-weblog ${API_BASE_URL}run/${workflowState.token}/`);"
+                class="btn btn-outline-secondary"
+               >Copy command line argument</button>
           </ul>
           So your command to execute will look similar to this: <br>
           <span class="text-muted">./nextflow run nextflow-io/elixir-workshop-21 -r master -with-docker -with-weblog
