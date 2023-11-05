@@ -97,7 +97,7 @@ const STORAGE_UNITS = ['b', 'kiB', 'MiB', 'GiB'];
 const TIME_UNITS = ['s', 'min', 'h'];
 
 const FAST_INTERVAL: number = 10000;
-const SLOW_INTERVAL: number = 30000;
+const SLOW_INTERVAL: number = 15000;
 const filters = ref({
   'status': { value: null, matchMode: FilterMatchMode.IN },
   'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -351,11 +351,7 @@ function getDataInitial(token = props.token): void {
           updateProgress();
           workflowState.token_info_requested = true;
           workflowState.error_on_request = false;
-          
           progressProcessSelectionChanged();
-          if (currentlySelectedWorkflowHasPlottableData()) {
-            createPlots();
-          }
           startPollingLoop();
         }
       },
@@ -375,6 +371,13 @@ function requestAnalysisData(): void {
   },}
   ).then(response => {
     workflowState.fullAnalysis = response.data;
+    if (currentlySelectedWorkflowHasPlottableData()) {
+          if (metricCharts.chartsGenerated) {
+            updatePlots();
+          } else {
+            createPlots();
+          }
+        }
   })
   
 }
@@ -405,22 +408,15 @@ function dataPollingLoop(): void {
         updateRunStartMapping();
         workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
         workflowState.runningProcesses = updateRunningProcesses();
-        updateFilterState();
-        updateFilteredRunningProcesses();
-        workflowState.fullAnalysis = response.data["result_analysis"]
+        if (!NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
+          updateFilterState();
+          updateFilteredRunningProcesses();
+        }
         updateCurrentState();
         updateProgress();
         requestAnalysisData();
         workflowState.error_on_request = false;
         progressProcessSelectionChanged();
-        if (currentlySelectedWorkflowHasPlottableData()) {
-          if (metricCharts.chartsGenerated) {
-            updatePlots();
-          
-          } else {
-            createPlots();
-          }
-        }
         checkForPollingTimerAdjustment();
       }
     });
@@ -1157,7 +1153,7 @@ async function createCPURamRatioPlot() {
   )
   Object.seal(cpuRamRatioChart);
   metricCharts.cpuRamRatioChart = cpuRamRatioChart;
-
+  
   updateCPURamRatioChart();
 }
 
@@ -1231,7 +1227,7 @@ function updateCPUAllocationPlot() {
 
 function updateCPURamRatioChart() {
   let rawedFullAnalysis: any = toRaw(workflowState.fullAnalysis);
-  if (rawedFullAnalysis && rawedFullAnalysis['cpu_ram_relation_data']) {
+  if (rawedFullAnalysis && rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]) {
     metricCharts.cpuRamRatioChart.data.labels = getSuffixes(rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['labels']);
     metricCharts.cpuRamRatioChart.data.datasets = [rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['data']];
     metricCharts.cpuRamRatioChart.update('none');
@@ -2924,7 +2920,7 @@ onUnmounted(() => {
       </div>
     </div>
     <hr>
-    <div class="card-body my-2" v-if="workflowState.fullAnaylsis && workflowState.fullAnalysis['workflow_scores']">
+    <div class="card-body my-2" v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores']">
       <div class="p-4">
         <h6>Score for this run</h6>
         <div class="my-1" v-if="workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] > -0.01">
