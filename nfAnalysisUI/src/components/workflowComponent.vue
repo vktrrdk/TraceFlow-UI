@@ -342,7 +342,6 @@ function getDataInitial(token = props.token): void {
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
-          console.log(workflowState.processesByRun)
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilterState();
           updateFilteredRunningProcesses();
@@ -1421,21 +1420,18 @@ function updateRunStartMapping(): void {
   let hasRunning: boolean = false;
   const metaObjects: any = toRaw(workflowState.meta);
   if (Object.keys(metaObjects).length > 0) {
-    console.log(metaObjects);
     for (let meta of metaObjects) {
       if (meta["event"] === "started") {
         result[meta["run_name"]] = new Date(meta["timestamp"]);
         hasRunning = true;
         if ([undefined, "WAITING"].includes(workflowState.currentState[meta["run_name"]])) {
           workflowState.currentState[meta["run_name"]] = "SUBMITTED";
-          console.log("i get here")
           updateToFasterPolling();
         }
       }
     }
   }
   workflowState.runStartMapping = result;
-  console.log(result)
   if ((workflowState.selectedRun === '' || workflowState.selectedRun === null) && hasRunning) {
     setFirstRunName();
   }
@@ -2278,8 +2274,8 @@ onUnmounted(() => {
           <label :for="key" class="ms-2">
             {{ key }} - {{ workflowState.runStartMapping[key] ? ' started at ' +
               formattedDate(workflowState.runStartMapping[key]) : 'no start-date available' }}
-              <span v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] !== null">
-              - Score: <strong>{{ workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] ? (workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun]).toFixed(2) * 100 + '%' : 'None'}}</strong>
+              <span v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores']">
+              - Score: <strong>{{ workflowState.fullAnalysis['workflow_scores']['full_scores'][key] ? (workflowState.fullAnalysis['workflow_scores']['full_scores'][key]).toFixed(2) * 100 + '%' : 'None'}}</strong>
               </span>
           </label>
         </div>
