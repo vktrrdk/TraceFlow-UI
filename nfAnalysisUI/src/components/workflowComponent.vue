@@ -1085,9 +1085,9 @@ async function createCPURamRatioPlot() {
               box_valid: {
                 type: 'box',
                 xMin: 80,
-                xMax: 105,
+                xMax: 100,
                 yMin: 80,
-                yMax: 105,
+                yMax: 100,
                 backgroundColor: 'rgba(38, 131, 17, 0.22)',
                 borderWidth: 0,
               },
