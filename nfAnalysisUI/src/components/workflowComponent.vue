@@ -96,8 +96,8 @@ const NON_AUTO_UPDATE_STATES = ["ABORTED", "COMPLETED", "FAILED"];
 const STORAGE_UNITS = ['b', 'kiB', 'MiB', 'GiB'];
 const TIME_UNITS = ['s', 'min', 'h'];
 
-const FAST_INTERVAL: number = 10000;
-const SLOW_INTERVAL: number = 15000;
+const FAST_INTERVAL: number = 15000;
+const SLOW_INTERVAL: number = 25000;
 const filters = ref({
   'status': { value: null, matchMode: FilterMatchMode.IN },
   'name': { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -1578,9 +1578,6 @@ function currentlyNonFinishedWorkflows(): boolean {
 
 function updateToFasterPolling(): void {
   if (workflowState.pollIntervalId) {
-    if (workflowState.pollIntervalValue === FAST_INTERVAL) {
-      return;
-    }
     clearInterval(workflowState.pollIntervalId)
     workflowState.pollIntervalValue = 0;
   }
@@ -1590,9 +1587,6 @@ function updateToFasterPolling(): void {
 
 function updateToSlowerPolling(): void {
   if (workflowState.pollIntervalId) {
-    if (workflowState.pollIntervalValue === SLOW_INTERVAL) {
-      return;
-    }
     clearInterval(workflowState.pollIntervalId)
     workflowState.pollIntervalValue = 0;
   }
@@ -1999,14 +1993,45 @@ function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedForma
 
 
 function generateAnalysisRatioData(): [string[], any[]] {
-  return [];
+  return [[],[]]; 
+  // TODO: implement?
 }
+
+function unfoldTag(tag: any): string {
+  if (tag[0] === "" || tag[0] === undefined){
+    return ""
+  } else if (tag[0] === '_'){
+    return tag[1];
+  } else {
+    return `${tag[0]}: ${tag[1]}`;
+  }
+}
+
+
+function getMemoryRelativeDataAndPlot(): any{
+  // they should be unique themselves, shouldnt they? but keep it in case certain filtering is necessary
+  const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
+  const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
+  axios.get(`${API_BASE_URL}run/ram_plot/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }})
+    .then(
+      response => {
+        console.log(response);
+        return response['data']
+        /// process data
+      }
+    );
+      
+}
+
 
 function generateMemoryRelativeData(): [string[], any[]] {
   let datasets: any[] = [];
   let selectedTags: any = [];
   let tagFilter: boolean = false;
-  const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses)
+  const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
+  let data: any = getMemoryRelativeDataAndPlot(); // USE THIS
+  
+
   if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
     tagFilter = true;
     selectedTags = toRaw(filterState.selectedTags);
@@ -2031,7 +2056,7 @@ function generateMemoryRelativeData(): [string[], any[]] {
   relative_dataset['data'] = Object.values(processDataMapping);
   relative_dataset['maxBarThickness'] = 30;
   datasets.push(relative_dataset);
-  return [Object.keys(processDataMapping), datasets];
+  return [Object.keys(processDataMapping), datasets]; 
 
 }
 
@@ -2271,7 +2296,7 @@ onUnmounted(() => {
             {{ key }} - {{ workflowState.runStartMapping[key] ? ' started at ' +
               formattedDate(workflowState.runStartMapping[key]) : 'no start-date available' }}
               <span v-if="workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['full_scores']">
-              - Score: <strong>{{ workflowState.fullAnalysis['workflow_scores']['full_scores'][key] ? (workflowState.fullAnalysis['workflow_scores']['full_scores'][key]).toFixed(2) * 100 + '%' : 'None'}}</strong>
+              - Score: <strong>{{ workflowState.fullAnalysis['workflow_scores']['full_scores'][key] ? ((workflowState.fullAnalysis['workflow_scores']['full_scores'][key]).toFixed(5) * 100).toFixed(2) + '%' : 'None'}}</strong>
               </span>
           </label>
         </div>
