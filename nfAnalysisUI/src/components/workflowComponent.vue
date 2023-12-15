@@ -344,7 +344,6 @@ function getDataInitial(token = props.token): void {
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
-          console.log(workflowState.processObjects);
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilterState();
           updateFilteredRunningProcesses();
@@ -817,7 +816,6 @@ async function createRelativeRamPlot() {
   Object.seal(relativeRamChart);
   metricCharts.relativeMemoryChart = relativeRamChart;
 
-  updateRelativeRamPlot();
 
 }
 
@@ -1072,7 +1070,6 @@ async function createCPUAllocationPlot() {
   Object.seal(cpuAllocationChart);
   metricCharts.cpuAllocationChart = cpuAllocationChart;
 
-  updateCPUAllocationPlot();
 
 }
 
@@ -1196,13 +1193,54 @@ function updatePlotsConditional() {
 function updatePlots() {
   if (currentlySelectedWorkflowHasPlottableData()) {
     updateRamPlot();
-    updateRelativeRamPlot();
     updateCPUPlot();
     updateIOPlot();
     updateDurationPlot();
     updateCPURamRatioChart();
+
+    updatePlotsByRequest();
   }
 
+}
+
+async function updatePlotsByRequest(): Promise<void> {
+
+  const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
+  const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
+
+  await axios.get(
+    `${API_BASE_URL}run/plots/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }}
+  ).then(
+      (response: any) => {
+        let cpu_allocation_data: any = response.data['cpu_allocation'];
+        let relative_ram_data: any = response.data['relative_ram'];
+
+        let relative_datasets: any = { 'label': 'Memory usage in %', 'data': [], 'maxBarThickness': 30 };
+
+        let datasets: any[] = [];
+        relative_datasets['data'] = Object.values(relative_ram_data[1]);
+        datasets.push(relative_datasets);
+        let relative_ram_plot_data: any = [relative_ram_data[0], datasets];
+
+        metricCharts.relativeMemoryChart.data.labels = getSuffixes(relative_ram_plot_data[0]);
+        metricCharts.relativeMemoryChart.data.datasets = relative_ram_plot_data[1];
+        metricCharts.relativeMemoryChart.update('none');
+
+        datasets = [];
+        relative_datasets['label'] = 'CPU Allocation in %';
+        relative_datasets['data'] = Object.values(cpu_allocation_data[1])
+        datasets.push(relative_datasets);
+        let cpu_allocation_plot_data: any = [cpu_allocation_data[0], datasets];
+
+        metricCharts.cpuAllocationChart.data.labels = getSuffixes(cpu_allocation_plot_data[0]);
+        metricCharts.cpuAllocationChart.data.datasets = cpu_allocation_plot_data[1];
+        metricCharts.cpuAllocationChart.update('none');
+        
+        /** TODO: extend with remaining plots */
+      }
+    ).catch(error => {
+      console.log("This crashed");
+    });
 }
 
 function updateIOPlot() {
@@ -1241,14 +1279,6 @@ function updateCPUPlot() {
   metricCharts.cpuChart.update('none');
 }
 
-function updateCPUAllocationPlot() {
-  let generatedDatasets: [string[], any[]] = generateKeyRelativeData('cpu_percentage', 'cpus', 'CPU Allocation', 1);
-
-
-  metricCharts.cpuAllocationChart.data.labels = getSuffixes(generatedDatasets[0]);
-  metricCharts.cpuAllocationChart.data.datasets = generatedDatasets[1];
-  metricCharts.cpuAllocationChart.update('none');
-}
 
 function updateCPURamRatioChart() {
   let rawedFullAnalysis: any = toRaw(workflowState.fullAnalysis);
@@ -1271,12 +1301,17 @@ function updateDurationPlot() {
   // there is a bug somewhere, which leads to wrong calculation of datasets on filter change
 }
 
+
+/** keep just in case 
 async function updateRelativeRamPlot() {
-  let generatedDatasets: [string[], any[]] = await getMemoryRelativeDataAndPlot();
+  let generatedDatasets: [string[], any[]] = await getMemoryRelativeData();
+  console.log(generatedDatasets);
   metricCharts.relativeMemoryChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.relativeMemoryChart.data.datasets = generatedDatasets[1];
   metricCharts.relativeMemoryChart.update('none');
 }
+
+*/
 
 /** end of plot updating */
 
@@ -2033,15 +2068,37 @@ function unfoldTag(tag: any): string {
 }
 
 
-async function getMemoryRelativeDataAndPlot(): Promise<[string[], any[]]>{
+async function getCPUAllocationData(): Promise<[string[], any[]]> {
+  const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
+  const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
+  const ax_response: AxiosResponse<[string[], any[]]> = await axios.get(
+    `${API_BASE_URL}run/cpu_allocation_plot/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }}
+  ).then(
+      (response: any) => {
+        let datasets: any[] = [];
+        let relative_datasets: any = {'label': 'CPU Allocation in %', 'data': []};
+        relative_datasets['data'] = Object.values(response.data[1]);
+        relative_datasets['maxBarThickness'] = 30;
+        datasets.push(relative_datasets);
+        return [response.data[0], datasets];
+      }
+    ).catch(error => {
+      return [[], []]
+    });
+    return ax_response;
+}
+
+
+
+async function getMemoryRelativeData(): Promise<[string[], any[]]>{
   // they should be unique themselves, shouldnt they? but keep it in case certain filtering is necessary
   const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
   const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
-  const response: AxiosResponse<any> = await axios.get(`${API_BASE_URL}run/ram_plot/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }})
+  const ax_response: AxiosResponse<[string[], any[]]> = await axios.get(`${API_BASE_URL}run/ram_plot/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }})
     .then(
       response => {
         let datasets: any[] = [];
-        let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
+        let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] };
         relative_dataset['data'] = Object.values(response.data[1]);
         relative_dataset['maxBarThickness'] = 30;
         datasets.push(relative_dataset);
@@ -2052,7 +2109,7 @@ async function getMemoryRelativeDataAndPlot(): Promise<[string[], any[]]>{
       return [[], []]
     });
   
-    return response;
+    return ax_response;
       
 }
 

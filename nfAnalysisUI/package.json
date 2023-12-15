@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@sgratzl/chartjs-chart-boxplot": "^4.2.4",
-    "axios": "^1.4.0",
-    "bootstrap": "^5.3.0",
+    "axios": "^1.6.2",
+    "bootstrap": "^5.3.2",
     "chart.js": "^4.4.0",
     "chartjs-chart-error-bars": "^4.3.0",
     "chartjs-plugin-annotation": "^3.0.1",
@@ -22,8 +22,8 @@
     "chartjs-plugin-zoom": "^2.0.1",
     "package.json": "^2.0.1",
     "primeicons": "^6.0.1",
-    "primevue": "^3.30.0",
-    "vue": "^3.3.2",
+    "primevue": "^3.44.0",
+    "vue": "^3.3.11",
     "vue-router": "^4.2.2"
   },
   "devDependencies": {
@@ -40,7 +40,7 @@
     "npm-run-all": "^4.1.5",
     "prettier": "^2.8.8",
     "typescript": "~5.0.4",
-    "vite": "^4.4.7",
+    "vite": "^4.5.1",
     "vue-tsc": "^1.6.4"
   }
 }
