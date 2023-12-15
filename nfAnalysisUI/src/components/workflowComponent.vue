@@ -4,7 +4,7 @@ import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js";
 import { useRouter, useRoute } from "vue-router";
-import axios, { all } from "axios";
+import axios, { all, AxiosResponse} from "axios";
 import { Chart, LinearScale, CategoryScale, TimeScale } from 'chart.js/auto'; 
 import { BoxPlotController, BoxAndWiskers } from '@sgratzl/chartjs-chart-boxplot';
 import DataTable from 'primevue/datatable';
@@ -202,6 +202,7 @@ const workflowState = reactive<{
   tagAnalysis: any;
   fullAnalysis: any;
   processesByRun: any;
+  tablePageData: any;
   runStartMapping: any;
   selectedRun: string;
   failedProcesses: boolean;
@@ -232,6 +233,7 @@ const workflowState = reactive<{
   tagAnalysis: {},
   fullAnalysis: {},
   processesByRun: {},
+  tablePageData: [],
   runStartMapping: {},
   selectedRun: '',
   failedProcesses: false,
@@ -342,6 +344,7 @@ function getDataInitial(token = props.token): void {
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+          console.log(workflowState.processObjects);
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilterState();
           updateFilteredRunningProcesses();
@@ -427,6 +430,26 @@ function dataPollingLoop(): void {
 /**
  * filter state functions
  */
+
+function updateTablePageData(event?: any): void {
+  let loadParams: any = {runName: JSON.stringify(workflowState.selectedRun) };
+  if (event){
+
+      loadParams.page = JSON.stringify(event.page);
+      loadParams.rows = JSON.stringify(event.rows);
+      loadParams.sortField = JSON.stringify(event.sortField);
+      loadParams.sortOrder = JSON.stringify(event.sortOrder);
+    }
+  
+  workflowState.tablePageData = [];
+  axios.get(`${API_BASE_URL}run/table/${workflowState.token}/`, {params: loadParams}
+  ).then(
+    (response: any) => {
+      workflowState.tablePageData = response.data
+    }
+  );
+}
+
 
 function updateFilterState(): void {
   updateAvailableProcessNamesForFilter();
@@ -1168,6 +1191,8 @@ function updatePlotsConditional() {
   }
 }
 
+/** TODO: check why the get triggerred multiple times, we actually dont want all the request to be sent multiple times */
+
 function updatePlots() {
   if (currentlySelectedWorkflowHasPlottableData()) {
     updateRamPlot();
@@ -1246,8 +1271,8 @@ function updateDurationPlot() {
   // there is a bug somewhere, which leads to wrong calculation of datasets on filter change
 }
 
-function updateRelativeRamPlot() {
-  let generatedDatasets: [string[], any[]] = generateMemoryRelativeData();
+async function updateRelativeRamPlot() {
+  let generatedDatasets: [string[], any[]] = await getMemoryRelativeDataAndPlot();
   metricCharts.relativeMemoryChart.data.labels = getSuffixes(generatedDatasets[0]);
   metricCharts.relativeMemoryChart.data.datasets = generatedDatasets[1];
   metricCharts.relativeMemoryChart.update('none');
@@ -1641,7 +1666,7 @@ function messageFromWorkflowState(): string {
     case "FAILED":
       return `Your workflow run ${workflowState.selectedRun} has failed!`;
     case "ABORTED":
-      return `Your worfklow run ${workflowState.selectedRun} has been aborted!`;
+      return `Your workflow run ${workflowState.selectedRun} has been aborted!`;
     case "COMPLETED":
       return `Your workflow run ${workflowState.selectedRun} has been successfully completed!`;
     default:
@@ -2008,18 +2033,26 @@ function unfoldTag(tag: any): string {
 }
 
 
-function getMemoryRelativeDataAndPlot(): any{
+async function getMemoryRelativeDataAndPlot(): Promise<[string[], any[]]>{
   // they should be unique themselves, shouldnt they? but keep it in case certain filtering is necessary
   const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
   const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
-  axios.get(`${API_BASE_URL}run/ram_plot/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }})
+  const response: AxiosResponse<any> = await axios.get(`${API_BASE_URL}run/ram_plot/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }})
     .then(
       response => {
-        console.log(response);
-        return response['data']
+        let datasets: any[] = [];
+        let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
+        relative_dataset['data'] = Object.values(response.data[1]);
+        relative_dataset['maxBarThickness'] = 30;
+        datasets.push(relative_dataset);
+        return [response.data[0], datasets]; 
         /// process data
       }
-    );
+    ).catch(error => {
+      return [[], []]
+    });
+  
+    return response;
       
 }
 
@@ -2029,8 +2062,6 @@ function generateMemoryRelativeData(): [string[], any[]] {
   let selectedTags: any = [];
   let tagFilter: boolean = false;
   const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
-  let data: any = getMemoryRelativeDataAndPlot(); // USE THIS
-  
 
   if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
     tagFilter = true;
@@ -2056,8 +2087,7 @@ function generateMemoryRelativeData(): [string[], any[]] {
   relative_dataset['data'] = Object.values(processDataMapping);
   relative_dataset['maxBarThickness'] = 30;
   datasets.push(relative_dataset);
-  return [Object.keys(processDataMapping), datasets]; 
-
+  return [Object.keys(processDataMapping), datasets];
 }
 
 
@@ -2550,9 +2580,16 @@ onUnmounted(() => {
       <div class="card-body my-5" id="process_information_div">
         <h3 class="card-title">Task Information for {{ workflowState.selectedRun }} </h3>
         <div class=m-4></div>
-        <DataTable :value="workflowState.processObjects" sortField="task_id" :sortOrder="1" v-model:filters="filters"
-          filterDisplay="row" tableStyle="min-width: 50rem" paginator :rows="10" :rowsPerPageOptions="[10, 20, 50]"
-          :rowClass="rowClass" removableSort>
+        <!-- TODO: Further adjustment of this datatable to send requests regarding to certain paginations, filteres and sorts
+          check how to add filters, check how to load it initially and how to response to sort and filter adjustments as well as newly loaded data (maybe an update button)?
+        -->
+      
+        <DataTable :value="workflowState.tablePageData" sortField="task_id" :sortOrder="1" v-model:filters="filters"
+          filterDisplay="row" tableStyle="min-width: 50rem" :totalRecords="workflowState.progress['all']" :paginator="true" :lazy="true" :rows="10" :rowsPerPageOptions="[10, 20, 50]"
+          :rowClass="rowClass" removableSort
+          @onLazyLoad="updateTablePageData"
+          @page="updateTablePageData" 
+          >
           <Column field="task_id" header="Task-ID" sortable :frozen="true"></Column>
           <Column header="Problematic" sortable field="problematic" :sort-field="isProblematic" :frozen="true">
             <template #body="{ data }">
