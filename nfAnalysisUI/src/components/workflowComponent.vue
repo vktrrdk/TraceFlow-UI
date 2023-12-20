@@ -863,7 +863,6 @@ async function createIOPlot() {
   Object.seal(ioChart);
   metricCharts.ioChart = ioChart;
 
-  updateIOPlot();
 }
 
 async function createDurationPlot() {
@@ -1224,14 +1223,6 @@ function updateRamPlot() {
   metricCharts.memoryChart.data.datasets = generatedDatasets[1];
   metricCharts.memoryChart.options.scales.y.title.text = `RAM value in ${metricCharts.memoryFormat}`;
   metricCharts.memoryChart.update('none');
-}
-
-function updateCPUPlot() {
-  let generatedDatasets: [string[], any[]] = generateCPUData();
-
-  metricCharts.cpuChart.data.labels = getSuffixes(generatedDatasets[0]);
-  metricCharts.cpuChart.data.datasets = generatedDatasets[1];
-  metricCharts.cpuChart.update('none');
 }
 
 
