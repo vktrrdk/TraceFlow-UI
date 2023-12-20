@@ -261,8 +261,6 @@ const metricCharts = reactive<{
   ioCanvas: any | null;
   cpuChart: any | null;
   cpuCanvas: any | null;
-  cpuAllocationCanvas: any | null;
-  cpuAllocationChart: any | null;
   cpuRamRatioCanvas: any | null;
   cpuRamRatioChart: any | null;
   durationChart: any | null;
@@ -281,8 +279,6 @@ const metricCharts = reactive<{
   ioCanvas: null,
   cpuChart: null,
   cpuCanvas: null,
-  cpuAllocationCanvas: null,
-  cpuAllocationChart: null,
   cpuRamRatioCanvas: null,
   cpuRamRatioChart: null,
   durationChart: null,
@@ -753,7 +749,6 @@ async function createPlots() {
   createRamPlot();
   createRelativeRamPlot();
   createCPUPlot();
-  createCPUAllocationPlot();
   createIOPlot();
   createDurationPlot();
   createCPURamRatioPlot();
@@ -1019,59 +1014,9 @@ async function createCPUPlot() {
   Object.seal(cpuChart);
   metricCharts.cpuChart = cpuChart;
 
-  updateCPUPlot();
 
 }
 
-async function createCPUAllocationPlot() {
-  const canvas: HTMLCanvasElement = getCanvasDiv('cpu_allocation_canvas');
-  metricCharts.cpuAllocationCanvas = canvas;
-  const cpuAllocationChart = new Chart(
-    metricCharts.cpuAllocationCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              modifierKey: 'ctrl',
-            },
-            zoom: {
-              drag: {
-                enabled: true,
-              },
-              mode: 'xy',
-            },
-          },
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: 'CPU allocation value in %'
-            },
-          },
-        }
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-    }
-  );
-  Object.seal(cpuAllocationChart);
-  metricCharts.cpuAllocationChart = cpuAllocationChart;
-
-
-}
 
 async function createCPURamRatioPlot() {
   
@@ -1193,8 +1138,6 @@ function updatePlotsConditional() {
 function updatePlots() {
   if (currentlySelectedWorkflowHasPlottableData()) {
     updateRamPlot();
-    updateCPUPlot();
-    updateIOPlot();
     updateDurationPlot();
     updateCPURamRatioChart();
 
@@ -1209,12 +1152,13 @@ async function updatePlotsByRequest(): Promise<void> {
   const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
 
   await axios.get(
-    `${API_BASE_URL}run/plots/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }}
+    `${API_BASE_URL}run/plots/${workflowState.token}`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }}
   ).then(
       (response: any) => {
-        let cpu_allocation_data: any = response.data['cpu_allocation'];
         let relative_ram_data: any = response.data['relative_ram'];
-
+        let cpu_data: any = response.data['cpu'];
+        let io_data: any = response.data['io'];
+        
         let relative_datasets: any = { 'label': 'Memory usage in %', 'data': [], 'maxBarThickness': 30 };
 
         let datasets: any[] = [];
@@ -1226,36 +1170,47 @@ async function updatePlotsByRequest(): Promise<void> {
         metricCharts.relativeMemoryChart.data.datasets = relative_ram_plot_data[1];
         metricCharts.relativeMemoryChart.update('none');
 
-        datasets = [];
-        relative_datasets['label'] = 'CPU Allocation in %';
-        relative_datasets['data'] = Object.values(cpu_allocation_data[1])
-        datasets.push(relative_datasets);
-        let cpu_allocation_plot_data: any = [cpu_allocation_data[0], datasets];
-
-        metricCharts.cpuAllocationChart.data.labels = getSuffixes(cpu_allocation_plot_data[0]);
-        metricCharts.cpuAllocationChart.data.datasets = cpu_allocation_plot_data[1];
-        metricCharts.cpuAllocationChart.update('none');
         
-        /** TODO: extend with remaining plots */
+
+        datasets = [];
+        let cpu_allocation_dataset: any = {'label' : 'CPU allocation in %', 'data': [], 'maxBarThickness': 30}; 
+        cpu_allocation_dataset['data'] = Object.values(cpu_data[1][0]);
+
+        datasets.push(cpu_allocation_dataset);
+        let cpu_raw_dataset: any = { 'label': 'Raw CPU usage in %', 'data': [], 'maxBarThickness': 30 };
+        cpu_raw_dataset['data'] = Object.values(cpu_data[1][1]);
+        datasets.push(cpu_raw_dataset);
+        let cpu_plot_data: any = [cpu_data[0], datasets]; // can refactor this for all, is not necessary??
+
+        metricCharts.cpuChart.data.labels = getSuffixes(cpu_plot_data[0]);
+        metricCharts.cpuChart.data.datasets = cpu_plot_data[1];
+        metricCharts.cpuChart.update('none'); 
+
+        let io_read_dataset: any = { 'label': 'Read in GiB', 'data': [], 'maxBarThickness': 30}
+        let io_write_dataset: any = { 'label': 'Written in GiB', 'data': [], 'maxBarThickness': 30}
+
+        datasets = [];
+        io_read_dataset['data'] = Object.values(io_data[1][0]);
+        io_write_dataset['data'] = Object.values(io_data[1][1]);
+        datasets.push(io_read_dataset);
+        datasets.push(io_write_dataset);
+
+        let io_plot_data: any = [io_data[0], datasets];
+        
+
+        metricCharts.ioChart.data.labels = getSuffixes(io_plot_data[0]);
+        metricCharts.ioChart.data.datasets = io_plot_data[1];
+        metricCharts.ioChart.update('none');
+
+
+        /** TODO: extend with remaining plots: Ram value plots and duration */
       }
     ).catch(error => {
       console.log("This crashed");
+      console.log(error);
     });
 }
 
-function updateIOPlot() {
-  let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
-    ['read_bytes', 'write_bytes'],
-    true,
-    metricCharts.memoryFormat,
-    ['Read in ', 'Written in '],
-    filterState.selectedMetricProcesses
-  );
-
-  metricCharts.ioChart.data.labels = getSuffixes(generatedDatasets[0]);
-  metricCharts.ioChart.data.datasets = generatedDatasets[1];
-  metricCharts.ioChart.update('none');
-}
 
 function updateRamPlot() {
   let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
@@ -2067,26 +2022,6 @@ function unfoldTag(tag: any): string {
   }
 }
 
-
-async function getCPUAllocationData(): Promise<[string[], any[]]> {
-  const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
-  const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
-  const ax_response: AxiosResponse<[string[], any[]]> = await axios.get(
-    `${API_BASE_URL}run/cpu_allocation_plot/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }}
-  ).then(
-      (response: any) => {
-        let datasets: any[] = [];
-        let relative_datasets: any = {'label': 'CPU Allocation in %', 'data': []};
-        relative_datasets['data'] = Object.values(response.data[1]);
-        relative_datasets['maxBarThickness'] = 30;
-        datasets.push(relative_datasets);
-        return [response.data[0], datasets];
-      }
-    ).catch(error => {
-      return [[], []]
-    });
-    return ax_response;
-}
 
 
 
@@ -2973,11 +2908,6 @@ onUnmounted(() => {
         <h5>CPU</h5>
         <canvas id="cpu_canvas" class="p-4"></canvas>
         <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.cpuChart.resetZoom()"/>
-      </div>
-      <div class="plot-section">
-        <h5>CPU Allocation</h5>
-        <canvas id="cpu_allocation_canvas" class="p-4"></canvas>
-        <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.cpuAllocationChart.resetZoom()"/>
       </div>
       <div class="plot-section">
         <h5>I/O</h5>
