@@ -1,6 +1,6 @@
 {
   "name": "nfanalysisui",
-  "version": "0.0.0",
+  "version": "0.0.1-beta",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -20,13 +20,14 @@
     "chartjs-plugin-annotation": "^3.0.1",
     "chartjs-plugin-autocolors": "^0.2.2",
     "chartjs-plugin-zoom": "^2.0.1",
-    "package.json": "^2.0.1",
+    "pkg.json": "^2.0.8",
     "primeicons": "^6.0.1",
     "primevue": "^3.44.0",
     "vue": "^3.3.11",
     "vue-router": "^4.2.2"
   },
   "devDependencies": {
+    "@esbuild/darwin-arm64": "^0.19.11",
     "@rushstack/eslint-patch": "^1.2.0",
     "@tsconfig/node18": "^2.0.1",
     "@types/node": "^18.16.8",
