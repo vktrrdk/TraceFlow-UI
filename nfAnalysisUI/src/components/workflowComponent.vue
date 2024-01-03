@@ -350,7 +350,9 @@ function getDataInitial(token = props.token): void {
           workflowState.token_info_requested = true;
           workflowState.error_on_request = false;
           progressProcessSelectionChanged();
+          updateTablePageData();
           startPollingLoop();
+          
         }
       },
     );
@@ -427,17 +429,16 @@ function dataPollingLoop(): void {
  */
 
 function updateTablePageData(event?: any): void {
-  let loadParams: any = {runName: JSON.stringify(workflowState.selectedRun) };
+  let loadParams: any = {runName: workflowState.selectedRun };
   if (event){
 
-      loadParams.page = JSON.stringify(event.page);
-      loadParams.rows = JSON.stringify(event.rows);
-      loadParams.sortField = JSON.stringify(event.sortField);
-      loadParams.sortOrder = JSON.stringify(event.sortOrder);
+      loadParams.page = event.page;
+      loadParams.rows = event.rows;
+      loadParams.sortField = event.sortField;
+      loadParams.sortOrder = event.sortOrder;
     }
-  
   workflowState.tablePageData = [];
-  axios.get(`${API_BASE_URL}run/table/${workflowState.token}/`, {params: loadParams}
+  axios.get(`${API_BASE_URL}run/table/${workflowState.token}`, {params: loadParams}
   ).then(
     (response: any) => {
       workflowState.tablePageData = response.data
@@ -1392,8 +1393,9 @@ function adjustSelectedRun(): void {
     } else {
       createPlots();
     }
-
   }
+  updateTablePageData();
+
 }
 
 
@@ -2572,6 +2574,8 @@ onUnmounted(() => {
           :rowClass="rowClass" removableSort
           @onLazyLoad="updateTablePageData"
           @page="updateTablePageData" 
+          @sort="updateTablePageData"
+
           >
           <Column field="task_id" header="Task-ID" sortable :frozen="true"></Column>
           <Column header="Problematic" sortable field="problematic" :sort-field="isProblematic" :frozen="true">
