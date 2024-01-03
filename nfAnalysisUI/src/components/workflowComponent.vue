@@ -302,8 +302,13 @@ const filterState = reactive<{
   selectedRunningProcesses: any[];
   processTaskMapping: any;
   expandedRows: any;
+  tableLoading: boolean;
+  tableDebounceTimer: ReturnType<typeof setTimeout> | null;
+  tableFilter: any;
+  debouncedSelections: any;
 
 }>({
+
   availableProcesses: [],
   availableTags: [],
   selectedMetricProcesses: [],
@@ -318,7 +323,10 @@ const filterState = reactive<{
   selectedRunningProcesses: [],
   processTaskMapping: {},
   expandedRows: [],
-
+  tableLoading: false,
+  tableDebounceTimer: null,
+  tableFilter: {},
+  debouncedSelections: {},
 });
 
 /** functions on init and polling */
@@ -428,20 +436,59 @@ function dataPollingLoop(): void {
  * filter state functions
  */
 
+function updateTableFilter(event?: any): void {
+  console.log("filter update called");
+  if (event){
+    filterState.tableFilter = event.filter;
+    filterState.debouncedSelections = {
+      page: event.page,
+      rows: event.rows,
+      sortField: event.sortField,
+      sortOrder: event.sortOrder,
+    }
+
+    if (filterState.tableDebounceTimer !== null) {
+      clearTimeout(filterState.tableDebounceTimer);
+    }
+
+    filterState.tableDebounceTimer = setTimeout(
+      updateTablePageDataByDebouncedFilter, 2000);
+  }
+}  
+
+function updateTablePageDataByDebouncedFilter(): void {
+  console.log("the debounced Function got called")
+  let loadParams: any = { runName: workflowState.selectedRun, ... toRaw(filterState.debouncedSelections)}
+  filterState.tableLoading = true;
+  axios.get(`${API_BASE_URL}run/table/${workflowState.token}`, {params: loadParams}
+  ).then(
+    (response: any) => {
+      workflowState.tablePageData = response.data;
+      filterState.tableLoading = false;
+    }
+  );
+  
+}
+
+
+
 function updateTablePageData(event?: any): void {
   let loadParams: any = {runName: workflowState.selectedRun };
   if (event){
-
       loadParams.page = event.page;
       loadParams.rows = event.rows;
       loadParams.sortField = event.sortField;
       loadParams.sortOrder = event.sortOrder;
-    }
-  workflowState.tablePageData = [];
+      loadParams.filter = event.filter;
+  }
+
+  filterState.tableLoading = true;
   axios.get(`${API_BASE_URL}run/table/${workflowState.token}`, {params: loadParams}
   ).then(
     (response: any) => {
-      workflowState.tablePageData = response.data
+    
+      workflowState.tablePageData = response.data;
+      filterState.tableLoading = false;
     }
   );
 }
@@ -1126,7 +1173,7 @@ async function createCPURamRatioPlot() {
 
 /** Plot updating **/
 
-function updatePlotsConditional() {
+function updatePlotsConditional(event: any) {
   if (metricCharts.chartsGenerated) 
   {
     updatePlots();
@@ -2379,7 +2426,7 @@ onUnmounted(() => {
         <li class="list-group-item" v-if="latestMetaForRun()['project_name']">Project Name - {{latestMetaForRun()['project_name']}}</li>
         <li class="list-group-item" v-if="latestMetaForRun()['revision']">Revision - {{latestMetaForRun()['revision']}}</li>
         <li class="list-group-item" v-if="latestMetaForRun()['script_file']">Command Line - {{latestMetaForRun()['script_file']}}</li>
-      </ul>
+      </ul>w
       
     </div>
     <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="progess_summary_div">
@@ -2390,7 +2437,7 @@ onUnmounted(() => {
           <div class="row justify-content-center">
             <ProgressBar v-if="workflowState.progress['all'] > 0" class="mt-2" :showValue="false"
               style="height: 3px; max-width: 70vw;"
-              :value="(workflowState.progress['completed'] / workflowState.progress['all']) * 100">
+              :value="parseInt((workflowState.progress['completed'] / workflowState.progress['all']) * 100)">
             </ProgressBar>
           </div>
           <div class="row justify-content-center">
@@ -2575,6 +2622,8 @@ onUnmounted(() => {
           @onLazyLoad="updateTablePageData"
           @page="updateTablePageData" 
           @sort="updateTablePageData"
+          @filter="updateTableFilter"
+          :loading="filterState.tableLoading"
 
           >
           <Column field="task_id" header="Task-ID" sortable :frozen="true"></Column>
@@ -2847,19 +2896,22 @@ onUnmounted(() => {
         <div class="col-6 d-flex justify-content-between align-items-center">
             <div class="p-2">
               <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_b" value="b" 
-              :update:modelValue="updatePlotsConditional()"/>
+             @change="updatePlotsConditional" />
               <label for="mem_format_selection_b" class="mx-1">Bytes</label>
             </div>
             <div class="p-2"> 
-              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_kib" value="kiB" />
+              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_kib" value="kiB"
+              @change="updatePlotsConditional" />
               <label for="mem_format_selection_kib" class="mx-1">kiB</label>
             </div>
             <div class="p-2"> 
-              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_mib" value="MiB" />
+              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_mib" value="MiB" 
+              @change="updatePlotsConditional" />
               <label for="mem_format_selection_mib" class="mx-1">MiB</label>
             </div>
             <div class="p-2"> 
-              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_gib" value="GiB" />
+              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_gib" value="GiB" 
+              @change="updatePlotsConditional" />
               <label for="mem_format_selection_gib" class="mx-1">GiB</label>
             </div>
           </div>
@@ -2872,15 +2924,17 @@ onUnmounted(() => {
         <div class="col-4 d-flex justify-content-between align-items-center">
             <div class="p-2">
               <RadioButton v-model="metricCharts.durationFormat" id="duration_format_selection_s" value="s" 
-              :update:modelValue="updatePlotsConditional()"/>
+              @change="updatePlotsConditional"/>
               <label for="duration_format_selection_s" class="mx-1">s</label>
             </div>
             <div class="p-2"> 
-              <RadioButton v-model="metricCharts.durationFormat" id="duration_format_selection_min" value="min" />
+              <RadioButton v-model="metricCharts.durationFormat" id="duration_format_selection_min" value="min"
+              @change="updatePlotsConditional" />
               <label for="duration_format_selection_min" class="mx-1">min</label>
             </div>
             <div class="p-2"> 
-              <RadioButton v-model="metricCharts.durationFormat" id="mem_format_selection_mib" value="h" />
+              <RadioButton v-model="metricCharts.durationFormat" id="mem_format_selection_mib" value="h"
+              @change="updatePlotsConditional" />
               <label for="duration_format_selection_h" class="mx-1">h</label>
             </div>
           </div>
@@ -2973,7 +3027,7 @@ onUnmounted(() => {
               <strong>{{(workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] * 100).toFixed(2)}} %</strong>
             </div>
             <div class="col-10">
-              <ProgressBar :value="(workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] * 100).toFixed(0)"></ProgressBar>
+              <ProgressBar :value="parseInt((workflowState.fullAnalysis['workflow_scores']['full_scores'][workflowState.selectedRun] * 100).toFixed(0))"></ProgressBar>
             </div>
           </div>
         </div>
@@ -2992,7 +3046,7 @@ onUnmounted(() => {
             </div>
             <div class="col-10">
               <ProgressBar :style="{'height': score_run === workflowState.selectedRun ? '12px': '2px'}"
-              :value="(workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] * 100).toFixed(0)"
+              :value="parseInt((workflowState.fullAnalysis['workflow_scores']['full_scores'][score_run] * 100).toFixed(0))"
               :showValue="false"
               ></ProgressBar>
             </div>
