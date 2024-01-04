@@ -1018,7 +1018,6 @@ async function createRamPlot() {
   Object.seal(memoryChart);
   metricCharts.memoryChart = memoryChart;
 
-  updateRamPlot();
 
 }
 
@@ -1192,7 +1191,6 @@ function updatePlotsConditional(event: any) {
 
 function updatePlots() {
   if (currentlySelectedWorkflowHasPlottableData()) {
-    updateRamPlot();
     updateDurationPlot();
     updateCPURamRatioChart();
 
@@ -1213,6 +1211,8 @@ async function updatePlotsByRequest(): Promise<void> {
         let relative_ram_data: any = response.data['relative_ram'];
         let cpu_data: any = response.data['cpu'];
         let io_data: any = response.data['io'];
+        let ram_data: any = response.data['ram'];
+        
         
         let relative_datasets: any = { 'label': 'Memory usage in %', 'data': [], 'maxBarThickness': 30 };
 
@@ -1224,8 +1224,6 @@ async function updatePlotsByRequest(): Promise<void> {
         metricCharts.relativeMemoryChart.data.labels = getSuffixes(relative_ram_plot_data[0]);
         metricCharts.relativeMemoryChart.data.datasets = relative_ram_plot_data[1];
         metricCharts.relativeMemoryChart.update('none');
-
-        
 
         datasets = [];
         let cpu_allocation_dataset: any = {'label' : 'CPU allocation in %', 'data': [], 'maxBarThickness': 30}; 
@@ -1241,8 +1239,8 @@ async function updatePlotsByRequest(): Promise<void> {
         metricCharts.cpuChart.data.datasets = cpu_plot_data[1];
         metricCharts.cpuChart.update('none'); 
 
-        let io_read_dataset: any = { 'label': 'Read in GiB', 'data': [], 'maxBarThickness': 30}
-        let io_write_dataset: any = { 'label': 'Written in GiB', 'data': [], 'maxBarThickness': 30}
+        let io_read_dataset: any = { 'label': 'Read in GiB', 'data': [], 'maxBarThickness': 30};
+        let io_write_dataset: any = { 'label': 'Written in GiB', 'data': [], 'maxBarThickness': 30};
 
         datasets = [];
         io_read_dataset['data'] = Object.values(io_data[1][0]);
@@ -1257,8 +1255,27 @@ async function updatePlotsByRequest(): Promise<void> {
         metricCharts.ioChart.data.datasets = io_plot_data[1];
         metricCharts.ioChart.update('none');
 
+        datasets = [];
+        let ram_requested_dataset: any = {'label': 'Requested memory', 'data': [], 'maxBarThickness': 30};
+        let ram_vmem_dataset: any = {'label': 'Virtual memory', 'data': [], 'maxBarThickness': 30};
+        let ram_rss_dataset: any = {'label': 'Physical memory', 'data': [], 'maxBarThickness': 30};
+        
+        ram_requested_dataset['data'] = Object.values(ram_data[1][0]);
+        ram_vmem_dataset['data'] = Object.values(ram_data[1][1]);
+        ram_rss_dataset['data'] = Object.values(ram_data[1][2]);
+        datasets.push(ram_requested_dataset)
+        datasets.push(ram_vmem_dataset)
+        datasets.push(ram_rss_dataset)
 
-        /** TODO: extend with remaining plots: Ram value plots and duration */
+        let ram_plot_data: any = [ram_data[0], datasets]
+
+        metricCharts.memoryChart.data.labels = getSuffixes(ram_plot_data[0]);
+        metricCharts.memoryChart.data.datasets = ram_plot_data[1];
+        metricCharts.memoryChart.update('none')
+        
+
+
+        /** TODO: extend with remaining plots: duration */
       }
     ).catch(error => {
       console.log("This crashed");
@@ -1267,19 +1284,6 @@ async function updatePlotsByRequest(): Promise<void> {
 }
 
 
-function updateRamPlot() {
-  let generatedDatasets: [string[], any[]] = generateDataByMultipleKeys(
-    ['memory', 'vmem', 'rss'],
-    true,
-    metricCharts.memoryFormat,
-    ['Requested memory in ', 'Virtual memory in ', 'Physical memory in '],
-    filterState.selectedMetricProcesses,
-  );
-  metricCharts.memoryChart.data.labels = getSuffixes(generatedDatasets[0]);
-  metricCharts.memoryChart.data.datasets = generatedDatasets[1];
-  metricCharts.memoryChart.options.scales.y.title.text = `RAM value in ${metricCharts.memoryFormat}`;
-  metricCharts.memoryChart.update('none');
-}
 
 
 function updateCPURamRatioChart() {
@@ -2008,50 +2012,6 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   return data_pair;
 }
 
-function generateDataByMultipleKeys(keys: string[], adjust: boolean, wantedFormat: string, label: string[], processFilter: string[] = []): any {
-  let processNames: string[] = [];
-  let datasets: any[] = [];
-  let tagFilter: boolean = false;
-  let selectedTags: any[] = [];
-  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
-    tagFilter = true;
-    selectedTags = toRaw(filterState.selectedTags);
-  }
-  let states: any = toRaw(workflowState.processObjects);
-  let key_index = 0;
-  let processesToFilterBy: any[] = toRaw(processFilter);
-  for (let key of keys) {
-    let processDataMapping: any = {};
-    let single_dataset: any = { 'label': label[key_index] + wantedFormat, data: [] };
-    for (let process of states) {
-      if (tagFilter) {
-        if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
-          continue;
-        }
-      }
-      if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-        if (!(process.process in processDataMapping)) {
-          processDataMapping[process.process] = [process[key]];
-        } else {
-          processDataMapping[process.process].push(process[key]);
-        }
-
-      }
-    }
-    processNames = Object.keys(processDataMapping);
-    if (adjust) {
-      single_dataset['data'] = Object.values(processDataMapping).map((lst: number[]) => getDataInValidStorageFormat(lst, wantedFormat)[0]);
-    } else {
-      single_dataset['data'] = Object.values(processDataMapping);
-    }
-
-    single_dataset['maxBarThickness'] = 30;
-    datasets.push(single_dataset);
-    key_index += 1;
-  }
-  return [processNames, datasets];
-}
-
 /** this could be more general? **/
 
 
@@ -2072,166 +2032,6 @@ function unfoldTag(tag: any): string {
 
 
 
-
-async function getMemoryRelativeData(): Promise<[string[], any[]]>{
-  // they should be unique themselves, shouldnt they? but keep it in case certain filtering is necessary
-  const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
-  const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
-  const ax_response: AxiosResponse<[string[], any[]]> = await axios.get(`${API_BASE_URL}run/ram_plot/${workflowState.token}/`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }})
-    .then(
-      response => {
-        let datasets: any[] = [];
-        let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] };
-        relative_dataset['data'] = Object.values(response.data[1]);
-        relative_dataset['maxBarThickness'] = 30;
-        datasets.push(relative_dataset);
-        return [response.data[0], datasets]; 
-        /// process data
-      }
-    ).catch(error => {
-      return [[], []]
-    });
-  
-    return ax_response;
-      
-}
-
-
-function generateMemoryRelativeData(): [string[], any[]] {
-  let datasets: any[] = [];
-  let selectedTags: any = [];
-  let tagFilter: boolean = false;
-  const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
-
-  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
-    tagFilter = true;
-    selectedTags = toRaw(filterState.selectedTags);
-  }
-  let states: any = toRaw(workflowState.processObjects);
-  let processDataMapping: any = {};
-  let relative_dataset: any = { 'label': 'Memory usage in %', 'data': [] }
-  for (let process of states) {
-    if (tagFilter) {
-      if (!selectedTags.some((tag: any) => checkTagMatch(tag, process.tag))) {
-        continue;
-      }
-    }
-    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-      if (!(process.process in processDataMapping)) {
-        processDataMapping[process.process] = [(process.rss / process.memory) * 100];
-      } else {
-        processDataMapping[process.process].push((process.rss / process.memory) * 100);
-      }
-    }
-  }
-  relative_dataset['data'] = Object.values(processDataMapping);
-  relative_dataset['maxBarThickness'] = 30;
-  datasets.push(relative_dataset);
-  return [Object.keys(processDataMapping), datasets];
-}
-
-
-function generateKeyRelativeData(dataKey: string, respectToKey: string, label: string, factor: number = 100): [string[], any[]] {
-  let datasets: any[] = [];
-  let states: any = toRaw(workflowState.processObjects);
-  let processDataMapping: any = {}
-  let tagFilter: boolean = false;
-  let selectedTags: any[] = [];
-  let processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
-  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
-    tagFilter = true;
-    selectedTags = toRaw(filterState.selectedTags);
-  }
-  let relative_dataset: any = { 'label': label, 'data': [] }
-  for (let process of states) {
-    if (tagFilter) {
-      if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
-        continue;
-      }
-    }
-    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-      if (!(process.process in processDataMapping)) {
-        processDataMapping[process.process] = [(process[dataKey] / process[respectToKey]) * factor];
-      } else {
-        processDataMapping[process.process].push((process[dataKey] / process[respectToKey]) * factor)
-      }
-    }
-  
-  }
-  relative_dataset['maxBarThickness'] = 30;
-  relative_dataset['data'] = Object.values(processDataMapping);
-  datasets.push(relative_dataset);
-  return [Object.keys(processDataMapping), datasets];
-  
-
-}
-
-
-function generateCPUData(): [string[], any[]] {
-  let datasets: any[] = [];
-  let selectedTags: any[] = [];
-  let tagFilter: boolean = false;
-  const processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
-  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
-    tagFilter = true;
-    selectedTags = toRaw(filterState.selectedTags);
-  }
-  let states: any = toRaw(workflowState.processObjects);
-
-  let processDataMapping: any = {};
-  let allocation_data: any[] = [];
-  let raw_usage_data: any[] = [];
-
-  for (let process of states) {
-    if (tagFilter) {
-      if (!selectedTags.some((tag: any) => checkTagMatch(tag, process.tag))) {
-        continue;
-      }
-    }
-    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-      if (!(process.process in processDataMapping)) {
-        if (process.cpus) {
-          processDataMapping[process.process] = { "cpu": [process.cpus] }
-        } else {
-          processDataMapping[process.process] = { "cpu": [null] }
-        }
-        if (process.cpu_percentage) {
-          processDataMapping[process.process]["percentage"] = [process.cpu_percentage];
-        } else {
-          processDataMapping[process.process]["percentage"] = [null];
-        }
-      } else {
-        if (process.cpus) {
-          processDataMapping[process.process]["cpu"].push(process.cpus);
-        } else {
-          processDataMapping[process.process]["cpu"].push(null);
-        }
-        if (process.cpu_percentage) {
-          processDataMapping[process.process]["percentage"].push(process.cpu_percentage);
-        } else {
-          processDataMapping[process.process]["percentage"].push(null);
-        }
-      }
-    }
-  }
-
-  for (let process in processDataMapping) {
-    let single_raw_data: number[] = []
-    let single_allocation_data: number[] = [];
-    for (let i = 0; i < processDataMapping[process]["cpu"].length; i++) {
-      single_raw_data.push(processDataMapping[process]["percentage"][i]);
-      single_allocation_data.push(processDataMapping[process]["percentage"] / processDataMapping[process]["cpu"]);
-    }
-    raw_usage_data.push(single_raw_data);
-    allocation_data.push(single_allocation_data);
-  }
-
-
-  datasets.push({ 'label': 'Requested CPU used in %', 'data': allocation_data, 'maxBarThickness': 30 })
-  datasets.push({ 'label': 'CPU usage in %', 'data': raw_usage_data, 'maxBarThickness': 30 });
-
-  return [Object.keys(processDataMapping), datasets]
-}
 
 function generateDurationData(unit: string): [string[], any[]] {
   let data_sum = generateSummarizedDataByKey('realtime', 1000, unit);
@@ -2632,7 +2432,7 @@ onUnmounted(() => {
 
           >
           <Column field="task_id" header="Task-ID" sortable :frozen="true"></Column>
-          <Column header="Problematic" sortable field="problematic" :sort-field="isProblematic" :frozen="true">
+          <Column header="Problematic" field="problematic" :frozen="true">
             <template #body="{ data }">
               <Tag v-if="isProblematic(data)" value="Problematic" severity="danger"></Tag>
             </template>
@@ -2840,6 +2640,7 @@ onUnmounted(() => {
   <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="metric_visualization_div">
     <div>
       <h3 class="my-3">Metric Visualizaton</h3>
+      <!-- TODO FIX: plots do not get loaded on page load but with second retrieval of data-->
     </div>
     <div class="card-body my-3">
       <div class="row my-3">
