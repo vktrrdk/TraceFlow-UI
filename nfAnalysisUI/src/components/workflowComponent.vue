@@ -2611,10 +2611,10 @@ onUnmounted(() => {
       <div class="card-body my-5" id="process_information_div">
         <h3 class="card-title">Task Information for {{ workflowState.selectedRun }} </h3>
         <div class=m-4></div>
-        <!-- TODO: Further adjustment of this datatable to send requests regarding to certain paginations, filteres and sorts
-          check how to add filters, check how to load it initially and how to response to sort and filter adjustments as well as newly loaded data (maybe an update button)?
-        -->
-      
+        <!-- TODO: Fix pagination error - when having filters set, still more pages than available data are shown - should be limited to elements filtered, but getting more
+              # # # also page changes seems to reset the filters in some cases
+        --> 
+  
         <DataTable :value="workflowState.tablePageData" sortField="task_id" :sortOrder="1" v-model:filters="filters"
           filterDisplay="row" tableStyle="min-width: 50rem" :totalRecords="workflowState.progress['all']" :paginator="true" :lazy="true" :rows="10" :rowsPerPageOptions="[10, 20, 50]"
           :rowClass="rowClass" removableSort
@@ -2689,15 +2689,17 @@ onUnmounted(() => {
               </MultiSelect>
             </template>
             <template #body="{ data }">
-              <Tag v-for="(tag, id) of data.tag"
+              <Tag v-for="(tag, id) of getTagsFromString(data.tag)"
                 :value="Object.keys(tag)[0] === '' ? 'Empty tag' : Object.keys(tag)[0] + ': ' + Object.values(tag)[0]">
-              </Tag>
+              </Tag>             
             </template>
           </Column>
           <Column field="attempt" header="Attempts" sortable>
           </Column>
-          <Column field="timestamp" header="Timestamp" sortable></Column>
-          <Column field="process_hash" header="Hash" sortable></Column>
+          <Column field="timestamp" header="Timestamp" sortable>
+          <!-- empty TODO: fix--> </Column>
+          <Column field="process_hash" header="Hash" sortable>
+          <!-- empty TODO: fix--> </Column>
           <Column field="duration" sortable header="Duration">
             <template #body="{ data }">
               <span v-if="data.duration">{{ getDynamicDurationType(data.duration) }} </span>
