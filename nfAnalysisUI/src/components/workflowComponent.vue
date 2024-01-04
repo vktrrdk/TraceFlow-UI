@@ -306,6 +306,7 @@ const filterState = reactive<{
   tableDebounceTimer: ReturnType<typeof setTimeout> | null;
   tableFilter: string;
   debouncedSelections: any;
+  totalTableRecords: number;
 
 }>({
 
@@ -327,6 +328,7 @@ const filterState = reactive<{
   tableDebounceTimer: null,
   tableFilter: JSON.stringify(null),
   debouncedSelections: {},
+  totalTableRecords: 0,
 });
 
 /** functions on init and polling */
@@ -457,13 +459,16 @@ function updateTableFilter(event?: any): void {
   }
 }  
 
+// TODO: refactor - tablePageData in own state: all filters, all numbers, all data
+
 function updateTablePageDataByDebouncedFilter(): void {
   let loadParams: any = { runName: workflowState.selectedRun, filters: filterState.tableFilter, ...toRaw(filterState.debouncedSelections)};
   filterState.tableLoading = true;
   axios.get(`${API_BASE_URL}run/table/${workflowState.token}`, {params: loadParams}
   ).then(
     (response: any) => {
-      workflowState.tablePageData = response.data;
+      workflowState.tablePageData = response.data['table_page'];
+      filterState.totalTableRecords = response.data['number_available'];
       filterState.tableLoading = false;
     }
   );
@@ -486,7 +491,8 @@ function updateTablePageData(event?: any): void {
   ).then(
     (response: any) => {
     
-      workflowState.tablePageData = response.data;
+      workflowState.tablePageData = response.data['table_page'];
+      filterState.totalTableRecords = response.data['number_available'];
       filterState.tableLoading = false;
     }
   );
@@ -2611,12 +2617,9 @@ onUnmounted(() => {
       <div class="card-body my-5" id="process_information_div">
         <h3 class="card-title">Task Information for {{ workflowState.selectedRun }} </h3>
         <div class=m-4></div>
-        <!-- TODO: Fix pagination error - when having filters set, still more pages than available data are shown - should be limited to elements filtered, but getting more
-              # # # also page changes seems to reset the filters in some cases
-        --> 
   
         <DataTable :value="workflowState.tablePageData" sortField="task_id" :sortOrder="1" v-model:filters="filters"
-          filterDisplay="row" tableStyle="min-width: 50rem" :totalRecords="workflowState.progress['all']" :paginator="true" :lazy="true" :rows="10" :rowsPerPageOptions="[10, 20, 50]"
+          filterDisplay="row" tableStyle="min-width: 50rem" :totalRecords="filterState.totalTableRecords" :paginator="true" :lazy="true" :rows="10" :rowsPerPageOptions="[10, 20, 50]"
           :rowClass="rowClass" removableSort
           @onLazyLoad="updateTablePageData"
           @page="updateTablePageData" 
