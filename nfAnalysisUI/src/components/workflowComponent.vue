@@ -131,21 +131,24 @@ function memoryAllocationSort(a){
 }
 
 function processIsDeclaredProblematic(data: any): boolean {
+  let penalized: boolean = false;
   if (workflowState.selectedRun !== '' && workflowState.selectedRun !== undefined) {
     if (workflowState.fullAnalysis && workflowState.fullAnalysis['workflow_scores'] && workflowState.fullAnalysis['workflow_scores']['task_information'] && workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]){
       let task_informations: any[] = toRaw(workflowState.fullAnalysis['workflow_scores']['task_information'][workflowState.selectedRun]);
       const task_info = task_informations.find((task: any) => {
         return task.task_id == data.task_id && task.run_name == data.run_name;
       });
-      if (task_info !== null) {
-        if (task_info.raw_cpu_penalty > (requestState.request_params['valid_cpu_allocation_deviation'] / 100).toFixed(2)
-          || task_info.raw_memory_penalty > (requestState.request_params['valid_memory_allocation_deviation'] / 100).toFixed(2)) {
-          return true;
+      if (task_info !== null && task_info !== undefined) {
+        if (task_info.raw_cpu_penalty) {
+          penalized = task_info.raw_cpu_penalty > (requestState.request_params['valid_cpu_allocation_deviation'] / 100).toFixed(2);
+        }
+        if (task_info.raw_memory_penalty) {
+          penalized = penalized || task_info.raw_memory_penalty > (requestState.request_params['valid_memory_allocation_deviation'] / 100).toFixed(2);
         }
       } 
     }
   } 
-  return false;
+  return penalized
 }
 
 /** end of filterService **/
