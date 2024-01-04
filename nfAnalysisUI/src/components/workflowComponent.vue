@@ -304,7 +304,7 @@ const filterState = reactive<{
   expandedRows: any;
   tableLoading: boolean;
   tableDebounceTimer: ReturnType<typeof setTimeout> | null;
-  tableFilter: any;
+  tableFilter: string;
   debouncedSelections: any;
 
 }>({
@@ -325,7 +325,7 @@ const filterState = reactive<{
   expandedRows: [],
   tableLoading: false,
   tableDebounceTimer: null,
-  tableFilter: {},
+  tableFilter: JSON.stringify(null),
   debouncedSelections: {},
 });
 
@@ -439,7 +439,8 @@ function dataPollingLoop(): void {
 function updateTableFilter(event?: any): void {
   console.log("filter update called");
   if (event){
-    filterState.tableFilter = event.filter;
+
+    filterState.tableFilter = JSON.stringify(event.filters);
     filterState.debouncedSelections = {
       page: event.page,
       rows: event.rows,
@@ -457,8 +458,7 @@ function updateTableFilter(event?: any): void {
 }  
 
 function updateTablePageDataByDebouncedFilter(): void {
-  console.log("the debounced Function got called")
-  let loadParams: any = { runName: workflowState.selectedRun, ... toRaw(filterState.debouncedSelections)}
+  let loadParams: any = { runName: workflowState.selectedRun, filters: filterState.tableFilter, ...toRaw(filterState.debouncedSelections)};
   filterState.tableLoading = true;
   axios.get(`${API_BASE_URL}run/table/${workflowState.token}`, {params: loadParams}
   ).then(
@@ -479,9 +479,8 @@ function updateTablePageData(event?: any): void {
       loadParams.rows = event.rows;
       loadParams.sortField = event.sortField;
       loadParams.sortOrder = event.sortOrder;
-      loadParams.filter = event.filter;
+      loadParams.filteredRunningProcesses = JSON.stringify(event.filters)
   }
-
   filterState.tableLoading = true;
   axios.get(`${API_BASE_URL}run/table/${workflowState.token}`, {params: loadParams}
   ).then(
@@ -1442,7 +1441,7 @@ function adjustSelectedRun(): void {
     }
   }
   updateTablePageData();
-
+  // TODO: FIX: Problems with table and component.emitsOptions error  
 }
 
 
@@ -2426,7 +2425,7 @@ onUnmounted(() => {
         <li class="list-group-item" v-if="latestMetaForRun()['project_name']">Project Name - {{latestMetaForRun()['project_name']}}</li>
         <li class="list-group-item" v-if="latestMetaForRun()['revision']">Revision - {{latestMetaForRun()['revision']}}</li>
         <li class="list-group-item" v-if="latestMetaForRun()['script_file']">Command Line - {{latestMetaForRun()['script_file']}}</li>
-      </ul>w
+      </ul>
       
     </div>
     <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="progess_summary_div">
