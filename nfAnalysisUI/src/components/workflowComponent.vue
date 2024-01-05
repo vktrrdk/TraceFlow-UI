@@ -384,14 +384,15 @@ function requestAnalysisData(): void {
   },}
   ).then(response => {
     workflowState.fullAnalysis = response.data;
-    if (currentlySelectedWorkflowHasPlottableData()) {
-          if (metricCharts.chartsGenerated) {
-            updatePlots();
-          } else {
-            createPlots();
-          }
-        }
-  })
+
+    if (metricCharts.chartsGenerated) {
+      updatePlots();
+    } else {
+      createPlots();
+      updatePlots();
+    }
+       
+  });
   
 }
 
@@ -800,8 +801,7 @@ function hideAutoUpdateEnableOptionTags(): boolean {
 
 /** Plot creation **/
 
-async function createPlots() {
-  await delay(300);
+function createPlots() {
   createRamPlot();
   createRelativeRamPlot();
   createCPUPlot();
@@ -966,8 +966,6 @@ async function createDurationPlot() {
   );
   Object.seal(durationChart);
   metricCharts.durationChart = durationChart;
-
-  updateDurationPlot();
 }
 
 async function createRamPlot() {
@@ -1191,8 +1189,6 @@ function updatePlotsConditional(event: any) {
 
 function updatePlots() {
   if (currentlySelectedWorkflowHasPlottableData()) {
-    updateDurationPlot();
-    updateCPURamRatioChart();
 
     updatePlotsByRequest();
   }
@@ -1212,6 +1208,7 @@ async function updatePlotsByRequest(): Promise<void> {
         let cpu_data: any = response.data['cpu'];
         let io_data: any = response.data['io'];
         let ram_data: any = response.data['ram'];
+        let duration_data: any = response.data['duration'];
         
         
         let relative_datasets: any = { 'label': 'Memory usage in %', 'data': [], 'maxBarThickness': 30 };
@@ -1272,7 +1269,21 @@ async function updatePlotsByRequest(): Promise<void> {
         metricCharts.memoryChart.data.labels = getSuffixes(ram_plot_data[0]);
         metricCharts.memoryChart.data.datasets = ram_plot_data[1];
         metricCharts.memoryChart.update('none')
+
+        datasets = []
+        let duration_single_dataset: any = {'type': 'boxplot', 'label': 'Execution in realtime', 'data': [], 'maxBarThickness': 30};
+        let duration_sum_dataset: any = {'type': 'bar', 'label': 'Realtime summerized', 'data': [], 'maxBarThickness': 30};
         
+        duration_single_dataset['data'] = Object.values(duration_data[1][0]);
+        duration_sum_dataset['data'] = Object.values(duration_data[1][1]);
+        datasets.push(duration_single_dataset);
+        datasets.push(duration_sum_dataset);
+
+        let duration_plot_data: any = [duration_data[0], datasets]
+        metricCharts.durationChart.data.labels = getSuffixes(duration_plot_data[0]);
+        metricCharts.durationChart.data.datasets = duration_plot_data[1];
+        metricCharts.durationChart.update('none');
+
 
 
         /** TODO: extend with remaining plots: duration */
@@ -1297,15 +1308,6 @@ function updateCPURamRatioChart() {
 
 }
 
-function updateDurationPlot() {
-  let generatedDatasets: [string[], any[]] = generateDurationData(metricCharts.durationFormat);
-  // getSuffixes is already part of generateDurationData-function
-  metricCharts.durationChart.data.labels = generatedDatasets[0];
-  metricCharts.durationChart.data.datasets = generatedDatasets[1];
-  metricCharts.durationChart.options.scales.y.title.text = `Duration in ${metricCharts.durationFormat}`;
-  metricCharts.durationChart.update('none');
-  // there is a bug somewhere, which leads to wrong calculation of datasets on filter change
-}
 
 
 /** keep just in case 
@@ -1446,13 +1448,10 @@ function adjustSelectedRun(): void {
   updateFilteredProgressProcesses();
   updateCurrentState();
   updateProgress();
-  if (currentlySelectedWorkflowHasPlottableData()) {
-    if (metricCharts.chartsGenerated) {
-      updatePlots();
-    } else {
-      createPlots();
-    }
+  if (!metricCharts.chartsGenerated) {
+    createPlots();
   }
+  
   updateTablePageData();
   // TODO: FIX: Problems with table and component.emitsOptions error  
 }
