@@ -336,6 +336,10 @@ const filterState = reactive<{
 
 /** functions on init and polling */
 
+/**  TODO: as all the table data gets delivered by the table-endpoint, this data should not be transfered twice. result_by_run_name delivers all entries again
+  --> need to check which information is needed at which part of the UI and what can be precomputed by the API
+*/
+
 function getDataInitial(token = props.token): void {
   if (token.length > 0) {
     workflowState.loading = true;
@@ -1195,13 +1199,61 @@ function updatePlots() {
 
 }
 
+metricCharts.durationCanvas,
+    {
+      options: {
+        responsive: true,
+        plugins: {
+          zoom: {
+            pan: {
+              enabled: true,
+              modifierKey: 'ctrl',
+            },
+            zoom: {
+              drag: {
+                enabled: true,
+              },
+              mode: 'xy',
+            },
+          },
+          legend: {
+            display: true,
+          },
+          tooltip: {
+            enabled: true
+          }
+        },
+        scales: {
+          y: {
+            title: {
+              display: true,
+              text: `Duration in ${metricCharts.durationFormat}`
+            }
+          }
+        }
+      },
+      data: {
+        labels: [],
+        datasets: [],
+      }
+    }
+
 async function updatePlotsByRequest(): Promise<void> {
 
   const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
   const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
+  
 
   await axios.get(
-    `${API_BASE_URL}run/plots/${workflowState.token}`, {params: { processFilter: processNamesToFilterBy, tagFilter: tagsToFilterBy, runName: JSON.stringify(workflowState.selectedRun) }}
+    `${API_BASE_URL}run/plots/${workflowState.token}`, 
+    { params: 
+      { processFilter: processNamesToFilterBy, 
+        tagFilter: tagsToFilterBy, 
+        runName: JSON.stringify(workflowState.selectedRun),
+        memoryFormat: metricCharts.memoryFormat,
+        durationFormat: metricCharts.durationFormat,
+      }
+    }
   ).then(
       (response: any) => {
         let relative_ram_data: any = response.data['relative_ram'];
@@ -1209,7 +1261,7 @@ async function updatePlotsByRequest(): Promise<void> {
         let io_data: any = response.data['io'];
         let ram_data: any = response.data['ram'];
         let duration_data: any = response.data['duration'];
-        
+      
         
         let relative_datasets: any = { 'label': 'Memory usage in %', 'data': [], 'maxBarThickness': 30 };
 
@@ -1236,8 +1288,8 @@ async function updatePlotsByRequest(): Promise<void> {
         metricCharts.cpuChart.data.datasets = cpu_plot_data[1];
         metricCharts.cpuChart.update('none'); 
 
-        let io_read_dataset: any = { 'label': 'Read in GiB', 'data': [], 'maxBarThickness': 30};
-        let io_write_dataset: any = { 'label': 'Written in GiB', 'data': [], 'maxBarThickness': 30};
+        let io_read_dataset: any = { 'label': 'Read', 'data': [], 'maxBarThickness': 30};
+        let io_write_dataset: any = { 'label': 'Write',  'data': [], 'maxBarThickness': 30};
 
         datasets = [];
         io_read_dataset['data'] = Object.values(io_data[1][0]);
@@ -1250,6 +1302,7 @@ async function updatePlotsByRequest(): Promise<void> {
 
         metricCharts.ioChart.data.labels = getSuffixes(io_plot_data[0]);
         metricCharts.ioChart.data.datasets = io_plot_data[1];
+        metricCharts.ioChart.options.scales.y.title.text = `I/O values in ${metricCharts.memoryFormat}`;
         metricCharts.ioChart.update('none');
 
         datasets = [];
@@ -1268,6 +1321,7 @@ async function updatePlotsByRequest(): Promise<void> {
 
         metricCharts.memoryChart.data.labels = getSuffixes(ram_plot_data[0]);
         metricCharts.memoryChart.data.datasets = ram_plot_data[1];
+        metricCharts.memoryChart.options.scales.y.title.text = `Memory values in ${metricCharts.memoryFormat}`;
         metricCharts.memoryChart.update('none')
 
         datasets = []
@@ -1282,6 +1336,7 @@ async function updatePlotsByRequest(): Promise<void> {
         let duration_plot_data: any = [duration_data[0], datasets]
         metricCharts.durationChart.data.labels = getSuffixes(duration_plot_data[0]);
         metricCharts.durationChart.data.datasets = duration_plot_data[1];
+        metricCharts.durationChart.options.scales.y.title.text = `Duration values in ${metricCharts.durationFormat}`;
         metricCharts.durationChart.update('none');
 
 
@@ -2030,43 +2085,6 @@ function unfoldTag(tag: any): string {
 }
 
 
-
-
-function generateDurationData(unit: string): [string[], any[]] {
-  let data_sum = generateSummarizedDataByKey('realtime', 1000, unit);
-  let data_exec = generateDataByKey('realtime', false, unit);
-  let data_execution: any[] = [];
-  data_exec['data'].forEach((element: any[]) => {
-    let mapped: any[] = element.map((value) => getDynamicDurationTypeAsNumber(value, unit));
-    data_execution.push(mapped);
-  });
-  //let data_allocated = generateKeyRelativeData('realtime', 'time', 'Requested time used in %', 100)[1];
-
-  let datasets: any[] =
-    [
-      {
-        type: 'bar',
-        label: `Summarized Execution in ${unit}`,
-        data: data_sum["data"],
-        'maxBarThickness': 30,
-      },
-      {
-        type: 'boxplot',
-        label: 'Execution in real-time',
-        data: data_execution,
-        'maxBarThickness': 30,
-      },
-      /* {
-        type: 'boxplot',
-        label: 'Requested time used in %',
-        data: data_allocated[1],
-        'maxBarThickness': 30,
-      } */
-    ];
-  return [getSuffixes(data_exec["labels"]), datasets];
-
-
-}
 
 
 /** end of data retrieval functions */ 
