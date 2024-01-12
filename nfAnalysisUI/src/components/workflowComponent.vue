@@ -17,7 +17,6 @@ import { FilterMatchMode, FilterService } from 'primevue/api';
 import InputText from 'primevue/inputtext';
 import ProgressBar from 'primevue/progressbar';
 import Message from 'primevue/message';
-import Knob from 'primevue/knob';
 import Panel from 'primevue/panel';
 import ConfirmDialog from "primevue/confirmdialog";
 import Toast from "primevue/toast";
@@ -37,6 +36,7 @@ import { PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import svgImage from "@/assets/traceflow.svg"
+import progressComponentVue from "./progressComponent.vue";
 
 
 /**
@@ -204,7 +204,6 @@ const workflowState = reactive<{
   processObjects: Process[];
   tagAnalysis: any;
   fullAnalysis: any;
-  processesByRun: any;
   tablePageData: any;
   runStartMapping: any;
   selectedRun: string;
@@ -235,7 +234,6 @@ const workflowState = reactive<{
   processObjects: [],
   tagAnalysis: {},
   fullAnalysis: {},
-  processesByRun: {},
   tablePageData: [],
   runStartMapping: {},
   selectedRun: '',
@@ -353,10 +351,9 @@ function getDataInitial(token = props.token): void {
           workflowState.meta = response.data["result_meta"];
           metricCharts.memoryFormat = 'GiB';
           metricCharts.durationFormat = 'h';
-          workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
           updateRunStartMapping();
           setFirstRunName();
-          workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+          workflowState.processObjects = {};
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilterState();
           updateFilteredRunningProcesses();
@@ -421,10 +418,12 @@ function dataPollingLoop(): void {
         workflowState.error_on_request = true;
 
       } else {
+        if (!metricCharts.chartsGenerated) {
+          createPlots();
+        }
         workflowState.meta = response.data["result_meta"];
-        workflowState.processesByRun = createProcessObjectsByRun(response.data["result_by_run_name"]);
         updateRunStartMapping();
-        workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+        workflowState.processObjects = {}
         workflowState.runningProcesses = updateRunningProcesses();
         if (!NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
           updateFilterState();
@@ -432,6 +431,7 @@ function dataPollingLoop(): void {
         }
         updateCurrentState();
         updateProgress();
+        updateTablePageDataByDebouncedFilter();
         requestAnalysisData();
         workflowState.error_on_request = false;
         progressProcessSelectionChanged();
@@ -1498,7 +1498,7 @@ function formattedDate(date: Date): string {
 }
 
 function adjustSelectedRun(): void {
-  workflowState.processObjects = workflowState.processesByRun[workflowState.selectedRun];
+  workflowState.processObjects = {}
   updateFilterState();
   updateFilteredProgressProcesses();
   updateCurrentState();
@@ -1525,11 +1525,7 @@ function createProcessObjectsByRun(data: any): any {
 }
 
 function setFirstRunName(): void {
-  if (Object.keys(workflowState.processesByRun).length > 0) {
-    workflowState.selectedRun = Object.keys(workflowState.processesByRun)[0];
-  } else {
-    workflowState.selectedRun = '';
-  }
+  // refactor
 }
 
 function updateRunStartMapping(): void {
@@ -1599,52 +1595,13 @@ function updateCurrentState(): void {
 
 
 function updateProgress(): void {
-  const allProcesses = toRaw(workflowState.processObjects);
-  let all: number = 0;
-  let submitted: number = 0
-  let running: number = 0;
-  let completed: number = 0;
-  let failed: number = 0;
-  let cached: number = 0;
-  let pending: number = 0;
-  if (allProcesses) {
-    for (let process of allProcesses) {
-      switch (process.status) {
-        case "SUBMITTED":
-          submitted += 1;
-          break;
-        case "RUNNING":
-          running += 1;
-          break;
-        case "FAILED":
-          failed += 1;
-          break;
-        case "ABORTED":
-          failed += 1;
-          break;
-        case "COMPLETED":
-          completed += 1;
-          break;
-        case "CACHED":
-          cached += 1;
-          break;
-        case "PENDING":
-          pending += 1;
-          break;
+  let loadParams: any = {runName: workflowState.selectedRun};
+  axios.get(`${API_BASE_URL}run/progress/${workflowState.token}/`, {params: loadParams})
+    .then(
+      (response: any) => {
+        workflowState.progress = response.data;
       }
-      all += 1;
-    }
-  }
-
-  workflowState.progress = {
-    "all": all,
-    "submitted": submitted,
-    "running": running,
-    "failed": failed,
-    "completed": completed,
-    "cached": cached,
-    "pending": pending,
-  }
+    );
 
 }
 
@@ -2255,55 +2212,7 @@ onUnmounted(() => {
       
     </div>
     <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="progess_summary_div">
-      <h3 class="card-title">Progress</h3>
-      <hr>
-      <div>
-        <div class="mb-4 p-4">
-          <div class="row justify-content-center">
-            <ProgressBar v-if="workflowState.progress['all'] > 0" class="mt-2" :showValue="false"
-              style="height: 3px; max-width: 70vw;"
-              :value="parseInt((workflowState.progress['completed'] / workflowState.progress['all']) * 100)">
-            </ProgressBar>
-          </div>
-          <div class="row justify-content-center">
-            {{ workflowState.progress['completed'] }} of {{ workflowState.progress['all'] }} processes completed
-          </div>
-
-        </div>
-        <div class="row p-2">
-          <div class="col-2 p-2">
-            <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
-              v-model="workflowState.progress['submitted']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center mx-4">Submitted</span>
-          </div>
-          <div class="col-2 p-2">
-            <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
-              v-model="workflowState.progress['pending']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center mx-4">Pending</span>
-          </div>
-          <div class="col-2 p-2">
-            <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
-              v-model="workflowState.progress['running']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center mx-4">Running</span>
-          </div>
-          <div class="col-2 p-2">
-            <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
-              v-model="workflowState.progress['cached']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center mx-4">Cached</span>
-          </div>
-          <div class="col-2 p-2">
-            <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']"
-              valueColor="Green" v-model="workflowState.progress['completed']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center mx-4">Completed</span>
-          </div>
-          <div class="col-2 p-2">
-            <Knob v-if="workflowState.progress['all'] > 0" :min="0" :max="workflowState.progress['all']" valueColor="Red"
-              v-model="workflowState.progress['failed']" :size="120" readonly :strokeWidth="5" />
-            <span class="justify-content-center mx-4">Failed</span>
-          </div>
-        </div>
-      </div>
-
+      <progressComponentVue :progress="workflowState.progress" />
 
     </div>
 
