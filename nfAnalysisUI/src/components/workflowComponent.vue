@@ -352,6 +352,9 @@ function getDataInitial(token = props.token): void {
           workflowState.meta = response.data["result_meta"];
           metricCharts.memoryFormat = 'GiB';
           metricCharts.durationFormat = 'h';
+          if (!metricCharts.chartsGenerated){
+            createPlots();
+          }
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = [];
@@ -419,8 +422,8 @@ function dataPollingLoop(): void {
         workflowState.error_on_request = true;
 
       } else {
-        if (!metricCharts.chartsGenerated) {
-          createPlots();
+        if (!metricCharts.chartsGenerated){
+            createPlots();
         }
         workflowState.meta = response.data["result_meta"];
         updateRunStartMapping();
@@ -807,14 +810,31 @@ function hideAutoUpdateEnableOptionTags(): boolean {
 /** Plot creation **/
 
 function createPlots() {
-  createRamPlot();
-  createRelativeRamPlot();
-  createCPUPlot();
-  createIOPlot();
-  createDurationPlot();
-  createCPURamRatioPlot();
-  metricCharts.chartsGenerated = true;
+  // TODO: check if the plot areas induce erros
+  if (canvasesAvailable()) {
+    createRamPlot();
+    createRelativeRamPlot();
+    createCPUPlot();
+    createIOPlot();
+    createDurationPlot();
+    createCPURamRatioPlot(); // check if we can keep this out of the initial creation?
+    metricCharts.chartsGenerated = true;
+  }
  
+}
+
+function canvasesAvailable(): boolean {
+  const checkCanvasList: any[] = [
+    getCanvasDiv('relative_ram_canvas'), 
+    getCanvasDiv('io_canvas'),
+    getCanvasDiv('duration_canvas'),
+    getCanvasDiv('ram_canvas'),
+    getCanvasDiv('cpu_canvas'),
+    getCanvasDiv('cpu_ram_ratio')
+  ]
+  console.log(checkCanvasList);
+
+  return !checkCanvasList.some(obj => obj === null);
 }
 
 /* TODO: REFACTOR regarding asynchron
@@ -2490,10 +2510,10 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData()" id="metric_visualization_div">
+  <div class="card-body my-4" id="metric_visualization_div">
     <div>
       <h3 class="my-3">Metric Visualizaton</h3>
-      <!-- TODO FIX: plots do not get loaded on page load but with second retrieval of data-->
+      
     </div>
     <div class="card-body my-3">
       <div class="row my-3">
