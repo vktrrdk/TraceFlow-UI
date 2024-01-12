@@ -37,6 +37,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import svgImage from "@/assets/traceflow.svg"
 import progressComponentVue from "./progressComponent.vue";
+import currentlyRunningComponentVue from "./currentlyRunningComponent.vue"
 
 
 /**
@@ -353,7 +354,7 @@ function getDataInitial(token = props.token): void {
           metricCharts.durationFormat = 'h';
           updateRunStartMapping();
           setFirstRunName();
-          workflowState.processObjects = {};
+          workflowState.processObjects = [];
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilterState();
           updateFilteredRunningProcesses();
@@ -423,7 +424,7 @@ function dataPollingLoop(): void {
         }
         workflowState.meta = response.data["result_meta"];
         updateRunStartMapping();
-        workflowState.processObjects = {}
+        workflowState.processObjects = [];
         workflowState.runningProcesses = updateRunningProcesses();
         if (!NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
           updateFilterState();
@@ -1498,7 +1499,7 @@ function formattedDate(date: Date): string {
 }
 
 function adjustSelectedRun(): void {
-  workflowState.processObjects = {}
+  workflowState.processObjects = [];
   updateFilterState();
   updateFilteredProgressProcesses();
   updateCurrentState();
@@ -2216,83 +2217,9 @@ onUnmounted(() => {
 
     </div>
 
-    <div class="card-body my-5" v-if="Object.keys(workflowState.runningProcesses).length > 0">
+    <div class="card-body my-5" v-if="workflowState.selectedRun">
     
-
-      <Fieldset legend="Currently Running" :toggleable="true">
-
-        <div class="card-body my-4">
-          <Message closable >This area displays the tasks, grouped by process, that are currently running and correspond to the settings of the following filter</Message>
-        <div class="row my-3">
-          <div class="col-6">
-            <MultiSelect v-model="filterState.selectedRunningProcesses" :options="filterState.availableProcesses"
-              v-on:change="runningProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
-              display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
-              :disabled="filterState.autoselectAllRunningProcesses">
-            </MultiSelect>
-          </div>
-          <div class="col-3">
-            <Button :disabled="filterState.autoselectAllRunningProcesses" v-on:click="unselectAllRunningProcesses()"
-              label="Deselect all" />
-            <Button :disabled="filterState.autoselectAllRunningProcesses" v-on:click="selectAllRunningProcesses()"
-              label="Select all" />
-          </div>
-          <div class="col-3">
-            <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllRunningProcesses"
-              onLabel="Autoupdate enabled" offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionRunning()"
-              onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="runningProcessAutoSelectionChanged()" />
-          </div>
-        </div>
-        <div class="row my-3">
-          <div class="col-6">
-            <MultiSelect v-model="filterState.selectedRunningTags" :options="filterState.availableTags"
-              v-on:change="runningTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag" display="chip"
-              class="md:w-20rem" style="max-width: 40vw" optionLabel="name" :disabled="filterState.autoselectAllRunningTags">
-              <template #chip="selectedTag">
-                <div class="flex align-items-center">
-                  <div v-if="Object.keys(selectedTag.value)[0] !== ''">{{ Object.keys(selectedTag.value)[0] }} : {{
-                    Object.values(selectedTag.value)[0] }}</div>
-                  <div v-if="Object.keys(selectedTag.value)[0] === ''">Empty tag</div>
-                </div>
-              </template>
-              <template #option="slotProps">
-                <div class="flex align-items-center">
-                  <div v-if="Object.keys(slotProps.option)[0] !== ''">
-                    {{ Object.keys(slotProps.option)[0] }}: {{ Object.values(slotProps.option)[0] }}
-                  </div>
-                  <div v-if="Object.keys(slotProps.option)[0] === ''">Empty tag</div>
-                </div>
-              </template>
-            </MultiSelect>
-          </div>
-          <div class="col-3">
-            <Button :disabled="filterState.autoselectAllRunningTags" v-on:click="unselectAllRunningTags()"
-              label="Deselect all" />
-            <Button :disabled="filterState.autoselectAllRunningTags" v-on:click="selectAllRunningTags()" label="Select all" />
-          </div>
-          <div class="col-3">
-            <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllRunningTags" onLabel="Autoupdate enabled"
-              offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionRunningTags()" onIcon="pi pi-check"
-              offIcon="pi pi-times" v-on:change="runningTagAutoSelectionChanged()" />
-          </div>
-        </div>
-  
-  
-      </div>
-
-        <div v-for="(info, process) in workflowState.filteredRunningProcesses" class="row my-2">
-        <Panel toggleable :collapsed="true"
-        :header="`${process}: ${info.length > 1 ? info.length + ' tasks' : ' 1 task'}`">
-          <ul class="list-group list-group-flush">
-            <li v-for="task of info"
-            class="list-group-item"><strong>Task #{{ task['task_id'] }}<span :class="task['attempt'] > 1 ? 'text-danger' : ''"> - attempt {{ task['attempt'] }}</span></strong> <Tag class="m-1" v-for="tag_elem of task['tag']"
-              :value="Object.keys(tag_elem)[0] === '' ? 'Empty Tag' : Object.keys(tag_elem)[0] + ': ' + Object.values(tag_elem)[0]"></Tag>
-            </li>
-          </ul>
-        </Panel>
-    
-      </div>
-      </Fieldset>
+      <currentlyRunningComponentVue :token="workflowState.token" :runName="workflowState.selectedRun" />
       
 
 
