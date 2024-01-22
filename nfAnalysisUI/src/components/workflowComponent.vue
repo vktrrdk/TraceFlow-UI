@@ -832,7 +832,6 @@ function canvasesAvailable(): boolean {
     getCanvasDiv('cpu_canvas'),
     getCanvasDiv('cpu_ram_ratio')
   ]
-  console.log(checkCanvasList);
 
   return !checkCanvasList.some(obj => obj === null);
 }
@@ -1196,7 +1195,6 @@ async function createCPURamRatioPlot() {
   Object.seal(cpuRamRatioChart);
   metricCharts.cpuRamRatioChart = cpuRamRatioChart;
   
-  updateCPURamRatioChart();
 }
 
 /** End of Plot creation */
@@ -1282,7 +1280,7 @@ async function updatePlotsByRequest(): Promise<void> {
         let io_data: any = response.data['io'];
         let ram_data: any = response.data['ram'];
         let duration_data: any = response.data['duration'];
-      
+        let cpu_ram_ratio_data: any = response.data['cpu_ram_ratio'];
         
         let relative_datasets: any = { 'label': 'Memory usage in %', 'data': [], 'maxBarThickness': 30 };
 
@@ -1361,6 +1359,17 @@ async function updatePlotsByRequest(): Promise<void> {
         metricCharts.durationChart.update('none');
 
 
+        datasets = [];
+        
+        let cpu_ram_ratio_dataset: any = {'type': 'scatterWithErrorBars', 'label': 'CPU-RAM ratio', 'data': []};
+
+        cpu_ram_ratio_dataset['data'] = Object.values(cpu_ram_ratio_data[1]);
+        datasets.push(cpu_ram_ratio_dataset);
+
+        let cpu_ram_ratio_plot_data: any = [cpu_ram_ratio_data[0], datasets]
+        metricCharts.cpuRamRatioChart.data.labels = getSuffixes(cpu_ram_ratio_plot_data[0]);
+        metricCharts.cpuRamRatioChart.data.datasets = cpu_ram_ratio_plot_data[1];
+        metricCharts.cpuRamRatioChart.update('none');
 
         /** TODO: extend with remaining plots: duration */
       }
@@ -1368,20 +1377,6 @@ async function updatePlotsByRequest(): Promise<void> {
       console.log("This crashed");
       console.log(error);
     });
-}
-
-
-
-
-function updateCPURamRatioChart() {
-  let rawedFullAnalysis: any = toRaw(workflowState.fullAnalysis);
-  if (rawedFullAnalysis && rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]) {
-    metricCharts.cpuRamRatioChart.data.labels = getSuffixes(rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['labels']);
-    metricCharts.cpuRamRatioChart.data.datasets = [rawedFullAnalysis['cpu_ram_relation_data'][workflowState.selectedRun]['data']];
-    metricCharts.cpuRamRatioChart.update('none');
-  }
-  
-
 }
 
 
