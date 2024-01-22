@@ -253,6 +253,7 @@ const workflowState = reactive<{
 
 const metricCharts = reactive<{
   chartsGenerated: boolean;
+  chartsHaveData: boolean;
   durationFormat: string; // ['s', 'min', 'h']
   memoryFormat: string; 
   memoryChart: any | null;
@@ -271,6 +272,7 @@ const metricCharts = reactive<{
   dynamicCanvas: any | null;
 }>({
   chartsGenerated: false,
+  chartsHaveData: false,
   durationFormat: 'h',
   memoryFormat: 'GiB',
   memoryChart: null,
@@ -1371,6 +1373,8 @@ async function updatePlotsByRequest(): Promise<void> {
         metricCharts.cpuRamRatioChart.data.datasets = cpu_ram_ratio_plot_data[1];
         metricCharts.cpuRamRatioChart.update('none');
 
+        metricCharts.chartsHaveData = true;
+
         /** TODO: extend with remaining plots: duration */
       }
     ).catch(error => {
@@ -1443,22 +1447,21 @@ function checkIfProblemsFound() {
 }
 
 
-
+// TODO: needs refactoring
 function adjustTextForRatioMessage(clickedProcess: string, idx: number) {
 
-  let analysisData: any[] = toRaw(workflowState.fullAnalysis["cpu_ram_relation_data"][workflowState.selectedRun]["data"]["data"]);
+  /*let analysisData: any[] = toRaw(workflowState.fullAnalysis["cpu_ram_relation_data"][workflowState.selectedRun]["data"]["data"]);
   let elem = analysisData[idx];
 
   let cpu_data: any[] = [elem["xMin"], elem["x"], elem["xMax"]];
   let memory_data: any[] = [elem["yMin"], elem["y"], elem["yMax"]];
 
-
-
   let concatString = `The process ${clickedProcess} has the following characteristics: \n`
     + `The CPU allocation varies from ${cpu_data[0].toFixed(2)} % to ${cpu_data[2].toFixed(2)} % with an average of ${cpu_data[1].toFixed(2)} %.\n`
     + `The used memory percentage varies from ${memory_data[0].toFixed(2)} % to ${memory_data[2].toFixed(2)}  with an average of ${memory_data[1].toFixed(2)} %.\n`;
 
-  analysisInfo.cpuRamRatioText = concatString;
+  analysisInfo.cpuRamRatioText = concatString; */
+  analysisInfo.cpuRamRatioText = "The information shown in this label is part of refactoring"
 
 }
 
@@ -2618,7 +2621,11 @@ onUnmounted(() => {
 
 
     </div>
-    <div class="card-body my-4 py-2" id="canvas_area">
+    <!-- check how to handle v-show without having display:block on true -->
+    <div v-show="!metricCharts.chartsHaveData">
+      <Message severity="info" :closable="false">There is no plot data to show.</Message>
+    </div>
+    <div class="card-body my-4 py-2" id="canvas_area" v-show="metricCharts.chartsHaveData">
       <div class="plot-section">
         <h5>RAM</h5>
         <canvas id="ram_canvas" class="p-4"></canvas>
@@ -2641,7 +2648,7 @@ onUnmounted(() => {
       </div>
       <div class="plot-section">
         <h5>Duration</h5>
-        <canvas id="duration_canvas" class="p-4"></canvas>
+        <canvas id="duration_canvas" class="p-4"></canvas>‚
         <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.durationChart.resetZoom()"/>
       </div>
     </div>
@@ -2814,6 +2821,7 @@ onUnmounted(() => {
     <div class="card-body my-5 py-2" id="analysis_canvas_area">
       <div class="plot-section">
         <h5>CPU-RAM ratio</h5>
+        <Message severity="info" :closable="false" v-if="!metricCharts.chartsHaveData">There is no data to show in this plot.</Message>
         <canvas id="cpu_ram_ratio" class="p-4"></canvas>
         <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.cpuRamRatioChart.resetZoom()"/>
       </div>
