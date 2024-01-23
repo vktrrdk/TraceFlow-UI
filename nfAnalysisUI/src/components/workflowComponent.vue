@@ -29,15 +29,15 @@ import Sidebar from 'primevue/sidebar';
 import Menubar from 'primevue/menubar';
 import Slider from 'primevue/slider';
 import InputNumber from "primevue/inputnumber";
-import Fieldset from "primevue/fieldset";
+
 import Chip from 'primevue/chip';
-import Tooltip from 'primevue/tooltip';
 import { PointWithErrorBar, ScatterWithErrorBarsController } from 'chartjs-chart-error-bars';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import svgImage from "@/assets/traceflow.svg"
 import progressComponentVue from "./progressComponent.vue";
 import currentlyRunningComponentVue from "./currentlyRunningComponent.vue"
+import metricVisualizationComponentVue from "./metricVisualizationComponent.vue";
 
 
 /**
@@ -251,57 +251,14 @@ const workflowState = reactive<{
   //connection: null,
 });
 
-const metricCharts = reactive<{
-  chartsGenerated: boolean;
-  chartsHaveData: boolean;
-  durationFormat: string; // ['s', 'min', 'h']
-  memoryFormat: string; 
-  memoryChart: any | null;
-  memoryCanvas: any | null;
-  relativeMemoryChart: any | null;
-  relativeMemoryCanvas: any | null;
-  ioChart: any | null;
-  ioCanvas: any | null;
-  cpuChart: any | null;
-  cpuCanvas: any | null;
-  cpuRamRatioCanvas: any | null;
-  cpuRamRatioChart: any | null;
-  durationChart: any | null;
-  durationCanvas: any | null;
-  dynamicChart: any | null;
-  dynamicCanvas: any | null;
-}>({
-  chartsGenerated: false,
-  chartsHaveData: false,
-  durationFormat: 'h',
-  memoryFormat: 'GiB',
-  memoryChart: null,
-  memoryCanvas: null,
-  relativeMemoryChart: null,
-  relativeMemoryCanvas: null,
-  ioChart: null,
-  ioCanvas: null,
-  cpuChart: null,
-  cpuCanvas: null,
-  cpuRamRatioCanvas: null,
-  cpuRamRatioChart: null,
-  durationChart: null,
-  durationCanvas: null,
-  dynamicChart: null,
-  dynamicCanvas: null,
-});
 
 const filterState = reactive<{
   availableProcesses: string[];
   availableTags: string[];
-  selectedMetricProcesses: string[];
-  autoselectAllMetricProcesses: boolean;
   selectedProgressProcesses: string[];
   autoselectAllProgressProcesses: boolean;
   autoselectAllRunningProcesses: boolean;
   autoselectAllRunningTags: boolean;
-  autoselectAllMetricTags: boolean;
-  selectedTags: string[];
   selectedRunningTags: any[];
   selectedRunningProcesses: any[];
   processTaskMapping: any;
@@ -316,14 +273,10 @@ const filterState = reactive<{
 
   availableProcesses: [],
   availableTags: [],
-  selectedMetricProcesses: [],
-  autoselectAllMetricProcesses: true,
   selectedProgressProcesses: [],
   autoselectAllProgressProcesses: true,
   autoselectAllRunningProcesses: true,
   autoselectAllRunningTags: true,
-  autoselectAllMetricTags: true,
-  selectedTags: [],
   selectedRunningTags: [],
   selectedRunningProcesses: [],
   processTaskMapping: {},
@@ -352,11 +305,6 @@ function getDataInitial(token = props.token): void {
           workflowState.error_on_request = true;
         } else {
           workflowState.meta = response.data["result_meta"];
-          metricCharts.memoryFormat = 'GiB';
-          metricCharts.durationFormat = 'h';
-          if (!metricCharts.chartsGenerated){
-            createPlots();
-          }
           updateRunStartMapping();
           setFirstRunName();
           workflowState.processObjects = [];
@@ -391,13 +339,6 @@ function requestAnalysisData(): void {
   },}
   ).then(response => {
     workflowState.fullAnalysis = response.data;
-
-    if (metricCharts.chartsGenerated) {
-      updatePlots();
-    } else {
-      createPlots();
-      updatePlots();
-    }
        
   });
   
@@ -424,9 +365,6 @@ function dataPollingLoop(): void {
         workflowState.error_on_request = true;
 
       } else {
-        if (!metricCharts.chartsGenerated){
-            createPlots();
-        }
         workflowState.meta = response.data["result_meta"];
         updateRunStartMapping();
         workflowState.processObjects = [];
@@ -581,13 +519,6 @@ function checkKeyValuePairing(item: any, tag: any): boolean {
   return false;
 }
 
-function setSelectedMetricProcesses(processes: any[]): void {
-  filterState.selectedMetricProcesses = processes;
-}
-
-function setSelectedMetricTags(tags: any[]): void {
-  filterState.selectedTags = tags;
-}
 
 function setSelectedRunningTags(tags: any[]): void {
   filterState.selectedRunningTags = tags;
@@ -601,35 +532,17 @@ function setSelectedRunningProcesses(processes: any[]): void {
   filterState.selectedRunningProcesses = processes;
 }
 
-function selectAllMetricProcesses(): void {
-  setSelectedMetricProcesses(filterState.availableProcesses);
-  metricProcessSelectionChanged();
-}
-
 function selectAllRunningProcesses(): void {
   setSelectedRunningProcesses(filterState.availableProcesses);
   runningProcessSelectionChanged();
 }
 
-function unselectAllMetricProcesses(): void {
-  setSelectedMetricProcesses([]);
-  metricProcessSelectionChanged();
-}
-
-function unselectAllMetricTags(): void {
-  setSelectedMetricTags([]);
-  metricTagSelectionChanged();
-}
 
 function unselectAllRunningTags(): void {
   setSelectedRunningTags([]);
   runningTagSelectionChanged();
 }
 
-function selectAllMetricTags(): void {
-  setSelectedMetricTags(filterState.availableTags);
-  metricTagSelectionChanged();
-}
 
 function selectAllRunningTags(): void {
   setSelectedRunningTags(filterState.availableTags);
@@ -652,9 +565,7 @@ function unselectAllRunningProcesses(): void {
 }
 
 function updateIfTagAutoSelectEnabled(): void {
-  if (filterState.autoselectAllMetricTags) {
-    selectAllMetricTags();
-  } if (filterState.autoselectAllRunningTags) {
+  if (filterState.autoselectAllRunningTags) {
     selectAllRunningTags();
   }  /*if (filterState.autoselectAllProgressTags) {
     selectAllProgressTags(); TODO: IMPLEMENT
@@ -665,9 +576,7 @@ function updateIfAutoselectEnabled(): void {
   if (filterState.autoselectAllProgressProcesses) {
     selectAllProgressProcesses();
   }
-  if (filterState.autoselectAllMetricProcesses) {
-    selectAllMetricProcesses();
-  }
+  
   if (filterState.autoselectAllRunningProcesses) {
     selectAllRunningProcesses();
   }
@@ -734,36 +643,12 @@ function runningProcessSelectionChanged(): void {
 }
 
 
-function metricProcessSelectionChanged(): void {
-  if (filterState.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
-    updatePlots();
-  }
-}
-
-function metricTagSelectionChanged(): void {
-  if (filterState.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
-    updatePlots();
-  }
-}
-
 function runningTagSelectionChanged(): void{
   updateFilteredRunningProcesses();
 }
 
 
-function metricProcessAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricProcesses && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
-    selectAllMetricProcesses();
-  } else {
-    // what to do here?
-  }
-}
 
-function metricTagAutoSelectionChanged(): void {
-  if (filterState.autoselectAllMetricTags && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
-    selectAllMetricTags();
-  }
-}
 
 function runningTagAutoSelectionChanged(): void {
   if (filterState.autoselectAllRunningTags && !NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
@@ -786,617 +671,12 @@ function progressProcessAutoSelectionChanged(): void {
   }
 }
 
-function hideAutoUpdateEnableOptionMetric(): boolean {
-  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllMetricProcesses;
-}
-
-function hideAutoUpdateEnableOptionRunning(): boolean {
-  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllRunningProcesses;
-}
-
-function hideAutoUpdateEnableOptionRunningTags(): boolean {
-  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllRunningTags;
-}
-
-function hideAutoUpdateEnableOptionProgress(): boolean {
-  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllProgressProcesses;
-}
-
-function hideAutoUpdateEnableOptionTags(): boolean {
-  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllMetricTags;
-}
-
 
 /** end of filter state functions */
 
-/** Plot creation **/
-
-function createPlots() {
-  // TODO: check if the plot areas induce erros
-  if (canvasesAvailable()) {
-    createRamPlot();
-    createRelativeRamPlot();
-    createCPUPlot();
-    createIOPlot();
-    createDurationPlot();
-    createCPURamRatioPlot(); // check if we can keep this out of the initial creation?
-    metricCharts.chartsGenerated = true;
-  }
- 
-}
-
-function canvasesAvailable(): boolean {
-  const checkCanvasList: any[] = [
-    getCanvasDiv('relative_ram_canvas'), 
-    getCanvasDiv('io_canvas'),
-    getCanvasDiv('duration_canvas'),
-    getCanvasDiv('ram_canvas'),
-    getCanvasDiv('cpu_canvas'),
-    getCanvasDiv('cpu_ram_ratio')
-  ]
-
-  return !checkCanvasList.some(obj => obj === null);
-}
-
-/* TODO: REFACTOR regarding asynchron
-*/
-function getCanvasDiv(elementId: string): HTMLCanvasElement {
-  const canvasElement = document.getElementById(elementId);
-  return canvasElement;
-
-}
-
-async function createRelativeRamPlot() {
-  const canvas: HTMLCanvasElement = getCanvasDiv('relative_ram_canvas');
-  metricCharts.relativeMemoryCanvas = canvas;
-  const relativeRamChart = new Chart(
-    metricCharts.relativeMemoryCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              modifierKey: 'ctrl',
-            },
-            zoom: {
-              drag: {
-                enabled: true,
-              },
-              mode: 'xy',
-            },
-          },
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: 'Memory usage in % (physical memory to requested memory)',
-            }
-          }
-        },
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-    }
-  );
-  Object.seal(relativeRamChart);
-  metricCharts.relativeMemoryChart = relativeRamChart;
-
-
-}
-
-async function createIOPlot() {
-
-  const canvas: HTMLCanvasElement = getCanvasDiv('io_canvas')
-  metricCharts.ioCanvas = canvas;
-
-  const ioChart = new Chart(
-    metricCharts.ioCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              modifierKey: 'ctrl',
-            },
-            zoom: {
-              drag: {
-                enabled: true,
-              },
-              mode: 'xy',
-            },
-          },
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: 'amount of read and written data in GiB',
-            }
-          }
-        }
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-    }
-  );
-  Object.seal(ioChart);
-  metricCharts.ioChart = ioChart;
-
-}
-
-async function createDurationPlot() {
-  const canvas: HTMLCanvasElement = getCanvasDiv('duration_canvas');
-  metricCharts.durationCanvas = canvas;
-  const durationChart = new Chart(
-    metricCharts.durationCanvas,
-    {
-      options: {
-        responsive: true,
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              modifierKey: 'ctrl',
-            },
-            zoom: {
-              drag: {
-                enabled: true,
-              },
-              mode: 'xy',
-            },
-          },
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: `Duration in ${metricCharts.durationFormat}`
-            }
-          }
-        }
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-    }
-  );
-  Object.seal(durationChart);
-  metricCharts.durationChart = durationChart;
-}
-
-async function createRamPlot() {
-  const canvas: HTMLCanvasElement = getCanvasDiv('ram_canvas');
-  metricCharts.memoryCanvas = canvas;
-
-  const memoryChart = new Chart(
-    metricCharts.memoryCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              modifierKey: 'ctrl',
-            },
-            zoom: {
-              drag: {
-                enabled: true,
-              },
-              mode: 'xy',
-            },
-          },
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: `RAM value in ${metricCharts.memoryFormat}`
-            },
-          },
-        }
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-    }
-  );
-  Object.seal(memoryChart);
-  metricCharts.memoryChart = memoryChart;
-
-
-}
-
-async function createCPUPlot() {
-  const canvas: HTMLCanvasElement = getCanvasDiv('cpu_canvas');
-  metricCharts.cpuCanvas = canvas;
-  const cpuChart = new Chart(
-    metricCharts.cpuCanvas,
-    {
-      type: 'boxplot',
-      options: {
-        responsive: true,
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              modifierKey: 'ctrl',
-            },
-            zoom: {
-              drag: {
-                enabled: true,
-              },
-              mode: 'xy',
-            },
-          },
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: 'CPU value in %'
-            },
-          },
-        }
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-    }
-  );
-  Object.seal(cpuChart);
-  metricCharts.cpuChart = cpuChart;
-
-
-}
-
-
-async function createCPURamRatioPlot() {
-  
-  const canvas: HTMLCanvasElement = getCanvasDiv('cpu_ram_ratio');
-  metricCharts.cpuRamRatioCanvas = canvas;
-  const cpuRamRatioChart = new Chart(
-    metricCharts.cpuRamRatioCanvas,
-    {
-      type: 'scatterWithErrorBars',
-      options: {
-        responsive: true,
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              modifierKey: 'ctrl',
-            },
-            zoom: {
-              drag: {
-                enabled: true,
-              },
-              mode: 'xy',
-            },
-          },
-          annotation: {
-            annotations: {
-              box_valid: {
-                type: 'box',
-                xMin: 80,
-                xMax: 100,
-                yMin: 80,
-                yMax: 100,
-                backgroundColor: 'rgba(38, 131, 17, 0.22)',
-                borderWidth: 0,
-              },
-
-            },
-          },
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          },
-        },
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'CPU allocation in %',
-            },
-            min: 0,
-            ticks: {
-              callback: function (value, index, ticks) {
-                return value + ' %'
-              }
-            }
-          },
-          y: {
-            title: {
-              display: true,
-              text: 'RAM usage in % (used related to requested)',
-            },
-            min: 0,
-            ticks: {
-              // Include a dollar sign in the ticks
-              callback: function (value, index, ticks) {
-                return value + ' %'
-              }
-            }
-          }
-        },
-        
-        // These seems to be a bug, the name of the clicked prozess remains "undefined"
-
-        onClick: function (event, datapoints) {
-          if (datapoints.length > 0) {
-            let element = datapoints[0];
-            let index = element.index;
-            let clickedProcess: string = metricCharts.cpuRamRatioChart.data.labels[index];
-            adjustTextForRatioMessage(clickedProcess, index);
-          }
-        },
-        onHover: function (event, datapoints) {
-          if (datapoints.length > 0) {
-            event.native.target.style.cursor = 'pointer';
-          } else {
-            event.native.target.style.cursor = 'default';
-          }
-        },
-
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-
-    }
-  )
-  Object.seal(cpuRamRatioChart);
-  metricCharts.cpuRamRatioChart = cpuRamRatioChart;
-  
-}
-
-/** End of Plot creation */
-
-/** Plot updating **/
-
-function updatePlotsConditional(event: any) {
-  if (metricCharts.chartsGenerated) 
-  {
-    updatePlots();
-  }
-}
-
-/** TODO: check why the get triggerred multiple times, we actually dont want all the request to be sent multiple times */
-
-function updatePlots() {
-  if (currentlySelectedWorkflowHasPlottableData()) {
-
-    updatePlotsByRequest();
-  }
-
-}
-
-metricCharts.durationCanvas,
-    {
-      options: {
-        responsive: true,
-        plugins: {
-          zoom: {
-            pan: {
-              enabled: true,
-              modifierKey: 'ctrl',
-            },
-            zoom: {
-              drag: {
-                enabled: true,
-              },
-              mode: 'xy',
-            },
-          },
-          legend: {
-            display: true,
-          },
-          tooltip: {
-            enabled: true
-          }
-        },
-        scales: {
-          y: {
-            title: {
-              display: true,
-              text: `Duration in ${metricCharts.durationFormat}`
-            }
-          }
-        }
-      },
-      data: {
-        labels: [],
-        datasets: [],
-      }
-    }
-
-async function updatePlotsByRequest(): Promise<void> {
-
-  const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedMetricProcesses).map((proc: any) => proc['name']))]);
-  const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(filterState.selectedTags).map((tag: any) => unfoldTag(tag)))]);
-  
-
-  await axios.get(
-    `${API_BASE_URL}run/plots/${workflowState.token}`, 
-    { params: 
-      { processFilter: processNamesToFilterBy, 
-        tagFilter: tagsToFilterBy, 
-        runName: JSON.stringify(workflowState.selectedRun),
-        memoryFormat: metricCharts.memoryFormat,
-        durationFormat: metricCharts.durationFormat,
-      }
-    }
-  ).then(
-      (response: any) => {
-        let relative_ram_data: any = response.data['relative_ram'];
-        let cpu_data: any = response.data['cpu'];
-        let io_data: any = response.data['io'];
-        let ram_data: any = response.data['ram'];
-        let duration_data: any = response.data['duration'];
-        let cpu_ram_ratio_data: any = response.data['cpu_ram_ratio'];
-        
-        let relative_datasets: any = { 'label': 'Memory usage in %', 'data': [], 'maxBarThickness': 30 };
-
-        let datasets: any[] = [];
-        relative_datasets['data'] = Object.values(relative_ram_data[1]);
-        datasets.push(relative_datasets);
-        let relative_ram_plot_data: any = [relative_ram_data[0], datasets];
-
-        metricCharts.relativeMemoryChart.data.labels = getSuffixes(relative_ram_plot_data[0]);
-        metricCharts.relativeMemoryChart.data.datasets = relative_ram_plot_data[1];
-        metricCharts.relativeMemoryChart.update('none');
-
-        datasets = [];
-        let cpu_allocation_dataset: any = {'label' : 'CPU allocation in %', 'data': [], 'maxBarThickness': 30}; 
-        cpu_allocation_dataset['data'] = Object.values(cpu_data[1][0]);
-
-        datasets.push(cpu_allocation_dataset);
-        let cpu_raw_dataset: any = { 'label': 'Raw CPU usage in %', 'data': [], 'maxBarThickness': 30 };
-        cpu_raw_dataset['data'] = Object.values(cpu_data[1][1]);
-        datasets.push(cpu_raw_dataset);
-        let cpu_plot_data: any = [cpu_data[0], datasets]; // can refactor this for all, is not necessary??
-
-        metricCharts.cpuChart.data.labels = getSuffixes(cpu_plot_data[0]);
-        metricCharts.cpuChart.data.datasets = cpu_plot_data[1];
-        metricCharts.cpuChart.update('none'); 
-
-        let io_read_dataset: any = { 'label': 'Read', 'data': [], 'maxBarThickness': 30};
-        let io_write_dataset: any = { 'label': 'Write',  'data': [], 'maxBarThickness': 30};
-
-        datasets = [];
-        io_read_dataset['data'] = Object.values(io_data[1][0]);
-        io_write_dataset['data'] = Object.values(io_data[1][1]);
-        datasets.push(io_read_dataset);
-        datasets.push(io_write_dataset);
-
-        let io_plot_data: any = [io_data[0], datasets];
-        
-
-        metricCharts.ioChart.data.labels = getSuffixes(io_plot_data[0]);
-        metricCharts.ioChart.data.datasets = io_plot_data[1];
-        metricCharts.ioChart.options.scales.y.title.text = `I/O values in ${metricCharts.memoryFormat}`;
-        metricCharts.ioChart.update('none');
-
-        datasets = [];
-        let ram_requested_dataset: any = {'label': 'Requested memory', 'data': [], 'maxBarThickness': 30};
-        let ram_vmem_dataset: any = {'label': 'Virtual memory', 'data': [], 'maxBarThickness': 30};
-        let ram_rss_dataset: any = {'label': 'Physical memory', 'data': [], 'maxBarThickness': 30};
-        
-        ram_requested_dataset['data'] = Object.values(ram_data[1][0]);
-        ram_vmem_dataset['data'] = Object.values(ram_data[1][1]);
-        ram_rss_dataset['data'] = Object.values(ram_data[1][2]);
-        datasets.push(ram_requested_dataset)
-        datasets.push(ram_vmem_dataset)
-        datasets.push(ram_rss_dataset)
-
-        let ram_plot_data: any = [ram_data[0], datasets]
-
-        metricCharts.memoryChart.data.labels = getSuffixes(ram_plot_data[0]);
-        metricCharts.memoryChart.data.datasets = ram_plot_data[1];
-        metricCharts.memoryChart.options.scales.y.title.text = `Memory values in ${metricCharts.memoryFormat}`;
-        metricCharts.memoryChart.update('none')
-
-        datasets = []
-        let duration_single_dataset: any = {'type': 'boxplot', 'label': 'Execution in realtime', 'data': [], 'maxBarThickness': 30};
-        let duration_sum_dataset: any = {'type': 'bar', 'label': 'Realtime summerized', 'data': [], 'maxBarThickness': 30};
-        
-        duration_single_dataset['data'] = Object.values(duration_data[1][0]);
-        duration_sum_dataset['data'] = Object.values(duration_data[1][1]);
-        datasets.push(duration_single_dataset);
-        datasets.push(duration_sum_dataset);
-
-        let duration_plot_data: any = [duration_data[0], datasets]
-        metricCharts.durationChart.data.labels = getSuffixes(duration_plot_data[0]);
-        metricCharts.durationChart.data.datasets = duration_plot_data[1];
-        metricCharts.durationChart.options.scales.y.title.text = `Duration values in ${metricCharts.durationFormat}`;
-        metricCharts.durationChart.update('none');
-
-
-        datasets = [];
-        
-        let cpu_ram_ratio_dataset: any = {'type': 'scatterWithErrorBars', 'label': 'CPU-RAM ratio', 'data': []};
-
-        cpu_ram_ratio_dataset['data'] = Object.values(cpu_ram_ratio_data[1]);
-        datasets.push(cpu_ram_ratio_dataset);
-
-        let cpu_ram_ratio_plot_data: any = [cpu_ram_ratio_data[0], datasets]
-        metricCharts.cpuRamRatioChart.data.labels = getSuffixes(cpu_ram_ratio_plot_data[0]);
-        metricCharts.cpuRamRatioChart.data.datasets = cpu_ram_ratio_plot_data[1];
-        metricCharts.cpuRamRatioChart.update('none');
-
-        metricCharts.chartsHaveData = true;
-
-        /** TODO: extend with remaining plots: duration */
-      }
-    ).catch(error => {
-      console.log("This crashed");
-      console.log(error);
-    });
-}
 
 
 
-/** keep just in case 
-async function updateRelativeRamPlot() {
-  let generatedDatasets: [string[], any[]] = await getMemoryRelativeData();
-  console.log(generatedDatasets);
-  metricCharts.relativeMemoryChart.data.labels = getSuffixes(generatedDatasets[0]);
-  metricCharts.relativeMemoryChart.data.datasets = generatedDatasets[1];
-  metricCharts.relativeMemoryChart.update('none');
-}
-
-*/
-
-/** end of plot updating */
 
 
 /** helper functions */
@@ -1447,23 +727,7 @@ function checkIfProblemsFound() {
 }
 
 
-// TODO: needs refactoring
-function adjustTextForRatioMessage(clickedProcess: string, idx: number) {
 
-  /*let analysisData: any[] = toRaw(workflowState.fullAnalysis["cpu_ram_relation_data"][workflowState.selectedRun]["data"]["data"]);
-  let elem = analysisData[idx];
-
-  let cpu_data: any[] = [elem["xMin"], elem["x"], elem["xMax"]];
-  let memory_data: any[] = [elem["yMin"], elem["y"], elem["yMax"]];
-
-  let concatString = `The process ${clickedProcess} has the following characteristics: \n`
-    + `The CPU allocation varies from ${cpu_data[0].toFixed(2)} % to ${cpu_data[2].toFixed(2)} % with an average of ${cpu_data[1].toFixed(2)} %.\n`
-    + `The used memory percentage varies from ${memory_data[0].toFixed(2)} % to ${memory_data[2].toFixed(2)}  with an average of ${memory_data[1].toFixed(2)} %.\n`;
-
-  analysisInfo.cpuRamRatioText = concatString; */
-  analysisInfo.cpuRamRatioText = "The information shown in this label is part of refactoring"
-
-}
 
 function showProblem(problem: any): string {
   if (problem["cpu"]){ //cpu
@@ -1516,16 +780,13 @@ function formattedDate(date: Date): string {
   return new Intl.DateTimeFormat('de-DE', options).format(date);
 }
 
-function adjustSelectedRun(): void {
+function adjustSelectedRun(key: string): void {
+  workflowState.selectedRun = key;
   workflowState.processObjects = [];
   updateFilterState();
   updateFilteredProgressProcesses();
   updateCurrentState();
-  updateProgress();
-  if (!metricCharts.chartsGenerated) {
-    createPlots();
-  }
-  
+  updateProgress();  
   updateTablePageData();
   // TODO: FIX: Problems with table and component.emitsOptions error  
 }
@@ -1805,6 +1066,19 @@ function getDynamicDurationType(duration: number): string {
   }
 }
 
+
+function hideAutoUpdateEnableOptionRunning(): boolean {
+  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllRunningProcesses;
+}
+
+function hideAutoUpdateEnableOptionRunningTags(): boolean {
+  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllRunningTags;
+}
+
+function hideAutoUpdateEnableOptionProgress(): boolean {
+  return NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun]) && !filterState.autoselectAllProgressProcesses;
+}
+
 function getProcessNamesOnly(): any[] {
   mapAvailableProcesses();
   let state: any = toRaw(filterState.processTaskMapping);
@@ -2042,24 +1316,6 @@ function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: str
   return data_pair;
 }
 
-/** this could be more general? **/
-
-
-function generateAnalysisRatioData(): [string[], any[]] {
-  return [[],[]]; 
-  // TODO: implement?
-}
-
-function unfoldTag(tag: any): string {
-  if (tag[0] === "" || tag[0] === undefined){
-    return ""
-  } else if (tag[0] === '_'){
-    return tag[1];
-  } else {
-    return `${tag[0]}: ${tag[1]}`;
-  }
-}
-
 
 
 
@@ -2153,7 +1409,7 @@ onUnmounted(() => {
       <h3 class="card-title">Select runs</h3>
       <div class="row flex flex-wrap m-2" v-for="key in Object.keys(workflowState.runStartMapping)">
         <div class="flex col-auto align-items-center">
-          <RadioButton v-model="workflowState.selectedRun" v-on:update:model-value="adjustSelectedRun()" :input-id="key"
+          <RadioButton @change="adjustSelectedRun(key)" v-model="workflowState.selectedRun" :input-id="key"
             :value="key" />
           <label :for="key" class="ms-2">
             {{ key }} - {{ workflowState.runStartMapping[key] ? ' started at ' +
@@ -2508,154 +1764,16 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <div class="card-body my-4" id="metric_visualization_div">
-    <div>
-      <h3 class="my-3">Metric Visualizaton</h3>
-      
-    </div>
-    <div class="card-body my-3">
-      <div class="row my-3">
-        <div class="col-6">
-          <MultiSelect v-model="filterState.selectedMetricProcesses" :options="filterState.availableProcesses"
-            v-on:change="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
-            display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
-            :disabled="filterState.autoselectAllMetricProcesses">
-          </MultiSelect>
-        </div>
-        <div class="col-3">
-          <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="unselectAllMetricProcesses()"
-            label="Deselect all" />
-          <Button :disabled="filterState.autoselectAllMetricProcesses" v-on:click="selectAllMetricProcesses()"
-            label="Select all" />
-        </div>
-        <div class="col-3">
-          <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllMetricProcesses"
-            onLabel="Autoupdate enabled" offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionMetric()"
-            onIcon="pi pi-check" offIcon="pi pi-times" v-on:change="metricProcessAutoSelectionChanged()" />
-        </div>
-      </div>
-      <div class="row my-3">
-        <div class="col-6">
-          <MultiSelect v-model="filterState.selectedTags" :options="filterState.availableTags"
-            v-on:change="metricTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag" display="chip"
-            class="md:w-20rem" style="max-width: 40vw" optionLabel="name" :disabled="filterState.autoselectAllMetricTags">
-            <template #chip="selectedTag">
-              <div class="flex align-items-center">
-                <div v-if="Object.keys(selectedTag.value)[0] !== ''">{{ Object.keys(selectedTag.value)[0] }} : {{
-                  Object.values(selectedTag.value)[0] }}</div>
-                <div v-if="Object.keys(selectedTag.value)[0] === ''">Empty tag</div>
-              </div>
-            </template>
-            <template #option="slotProps">
-              <div class="flex align-items-center">
-                <div v-if="Object.keys(slotProps.option)[0] !== ''">
-                  {{ Object.keys(slotProps.option)[0] }}: {{ Object.values(slotProps.option)[0] }}
-                </div>
-                <div v-if="Object.keys(slotProps.option)[0] === ''">Empty tag</div>
-              </div>
-            </template>
-          </MultiSelect>
-        </div>
-        <div class="col-3">
-          <Button :disabled="filterState.autoselectAllMetricTags" v-on:click="unselectAllMetricTags()"
-            label="Deselect all" />
-          <Button :disabled="filterState.autoselectAllMetricTags" v-on:click="selectAllMetricTags()" label="Select all" />
-        </div>
-        <div class="col-3">
-          <ToggleButton id="metricSelectButton" v-model="filterState.autoselectAllMetricTags" onLabel="Autoupdate enabled"
-            offLabel="Autoupdate disabled" :disabled="hideAutoUpdateEnableOptionTags()" onIcon="pi pi-check"
-            offIcon="pi pi-times" v-on:change="metricTagAutoSelectionChanged()" />
-        </div>
-      </div>
-
-      <div class="row my-3">
-        <div class="col-3">
-          <h6 class="p-2">Memory Format</h6>
-        </div>
-        <div class="col-6 d-flex justify-content-between align-items-center">
-            <div class="p-2">
-              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_b" value="b" 
-             @change="updatePlotsConditional" />
-              <label for="mem_format_selection_b" class="mx-1">Bytes</label>
-            </div>
-            <div class="p-2"> 
-              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_kib" value="kiB"
-              @change="updatePlotsConditional" />
-              <label for="mem_format_selection_kib" class="mx-1">kiB</label>
-            </div>
-            <div class="p-2"> 
-              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_mib" value="MiB" 
-              @change="updatePlotsConditional" />
-              <label for="mem_format_selection_mib" class="mx-1">MiB</label>
-            </div>
-            <div class="p-2"> 
-              <RadioButton v-model="metricCharts.memoryFormat" id="mem_format_selection_gib" value="GiB" 
-              @change="updatePlotsConditional" />
-              <label for="mem_format_selection_gib" class="mx-1">GiB</label>
-            </div>
-          </div>
-      </div>
-
-      <div class="row my-3">
-        <div class="col-3">
-          <h6 class="p-2">Duration Format</h6>
-        </div>
-        <div class="col-4 d-flex justify-content-between align-items-center">
-            <div class="p-2">
-              <RadioButton v-model="metricCharts.durationFormat" id="duration_format_selection_s" value="s" 
-              @change="updatePlotsConditional"/>
-              <label for="duration_format_selection_s" class="mx-1">s</label>
-            </div>
-            <div class="p-2"> 
-              <RadioButton v-model="metricCharts.durationFormat" id="duration_format_selection_min" value="min"
-              @change="updatePlotsConditional" />
-              <label for="duration_format_selection_min" class="mx-1">min</label>
-            </div>
-            <div class="p-2"> 
-              <RadioButton v-model="metricCharts.durationFormat" id="mem_format_selection_mib" value="h"
-              @change="updatePlotsConditional" />
-              <label for="duration_format_selection_h" class="mx-1">h</label>
-            </div>
-          </div>
-      </div>
+  <metricVisualizationComponentVue v-if="workflowState.selectedRun"
+    :runName="workflowState.selectedRun" 
+    :tokenId="workflowState.token"
+    :availableProcesses="filterState.availableProcesses"
+    :availableTags="filterState.availableTags"
+    :runState="workflowState.currentState[workflowState.selectedRun]"
+  ></metricVisualizationComponentVue>
 
 
-    </div>
-    <!-- check how to handle v-show without having display:block on true -->
-    <div v-show="!metricCharts.chartsHaveData">
-      <Message severity="info" :closable="false">There is no plot data to show.</Message>
-    </div>
-    <div class="card-body my-4 py-2" id="canvas_area" v-show="metricCharts.chartsHaveData">
-      <div class="plot-section">
-        <h5>RAM</h5>
-        <canvas id="ram_canvas" class="p-4"></canvas>
-        <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.memoryChart.resetZoom()"/>
-      </div>
-      <div class="plot-section">
-        <h5>Relative RAM</h5>
-        <canvas id="relative_ram_canvas" class="p-4"></canvas>
-        <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.relativeMemoryChart.resetZoom()"/>
-      </div>
-      <div class="plot-section">
-        <h5>CPU</h5>
-        <canvas id="cpu_canvas" class="p-4"></canvas>
-        <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.cpuChart.resetZoom()"/>
-      </div>
-      <div class="plot-section">
-        <h5>I/O</h5>
-        <canvas id="io_canvas" class="p-4"></canvas>
-        <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.ioChart.resetZoom()"/>
-      </div>
-      <div class="plot-section">
-        <h5>Duration</h5>
-        <canvas id="duration_canvas" class="p-4"></canvas>‚
-        <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.durationChart.resetZoom()"/>
-      </div>
-    </div>
-    <hr>
-  </div>
-
-  <div class="card-body my-4" v-if="currentlySelectedWorkflowHasPlottableData() && workflowState.fullAnalysis" id="analysis_div">
+  <div class="card-body my-4" id="analysis_div" v-if="workflowState.selectedRun">
     <div class="card-header">
       <h3>Analysis</h3>
     </div>
@@ -2818,18 +1936,6 @@ onUnmounted(() => {
 
       </div>
     </div>
-    <div class="card-body my-5 py-2" id="analysis_canvas_area">
-      <div class="plot-section">
-        <h5>CPU-RAM ratio</h5>
-        <Message severity="info" :closable="false" v-if="!metricCharts.chartsHaveData">There is no data to show in this plot.</Message>
-        <canvas id="cpu_ram_ratio" class="p-4"></canvas>
-        <Button label="Reset zoom" severity="sencondary" size="small" class="m-2" outlined @click="metricCharts.cpuRamRatioChart.resetZoom()"/>
-      </div>
-
-    </div>
-    <Message severity="info" :closable="false">
-      {{ analysisInfo.cpuRamRatioText }}
-    </Message>
 
     <hr>
 

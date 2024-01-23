@@ -31,8 +31,9 @@ tr.analysis-alert-row td:first-child {
   
 }
 
-canvas {
-  display: inline;
+.plot-section canvas {
+  display: inline !important;
+  width: 100%;
 }
 
 .plot-section {
