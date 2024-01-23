@@ -11,14 +11,20 @@ import Button from "primevue/button";
 import ToggleButton from 'primevue/togglebutton';
 import Panel from 'primevue/panel';
 import Tag from 'primevue/tag';
+import Chip from 'primevue/chip';
 import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
-let {token, runName} : any = defineProps(['token', 'runName'])
+
+const props = defineProps<{
+    runName: string
+    token: string
+    availableProcesses: string[]
+    availableTags: string[];
+    runState: string;
+}>();
 
 const componentState = reactive<{
-  availableProcesses: string[];
-  availableTags: string[];
   autoselectAllRunningProcesses: boolean;
   autoselectAllRunningTags: boolean;
   selectedRunningTags: any[];
@@ -26,8 +32,6 @@ const componentState = reactive<{
   filteredProcesses: any[];
 }>({
 
-  availableProcesses: [],
-  availableTags: [],
   autoselectAllRunningProcesses: true,
   autoselectAllRunningTags: true,
   selectedRunningTags: [],
@@ -48,7 +52,7 @@ function runningProcessSelectionChanged(): void {
   
   let tagFilter: boolean = false;
   let selectedTags: any = null;
-  if (componentState.selectedRunningTags.length > 0 && componentState.selectedRunningTags.length !== componentState.availableTags.length) {
+  if (componentState.selectedRunningTags.length > 0 && componentState.selectedRunningTags.length !== props.availableTags.length) {
     tagFilter = true;
     selectedTags = toRaw(componentState.selectedRunningTags);
   }
@@ -117,9 +121,10 @@ function getTagsFromString(tagString: string): any[] {
     }
 
 onMounted(() => {
-  let params: any = {runName: runName};
-  axios.get(`${API_BASE_URL}run/processes/${token}`, {params: params}).then((response: any) => {
+  let params: any = {runName: props.runName};
+  axios.get(`${API_BASE_URL}run/processes/${props.token}`, {params: params}).then((response: any) => {
     componentState.filteredProcesses = response.data;
+    console.log(componentState.filteredProcesses);
     // TODO : add error handling
   });
 });
@@ -133,9 +138,9 @@ onMounted(() => {
   <Message closable >This area displays the tasks, grouped by process, that are currently running and correspond to the settings of the following filter</Message>
 <div class="row my-3">
   <div class="col-6">
-    <MultiSelect v-model="componentState.selectedRunningProcesses" :options="componentState.availableProcesses"
+    <MultiSelect v-model="componentState.selectedRunningProcesses" :options="props.availableProcesses"
       v-on:change="runningProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
-      display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
+      display="chip" class="md:w-20rem" 
       :disabled="componentState.autoselectAllRunningProcesses">
     </MultiSelect>
   </div>
@@ -153,9 +158,9 @@ onMounted(() => {
 </div>
 <div class="row my-3">
   <div class="col-6">
-    <MultiSelect v-model="componentState.selectedRunningTags" :options="componentState.availableTags"
-      v-on:change="runningTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag" display="chip"
-      class="md:w-20rem" style="max-width: 40vw" optionLabel="name" :disabled="componentState.autoselectAllRunningTags">
+    <MultiSelect v-model="componentState.selectedRunningTags" :options="props.availableTags"
+      v-on:change="runningTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tags" display="chip"
+      class="md:w-20rem"  :disabled="componentState.autoselectAllRunningTags">
       <template #chip="selectedTag">
         <div class="flex align-items-center">
           <div v-if="Object.keys(selectedTag.value)[0] !== ''">{{ Object.keys(selectedTag.value)[0] }} : {{
@@ -204,6 +209,3 @@ onMounted(() => {
 </Fieldset>
 </template>
 
-<style scoped>
-
-</style>

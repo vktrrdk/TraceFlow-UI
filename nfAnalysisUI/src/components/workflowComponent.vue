@@ -307,9 +307,7 @@ function getDataInitial(token = props.token): void {
           workflowState.meta = response.data["result_meta"];
           updateRunStartMapping();
           setFirstRunName();
-          workflowState.processObjects = [];
           workflowState.runningProcesses = updateRunningProcesses();
-          updateFilterState();
           updateFilteredRunningProcesses();
           workflowState.token = token;
           requestAnalysisData();
@@ -328,6 +326,22 @@ function getDataInitial(token = props.token): void {
   }
 
 }
+
+function getAvailableProcessesAndTags(): void {
+  const loadParams: any = {runName: workflowState.selectedRun};
+  axios.get(`${API_BASE_URL}run/selection/${workflowState.token}`, {params: loadParams}).then(
+    response => {
+      if (response.data["error"]) {
+
+      } else {
+        filterState.availableProcesses = response.data["processes"];
+        filterState.availableTags = response.data["tags"];
+      }
+    }
+  );
+}
+
+
 
 
 function requestAnalysisData(): void {
@@ -367,7 +381,6 @@ function dataPollingLoop(): void {
       } else {
         workflowState.meta = response.data["result_meta"];
         updateRunStartMapping();
-        workflowState.processObjects = [];
         workflowState.runningProcesses = updateRunningProcesses();
         if (!NON_AUTO_UPDATE_STATES.includes(workflowState.currentState[workflowState.selectedRun])) {
           updateFilterState();
@@ -391,7 +404,6 @@ function dataPollingLoop(): void {
  */
 
 function updateTableFilter(event?: any): void {
-  console.log("filter update called");
   if (event){
 
     filterState.tableFilter = JSON.stringify(event.filters);
@@ -452,20 +464,11 @@ function updateTablePageData(event?: any): void {
 
 
 function updateFilterState(): void {
-  updateAvailableProcessNamesForFilter();
-  updateAvailableTags();
   updateIfAutoselectEnabled();
   updateIfTagAutoSelectEnabled();
 
 }
 
-function updateAvailableProcessNamesForFilter(): void {
-  filterState.availableProcesses = getProcessNamesOnly();
-}
-
-function updateAvailableTags(): void {
-  filterState.availableTags = getTags();
-}
 
 function getTagsFromString(tagString: string): any[] {
         let keyValuePairs: any[] = [];
@@ -783,6 +786,7 @@ function formattedDate(date: Date): string {
 function adjustSelectedRun(key: string): void {
   workflowState.selectedRun = key;
   workflowState.processObjects = [];
+  getAvailableProcessesAndTags();
   updateFilterState();
   updateFilteredProgressProcesses();
   updateCurrentState();
@@ -1082,6 +1086,7 @@ function hideAutoUpdateEnableOptionProgress(): boolean {
 function getProcessNamesOnly(): any[] {
   mapAvailableProcesses();
   let state: any = toRaw(filterState.processTaskMapping);
+  console.log(state);
   let keys: string[] = Object.keys(state);
   return keys.map(name => ({ name }));
 }
@@ -1089,6 +1094,7 @@ function getProcessNamesOnly(): any[] {
 function mapAvailableProcesses(): void {
   let result: any = {};
   let state: any = toRaw(workflowState.processObjects);
+  console.log(state);
   if (state) {
     for (let process of state) {
       if (!(process.process in result)) {
@@ -1201,120 +1207,7 @@ function reasonableDataFormat(input: number) {
 
 }
 
-function getSingleDataInValidStorageFormat(num: number, wantedType: string): number {
-  const types: string[] = STORAGE_UNITS;
-  let idx: number = 0;
-  if (num) {
-    while (types[idx] !== wantedType && idx < types.length) {
-      num = num / 1024
-      idx++;
-    }
-  }
-}
 
-function getDataInValidStorageFormat(byte_numbers: number[], wantedType: string): [number[], string] {
-  const types: string[] = STORAGE_UNITS;
-  let iteration: number = 0;
-
-  if (byte_numbers.length > 0) {
-    while (byte_numbers.some(elm => elm > 10000) && iteration < types.length - 1 && types[iteration] !== wantedType) {
-      byte_numbers = byte_numbers.map((num): number => num / 1024);
-      iteration++;
-    }
-  }
-  return [byte_numbers, types[iteration]]
-
-}
-
-/** end of helper functions */
-
-/** data retrieval functions */
-
-function generateSummarizedDataByKey(key: string, factorizer: number = 1, unit: any = null): any {
-  let data_pair: any = {};
-  let processDataMapping: any = {};
-  let tagFilter: boolean = false;
-  let selectedTags: any = [];
-  let processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
-  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
-    tagFilter = true;
-    selectedTags = toRaw(filterState.selectedTags);
-  }
-  let states: any = toRaw(workflowState.processObjects);
-  for (let process of states) {
-    if (tagFilter) {
-      if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
-        continue;
-      }
-    }
-    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-      let value: any = process[key];
-      if (value && unit) {
-        if (TIME_UNITS.includes(unit)) {
-          value = getDynamicDurationTypeAsNumber(value, unit);
-        } else if (STORAGE_UNITS.includes(unit)) {
-          value = getSingleDataInValidStorageFormat(value, unit);
-        }
-      }
-      if (!(process.process in processDataMapping)) {
-        processDataMapping[process.process] = [value];
-      } else {
-        processDataMapping[process.process].push(value);
-      }
-
-    }
-  }
-
-  for (let processMap in processDataMapping) {
-    if (factorizer !== 1 && unit === null) {
-      processDataMapping[processMap] = processDataMapping[processMap].map((elem: number) => elem / factorizer);
-    }
-    processDataMapping[processMap] = processDataMapping[processMap].reduce((a: number, b: number) => a + b, 0);
-
-  }
-
-  data_pair["data"] = Object.values(processDataMapping);
-  data_pair["labels"] = Object.keys(processDataMapping);
-  data_pair['maxBarThickness'] = 30;
-  return data_pair;
-}
-
-function generateDataByKey(key: string, adjustFormat: boolean, wantedFormat: string): any {
-  let data_pair: any = {};
-  let processDataMapping: any = {};
-  let processesToFilterBy: any[] = toRaw(filterState.selectedMetricProcesses);
-  let tagFilter: boolean = false;
-  let selectedTags: any[] = [];
-  if (filterState.selectedTags.length > 0 && filterState.selectedTags.length !== filterState.availableTags.length) {
-    tagFilter = true;
-    selectedTags = toRaw(filterState.selectedTags);
-  }
-  let states: any = toRaw(workflowState.processObjects);
-  for (let process of states) {
-    if (tagFilter) {
-      if (!selectedTags.some(tag => checkTagMatch(tag, process.tag))) {
-        continue;
-      }
-    }
-    if (processesToFilterBy.some(obj => obj['name'] === process.process)) {
-      if (!(process.process in processDataMapping)) {
-        processDataMapping[process.process] = [process[key]]
-      } else {
-        processDataMapping[process.process].push(process[key]);
-      }
-    }
-  }
-  let temporaryValues: any[] = Object.values(processDataMapping);
-  if (adjustFormat) {
-    temporaryValues = temporaryValues.map((lst: any[]) => getDataInValidStorageFormat(lst, wantedFormat)[0]);
-  }
-
-  data_pair["data"] = temporaryValues;
-  data_pair["labels"] = Object.keys(processDataMapping);
-  data_pair['type'] = wantedFormat;
-  data_pair['maxBarThickness'] = 30;
-  return data_pair;
-}
 
 
 
@@ -1493,14 +1386,20 @@ onUnmounted(() => {
 
     <div class="card-body my-5" v-if="workflowState.selectedRun">
     
-      <currentlyRunningComponentVue :token="workflowState.token" :runName="workflowState.selectedRun" />
+      <currentlyRunningComponentVue 
+      :token="workflowState.token" 
+      :runName="workflowState.selectedRun"
+      :availableProcesses="filterState.availableProcesses"
+      :availableTags="filterState.availableTags"
+      :runState="workflowState.currentState[workflowState.selectedRun]"
+       />
       
 
 
     </div>
 
     <div class="my-5 py-2"
-      v-if="workflowState.token_info_requested && workflowState.processObjects?.length > 0 && !workflowState.error_on_request">
+      v-if="workflowState.token_info_requested && !workflowState.error_on_request && workflowState.selectedRun">
       <hr>
       <h5 class="card-title">By process</h5>
   

@@ -3,7 +3,6 @@ import {onMounted, reactive, watch, toRaw} from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js"
-import { defineProps } from "vue";
 import axios, { all, AxiosResponse} from "axios";
 import RadioButton from 'primevue/radiobutton';
 import Message from 'primevue/message';
@@ -84,7 +83,7 @@ const metricCharts = reactive<{
   autoselectAllMetricTags: true,
   selectedTags: [],
   plotPollingIntervalId: null,
-  plotPollintIntervalValue: 0,
+  plotPollingIntervalValue: 0,
 });
 
 
@@ -96,13 +95,14 @@ function getSuffixes(strings: string[]) {
 }
 
 function unfoldTag(tag: any): string {
-  if (tag[0] === "" || tag[0] === undefined){
-    return ""
-  } else if (tag[0] === '_'){
-    return tag[1];
-  } else {
-    return `${tag[0]}: ${tag[1]}`;
-  }
+    const key: string = Object.keys(tag)[0];
+    if (key === "" || key === undefined){
+        return ""
+    } else if (key === '_'){
+        return tag[key];
+    } else {
+        return `${key}: ${tag[key]}`;
+    }
 }
 
 function createPlotsInitial() {
@@ -114,8 +114,9 @@ function createPlotsInitial() {
 
 
 async function updatePlots(): Promise<void> {
-  const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(metricCharts.selectedMetricProcesses).map((proc: any) => proc['name']))]);
+  const processNamesToFilterBy: string = JSON.stringify([...new Set(toRaw(metricCharts.selectedMetricProcesses))]);
   const tagsToFilterBy: string = JSON.stringify([...new Set(toRaw(metricCharts.selectedTags).map((tag: any) => unfoldTag(tag)))]);
+  console.log(tagsToFilterBy);
   
 
   await axios.get(
@@ -267,6 +268,7 @@ function metricTagAutoSelectionChanged(): void {
 
  function metricProcessSelectionChanged(): void {
   if (metricCharts.selectedMetricProcesses.length > 0 && metricCharts.chartsGenerated) {
+
     updatePlots();
   }
 }
@@ -776,9 +778,9 @@ onMounted(() => {
     <div class="card-body my-3">
       <div class="row my-3">
         <div class="col-6">
-          <MultiSelect v-model="metricCharts.selectedMetricProcesses" :options="availableProcesses"
+          <MultiSelect v-model="metricCharts.selectedMetricProcesses" :options="props.availableProcesses"
             v-on:change="metricProcessSelectionChanged();" :showToggleAll=false filter placeholder="Select Processes"
-            display="chip" class="md:w-20rem" style="max-width: 40vw" optionLabel="name"
+            display="chip" class="md:w-20rem" style="max-width: 40vw"
             :disabled="metricCharts.autoselectAllMetricProcesses">
           </MultiSelect>
         </div>
@@ -796,9 +798,9 @@ onMounted(() => {
       </div>
       <div class="row my-3">
         <div class="col-6">
-          <MultiSelect v-model="metricCharts.selectedTags" :options="availableTags"
-            v-on:change="metricTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tag" display="chip"
-            class="md:w-20rem" style="max-width: 40vw" optionLabel="name" :disabled="metricCharts.autoselectAllMetricTags">
+          <MultiSelect v-model="metricCharts.selectedTags" :options="props.availableTags"
+            v-on:change="metricTagSelectionChanged();" :showToggleAll=false filter placeholder="Select Tags" display="chip"
+            class="md:w-20rem" style="max-width: 40vw"  :disabled="metricCharts.autoselectAllMetricTags">
             <template #chip="selectedTag">
               <div class="flex align-items-center">
                 <div v-if="Object.keys(selectedTag.value)[0] !== ''">{{ Object.keys(selectedTag.value)[0] }} : {{
