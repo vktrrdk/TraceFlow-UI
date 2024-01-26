@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref, toRaw } from "vue";
+import { onMounted, onUnmounted, reactive, ref, toRaw, toRefs } from "vue";
 import "bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.min.js";
@@ -220,7 +220,7 @@ const workflowState = reactive<{
   meta: any;
   //connection: WebSocket;
 }>({
-  currentState: {},
+  currentState: reactive({}),
   progress: {
     "all": null,
     "submitted": null,
@@ -242,7 +242,7 @@ const workflowState = reactive<{
   pollIntervalId: null,
   pollIntervalValue: 0,
   loading: true,
-  token: "",
+  token: '',
   token_info_requested: false,
   error_on_request: false,
   filteredProgressProcesses: {},
@@ -309,9 +309,9 @@ function getDataInitial(token = props.token): void {
           setFirstRunName();
           workflowState.runningProcesses = updateRunningProcesses();
           updateFilteredRunningProcesses();
-          workflowState.token = token;
+          workflowState.token = token
           requestAnalysisData();
-          updateCurrentState();
+          
           updateProgress();
           workflowState.token_info_requested = true;
           workflowState.error_on_request = false;
@@ -790,6 +790,7 @@ function adjustSelectedRun(key: string): void {
   updateFilterState();
   updateFilteredProgressProcesses();
   updateCurrentState();
+  console.log("THIS IS IT!")
   updateProgress();  
   updateTablePageData();
   // TODO: FIX: Problems with table and component.emitsOptions error  
@@ -809,7 +810,7 @@ function createProcessObjectsByRun(data: any): any {
 }
 
 function setFirstRunName(): void {
-  // refactor
+  console.log(workflowState.currentState);
 }
 
 function updateRunStartMapping(): void {
@@ -822,7 +823,7 @@ function updateRunStartMapping(): void {
         result[meta["run_name"]] = new Date(meta["timestamp"]);
         hasRunning = true;
         if ([undefined, "WAITING"].includes(workflowState.currentState[meta["run_name"]])) {
-          workflowState.currentState[meta["run_name"]] = "SUBMITTED";
+          workflowState.currentState[meta["runName"]] = "SUBMITTED";
           updateToFasterPolling();
         }
       }
@@ -853,28 +854,7 @@ function startBackToMainTimer(): void {
 }
 
 function updateCurrentState(): void {
-  let full_meta: any[] = toRaw(workflowState.meta);
-  let processes = toRaw(workflowState.processObjects);
-  for (let name in workflowState.runStartMapping) {
-    let meta: any[] = full_meta.filter((metaOb: any) => metaOb["run_name"] === name);
-    meta = meta.reduce((latestMeta: any, currMeta: any) => {
-      if (new Date(latestMeta["timestamp"]) > new Date(currMeta["timestamp"])) {
-        return latestMeta;
-      } else {
-        return currMeta;
-      }
-    });
-    adjustCurrentStateForRun(name, meta);
-  }
-  if (processes) {
-    for (let process of processes) {
-      if (process.status === "FAILED") {
-        workflowState.failedProcesses = true;
-        return;
-      }
-    }
-  }
-  workflowState.failedProcesses = false;
+  // TODO: REFACTOR - why is undefined: submitted in the list for all states need to be set correclty
 }
 
 
@@ -891,37 +871,8 @@ function updateProgress(): void {
 
 
 function adjustCurrentStateForRun(nameKey: string, meta: any) {
-
-  if (meta['event'] === "started") {
-    let processes: Process[] = toRaw(workflowState.processObjects);
-    if (processes) {
-      if (["SUBMITTED", "WAITING", undefined].includes(workflowState.currentState[nameKey])) {
-        for (let process of processes) {
-          if (process.status == "RUNNING") {
-            workflowState.currentState[nameKey] = "RUNNING";
-            return
-          } else if (process.status == "COMPLETED") {
-            workflowState.currentState[nameKey] = "RUNNING";
-            return;
-          }
-        }
-        workflowState.currentState = "SUBMITTED";
-      }
-    }
-  } else if (meta['event'] === "completed") {
-    if (meta["error_message"] !== null) {
-
-      if (meta["error_message"] === "SIGINT") {
-        workflowState.currentState[nameKey] = "ABORTED";
-      } else {
-        workflowState.currentState[nameKey] = "FAILED";
-      }
-    } else {
-      workflowState.currentState[nameKey] = "COMPLETED";
-    }
-  } else {
-    workflowState.currentState[nameKey] = "SUBMITTED";
-  }
+// state should be handled by api! return state from api instead of checking for running processees
+  
 
   checkForPollingTimerAdjustment();
 }
@@ -994,6 +945,7 @@ function severityFromWorkflowState(): string {
 }
 
 function messageFromWorkflowState(): string {
+  //TODO REFACTOR: run state is part of "run/progress endpoint - adjust handling accordingly"
   const state: string = workflowState.currentState[workflowState.selectedRun];
   switch (state) {
     case "SUBMITTED":

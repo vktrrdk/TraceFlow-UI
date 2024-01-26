@@ -32,7 +32,7 @@ const TIME_UNITS = ['s', 'min', 'h'];
 
 const POLLING_INTERVAL: number = 20000;
 
-const metricCharts = reactive<{
+let metricCharts = reactive<{
   chartsGenerated: boolean;
   chartsInCreation: boolean;
   chartsHaveData: boolean;
